@@ -75,10 +75,11 @@ sm_motif <- function(x, X,
 
 #' @export
 #' @rdname sm_motif
+#' @importFrom stats optim
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse) {
-  fit <- optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x))
+  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x))
   res <- sm_motif(x, sort(fit$par))
   attr(res, 'par') <- fit$par
   res

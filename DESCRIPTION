@@ -1,7 +1,7 @@
 Package: soilmotif
 Type: Package
 Version: 0.0.1
-Title: Fit, Analyze, and Generalize Soil Depth Functions
+Title: Analyze, Fit, and Generalize Soil Depth Functions
 Authors@R: person(given="Andrew", family="Brown", email="brown.andrewg@gmail.com", role = c("aut", "cre"))
 Maintainer: Andrew G. Brown <brown.andrewg@gmail.com>
 Description: Fit generalized shape functions to soil property data that vary over depth. The parameters of shape functions are designed to provide simple terminology and intuitive descriptors for comparing the depth distributions of properties found in soils of different areas and as predicted by different types of models.
@@ -11,6 +11,8 @@ LazyData: true
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.2.3
 Roxygen: list(markdown = TRUE)
+Imports: 
+    stats
 Suggests: 
     aqp,
     mpspline2,
