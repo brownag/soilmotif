@@ -60,7 +60,8 @@ first guess (that the depletions appear around 40 cm and peak by 60 cm).
 ``` r
 depl_step <- rep(x$depletion_pct, x$bottom - x$top)
 
-plot(rep(c(0, 20), 100), 1:200, ylim = c(200, 0), type = "n")
+plot(rep(c(0, 20), 100), 1:200, ylim = c(200, 0), type = "n",
+     xlab = "Depletion %", ylab = "Depth, cm")
 points(depl_step, 1:200, pch = "+")
 
 # visualize what the "first guess" looks like
@@ -104,10 +105,15 @@ clay_spline <- inverse.rle(structure(list(
              49, 48, 47)), class = "rle"
 ))
 
-plot(rep(c(0, 50), 100), 1:200, ylim = c(200, 0), type = "n")
+plot(rep(c(0, 50), 100), 1:200, ylim = c(200, 0), type = "n",
+     xlab = "Clay %", ylab = "Depth, cm")
 points(clay_spline, 1:200, pch = "+")
-lines(sm_motif(clay_spline, c(40, 60)), 1:200, col = "red", lty = 2)
-lines(sm_optim(clay_spline, c(40, 60)), 1:200, col = "blue")
+lines(sm_motif(clay_spline, c(25, 100)), 1:200, col = "red", lty = 2)
+m <- sm_optim(clay_spline, c(25, 100))
+lines(m, 1:200, col = "blue")
+attr(m, "par")
+#> [1] 15.42749 73.44347
+
 legend("bottomleft", c("Input", "Initial", "Optimized"),
        pch = c("+", NA, NA),
        lty = c(NA, 2, 1),
@@ -115,3 +121,10 @@ legend("bottomleft", c("Input", "Initial", "Optimized"),
 ```
 
 <img src="man/figures/README-unnamed-chunk-3-1.png" width="100%" />
+
+In this case we find that the optimized parameters result in a steeper
+gradient of property increase than was initially guessed with parameters
+`c(25, 100)`, which had the “initial” transition centered around 63 cm.
+The “optimized” curve is shifted upwards by about 20 cm, with final
+parameters 15.4274881, 73.4434748 reflecting a smooth spline increase
+around 45 cm.
