@@ -3,16 +3,24 @@
 
 #' @importFrom stats dnorm plogis
 #' @title Sigmoid Shape Function
-#' @description Models an S-shaped curve; smooth transition between depths. Useful for wetting fronts, reaction fronts.
+#' @description Models an S-shaped curve with smooth transition between depths. Useful for wetting fronts, reaction fronts, and gradual pedogenic changes.
 #'
-#' @param x numeric. Depth vector.
-#' @param xlim numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
-#' @param ascending logical. If TRUE, increases with depth. If FALSE, decreases.
+#' @param x numeric. Depth vector (typically 1 to 200 cm).
+#' @param xlim numeric. Parameters: c(depth_inflection_start, depth_inflection_end). Both depths should be within the range of x.
+#' @param ascending logical. If TRUE, increases with depth (e.g., clay accumulation). If FALSE, decreases with depth.
 #'
-#' @return numeric vector in the range 0 to 1 representing the shape.
+#' @return numeric vector in the range 0 to 1 representing the shape function.
+#' @details
+#' The sigmoid shape represents gradual transitions typical of wetting fronts in soils,
+#' where water infiltration creates smooth S-shaped moisture or chemical gradients.
+#' This motif is common in redoximorphic features, carbonate leaching, or clay translocation zones.
 #' @export
 #' @examples
-#' plot(sm_shape_sigmoid(0:100, c(20, 50)), 0:100, ylim = c(100, 0))
+#' # Basic sigmoid shape
+#' plot(sm_shape_sigmoid(1:200, c(50, 150)), 1:200, ylim = c(200, 0), type = "l")
+#' 
+#' # Inverted (decreasing with depth)
+#' plot(sm_shape_sigmoid(1:200, c(50, 150), ascending = FALSE), 1:200, ylim = c(200, 0), type = "l")
 sm_shape_sigmoid <- function(x, xlim, ascending = TRUE) {
   num2 <- sum(xlim) / 2
   num <- vector("numeric", length(x))

@@ -37,6 +37,13 @@ numeric vector or function when \code{as_function=TRUE}
 \description{
 Fit a Soil Property Shape Function
 }
+\details{
+sm_optim uses numerical optimization to find the best-fitting parameters for a given
+shape function. It employs Brent's method for single parameters and Nelder-Mead
+for multi-parameter optimization. Parameters are constrained to reasonable ranges
+(shape parameters typically in the range 0 to 1 for single parameters). For wetting_front motifs,
+parameters are automatically sorted after optimization.
+}
 \section{Parameter Semantics by Motif Type}{
 
 \itemize{

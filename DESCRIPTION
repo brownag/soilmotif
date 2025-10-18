@@ -1,11 +1,11 @@
 Package: soilmotif
 Type: Package
-Version: 0.0.4
+Version: 0.1.0
 Title: Analyze, Fit, and Generalize Soil Depth Functions
 Authors@R: person(given="Andrew", family="Brown", email="brown.andrewg@gmail.com", role = c("aut", "cre"))
 Author: Andrew G. Brown [aut, cre]
 Maintainer: Andrew G. Brown <brown.andrewg@gmail.com>
-Description: Fit generalized shape functions to soil property data that vary over depth. The parameters of shape functions are designed to provide simple terminology and intuitive descriptors for comparing the depth distributions of properties found in soils of different areas and as predicted by different types of models.
+Description: Fit generalized shape functions to soil property data that vary over depth. Includes automated model selection across seven motif types (uniform, gradational, exponential, wetting_front, abrupt, peak, minimax) and comprehensive data preprocessing for horizon data. The parameters of shape functions are designed to provide simple terminology and intuitive descriptors for comparing the depth distributions of properties found in soils of different areas and as predicted by different types of models.
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
@@ -17,5 +17,8 @@ Imports:
 Suggests: 
     aqp,
     mpspline2,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
 Config/testthat/edition: 3
+VignetteBuilder: knitr

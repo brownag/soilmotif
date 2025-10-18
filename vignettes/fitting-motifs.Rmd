@@ -1,0 +1,172 @@
+---
+title: "Fitting Multiple Motif Types"
+author: "Andrew G. Brown"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fitting Multiple Motif Types}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(soilmotif)
+```
+
+# Introduction
+
+This vignette demonstrates how to fit multiple soil depth motif types to soil property data and select the best-fitting model. We'll cover:
+
+- Preparing soil profile data for motif fitting
+- Fitting individual motifs with optimization
+- Automated model selection across all motif types
+- Interpreting and visualizing results
+
+# Data Preparation
+
+Soil motif fitting requires continuous depth profiles. The `sm_prepare()` function handles conversion from discrete horizon data to continuous profiles using different interpolation methods.
+
+```{r data_prep}
+# Example horizon data
+horizon_data <- data.frame(
+  id = c("P1", "P1", "P1", "P1"),
+  top = c(0, 15, 45, 90),
+  bottom = c(15, 45, 90, 120),
+  clay = c(8, 25, 35, 42)
+)
+
+# Convert to continuous profile
+profiles <- sm_prepare(horizon_data, property = "clay", method = "linear")
+clay_profile <- profiles$clay$P1
+
+# Plot the profile
+depths <- 1:200
+plot(clay_profile, depths, ylim = c(200, 1), type = "l", 
+     xlab = "Clay Content (%)", ylab = "Depth (cm)",
+     main = "Prepared Clay Profile")
+```
+
+# Fitting Individual Motifs
+
+You can fit individual motif types using `sm_optim()`. Each motif type has different parameters:
+
+```{r individual_fits}
+# Fit different motif types
+sigmoid_fit <- sm_optim(clay_profile, c(50, 100), FUN = sm_shape_wetting_front)
+peak_fit <- sm_optim(clay_profile, c(80, 20), FUN = sm_shape_peak)
+gradational_fit <- sm_optim(clay_profile, c(10, 40), FUN = sm_shape_gradational)
+
+# Plot comparisons
+plot(clay_profile, depths, ylim = c(200, 1), type = "l", lwd = 2,
+     xlab = "Clay Content (%)", ylab = "Depth (cm)",
+     main = "Individual Motif Fits")
+lines(sigmoid_fit, depths, col = "blue", lty = 2, lwd = 2)
+lines(peak_fit, depths, col = "red", lty = 3, lwd = 2)
+lines(gradational_fit, depths, col = "green", lty = 4, lwd = 2)
+legend("bottomright", 
+       c("Observed", "Wetting Front", "Peak", "Gradational"),
+       lty = c(1, 2, 3, 4), col = c("black", "blue", "red", "green"), lwd = 2)
+```
+
+# Automated Model Selection
+
+The `fit_motif_auto()` function automatically fits all motif types and ranks them by goodness-of-fit criteria.
+
+```{r auto_selection}
+# Automated model selection
+results <- fit_motif_auto(clay_profile, criterion = "AIC")
+print(results)
+
+# Plot the results
+plot(results)
+```
+
+The function returns an object with:
+
+- `fits`: All fitted motifs
+- `stats`: Fit statistics (RMSE, AIC, BIC, R^2) for each model
+- `ranking`: Models ranked by the chosen criterion
+- `best`: Name of the best model
+
+# Interpreting Results
+
+Different criteria emphasize different aspects of model performance:
+
+- **AIC/BIC**: Balance fit quality with model complexity (prefer lower values)
+- **RMSE**: Absolute fit error (prefer lower values)  
+- **R^2**: Proportion of variance explained (prefer higher values)
+
+```{r interpretation}
+# Compare fit statistics
+print(results$stats)
+
+# Best model parameters
+best_params <- attr(results$fits[[results$best]], 'par')
+cat("Best model:", results$best, "\n")
+cat("Parameters:", paste(best_params, collapse = ", "), "\n")
+```
+
+# Working with Multiple Profiles
+
+You can process multiple soil profiles simultaneously:
+
+```{r multiple_profiles}
+# Multiple profiles
+multi_data <- data.frame(
+  id = c("P1", "P1", "P1", "P2", "P2", "P2"),
+  top = c(0, 20, 60, 0, 25, 70),
+  bottom = c(20, 60, 100, 25, 70, 120),
+  clay = c(12, 28, 38, 8, 22, 45)
+)
+
+# Prepare all profiles
+all_profiles <- sm_prepare(multi_data, property = "clay", method = "step")
+
+# Fit motifs for each profile
+results_list <- lapply(all_profiles$clay, function(profile) {
+  fit_motif_auto(profile, criterion = "AIC")
+})
+
+# Show results for each profile
+for (profile_id in names(results_list)) {
+  cat("\nProfile", profile_id, "- Best model:", results_list[[profile_id]]$best, "\n")
+}
+```
+
+# Advanced Usage
+
+## Custom Objective Functions
+
+You can use different objective functions for optimization:
+
+```{r custom_objective}
+# Use sum of squared errors instead of RMSE
+custom_fit <- sm_optim(clay_profile, c(50, 100), 
+                      FUN = sm_shape_wetting_front,
+                      OPTFUN = sm_optim_ssq)
+```
+
+## Handling Missing Data
+
+The preprocessing functions handle missing values appropriately:
+
+```{r missing_data}
+# Data with missing values
+missing_data <- data.frame(
+  id = c("P1", "P1", "P1"),
+  top = c(0, 30, 70),
+  bottom = c(30, 70, 100),
+  clay = c(15, NA, 40)  # Missing middle horizon
+)
+
+# Linear interpolation will handle the NA
+missing_profile <- sm_prepare(missing_data, property = "clay", method = "linear")$clay$P1
+plot(missing_profile, depths, ylim = c(200, 1), type = "l",
+     main = "Profile with Missing Data (Linear Interpolation)")
+```
+
+This vignette covers the core workflow for soil motif analysis. For more details on specific motif types and their pedogenic interpretations, see the individual function documentation.

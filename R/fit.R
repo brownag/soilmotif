@@ -84,6 +84,12 @@ sm_motif <- function(x, X,
 
 #' @export
 #' @rdname sm_motif
+#' @details
+#' sm_optim uses numerical optimization to find the best-fitting parameters for a given
+#' shape function. It employs Brent's method for single parameters and Nelder-Mead
+#' for multi-parameter optimization. Parameters are constrained to reasonable ranges
+#' (shape parameters typically in the range 0 to 1 for single parameters). For wetting_front motifs,
+#' parameters are automatically sorted after optimization.
 #' @importFrom stats optim quantile sd
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,

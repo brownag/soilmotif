@@ -1,4 +1,4 @@
-test_that("Full workflow: raw data → preprocess → fit → select model", {
+test_that("Full workflow: raw data -> preprocess -> fit -> select model", {
   # Create raw horizon data
   data <- data.frame(
     id = c("P1", "P1", "P1", "P2", "P2"),

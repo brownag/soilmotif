@@ -7,18 +7,27 @@
 sm_shape_sigmoid(x, xlim, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (typically 1 to 200 cm).}
 
-\item{xlim}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).}
+\item{xlim}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end). Both depths should be within the range of x.}
 
-\item{ascending}{logical. If TRUE, increases with depth. If FALSE, decreases.}
+\item{ascending}{logical. If TRUE, increases with depth (e.g., clay accumulation). If FALSE, decreases with depth.}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing the shape function.
 }
 \description{
-Models an S-shaped curve; smooth transition between depths. Useful for wetting fronts, reaction fronts.
+Models an S-shaped curve with smooth transition between depths. Useful for wetting fronts, reaction fronts, and gradual pedogenic changes.
+}
+\details{
+The sigmoid shape represents gradual transitions typical of wetting fronts in soils,
+where water infiltration creates smooth S-shaped moisture or chemical gradients.
+This motif is common in redoximorphic features, carbonate leaching, or clay translocation zones.
 }
 \examples{
-plot(sm_shape_sigmoid(0:100, c(20, 50)), 0:100, ylim = c(100, 0))
+# Basic sigmoid shape
+plot(sm_shape_sigmoid(1:200, c(50, 150)), 1:200, ylim = c(200, 0), type = "l")
+
+# Inverted (decreasing with depth)
+plot(sm_shape_sigmoid(1:200, c(50, 150), ascending = FALSE), 1:200, ylim = c(200, 0), type = "l")
 }

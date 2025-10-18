@@ -32,6 +32,21 @@ Named list of lists: outer names = properties, inner names = profile IDs, values
 \description{
 Convert horizon or sensor data to continuous depth profiles suitable for motif fitting.
 }
+\details{
+This function provides three interpolation methods for converting discrete horizon data
+to continuous depth profiles:
+\itemize{
+\item \strong{step}: Piecewise constant interpolation where each horizon value is held constant
+across its depth range. Fast and preserves original horizon boundaries.
+\item \strong{linear}: Linear interpolation between horizon midpoints. Smooth transitions but
+may overshoot extreme values.
+\item \strong{spline}: Mass-preserving spline interpolation using mpspline2 (if available).
+Most sophisticated method that preserves mass balance and handles irregular sampling.
+}
+
+Input can be data.frames, SoilProfileCollection objects (requires aqp), or CSV file paths.
+Output is a nested list structure: properties -> profile IDs -> numeric vectors.
+}
 \examples{
 # Example with data.frame
 data <- data.frame(

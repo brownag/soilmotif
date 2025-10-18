@@ -35,6 +35,18 @@ A list with class "fit_motif_auto" containing:
 }
 \description{
 Fits multiple motif types to soil property data and ranks them by goodness-of-fit criteria.
+This function automates the process of comparing different soil depth motif shapes
+to find the best representation of a soil property profile.
+}
+\details{
+The function fits seven motif types (uniform, gradational, exponential, wetting_front,
+abrupt, peak, minimax) to the input data and ranks them using information criteria
+or goodness-of-fit measures. Use AIC or BIC for model selection when considering
+both fit quality and model complexity. RMSE is useful for absolute fit assessment,
+while R2 indicates the proportion of variance explained.
+
+Initial parameters are automatically suggested based on data characteristics,
+then optimized using sm_optim(). Failed fits are skipped with warnings.
 }
 \examples{
 # Synthetic peak profile

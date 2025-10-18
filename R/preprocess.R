@@ -2,6 +2,20 @@
 #' @title Data Preprocessing for Soil Profiles
 #' @description Convert horizon or sensor data to continuous depth profiles suitable for motif fitting.
 #'
+#' @details
+#' This function provides three interpolation methods for converting discrete horizon data
+#' to continuous depth profiles:
+#' 
+#' - **step**: Piecewise constant interpolation where each horizon value is held constant
+#'   across its depth range. Fast and preserves original horizon boundaries.
+#' - **linear**: Linear interpolation between horizon midpoints. Smooth transitions but
+#'   may overshoot extreme values.
+#' - **spline**: Mass-preserving spline interpolation using mpspline2 (if available).
+#'   Most sophisticated method that preserves mass balance and handles irregular sampling.
+#' 
+#' Input can be data.frames, SoilProfileCollection objects (requires aqp), or CSV file paths.
+#' Output is a nested list structure: properties -> profile IDs -> numeric vectors.
+#'
 #' @param data data.frame, SoilProfileCollection, or character path to CSV file
 #' @param property character. Name(s) of property column(s) to extract. If NULL, uses all numeric columns except 'top'/'bottom'
 #' @param method character. Interpolation method: "step", "spline", or "linear"
