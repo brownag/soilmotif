@@ -37,6 +37,19 @@ numeric vector or function when \code{as_function=TRUE}
 \description{
 Fit a Soil Property Shape Function
 }
+\section{Parameter Semantics by Motif Type}{
+
+\itemize{
+\item \strong{Uniform:} Single constant value
+\item \strong{Gradational:} c(start_value, end_value); order matters
+\item \strong{Exponential:} c(surface_value, decay_rate); order matters
+\item \strong{Wetting Front:} c(inflection_start, inflection_end); can be sorted
+\item \strong{Abrupt:} c(discontinuity_depth, \link{transition_width}); order matters
+\item \strong{Peak:} c(depth_of_max, width, \link{skewness}); order matters
+\item \strong{MiniMax:} c(depth_min, width_min, depth_max, width_max); order matters
+}
+}
+
 \examples{
 clay_spline <- inverse.rle(structure(list(lengths = c(19, 8, 5, 3, 1, 2, 1,
                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 3, 4, 17, 7,

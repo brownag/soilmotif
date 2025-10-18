@@ -45,6 +45,15 @@ sm_optim_ssq <- function(x, y, ...) {
 #' @return numeric vector or function when `as_function=TRUE`
 #' @export
 #' @rdname sm_motif
+#' @section Parameter Semantics by Motif Type:
+#' 
+#' - **Uniform:** Single constant value
+#' - **Gradational:** c(start_value, end_value); order matters
+#' - **Exponential:** c(surface_value, decay_rate); order matters
+#' - **Wetting Front:** c(inflection_start, inflection_end); can be sorted
+#' - **Abrupt:** c(discontinuity_depth, [transition_width]); order matters
+#' - **Peak:** c(depth_of_max, width, [skewness]); order matters
+#' - **MiniMax:** c(depth_min, width_min, depth_max, width_max); order matters
 #' @examples
 #' clay_spline <- inverse.rle(structure(list(lengths = c(19, 8, 5, 3, 1, 2, 1,
 #'                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 3, 4, 17, 7,
@@ -75,13 +84,41 @@ sm_motif <- function(x, X,
 
 #' @export
 #' @rdname sm_motif
-#' @importFrom stats optim
+#' @importFrom stats optim quantile sd
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse) {
   fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x))
-  res <- sm_motif(x, sort(fit$par))
-  attr(res, 'par') <- fit$par
+  
+  # Only sort for specific motif types where it makes sense
+  final_par <- fit$par
+  if (identical(FUN, sm_shape_wetting_front)) {
+    final_par <- sort(final_par)
+  }
+  
+  res <- sm_motif(x, final_par, FUN = FUN, ...)
+  attr(res, 'par') <- final_par
   res
+}
+
+#' Suggest Initial Parameters for Motif Fitting
+#'
+#' Provides reasonable starting points for optimization based on data characteristics.
+#'
+#' @param x numeric. Vector of soil property values.
+#' @param motif_type character. Type of motif: "uniform", "gradational", "exponential", "wetting_front", "abrupt", "peak", "minimax".
+#' @return numeric vector of initial parameters.
+#' @keywords internal
+.suggest_initial_params <- function(x, motif_type = "exponential") {
+  switch(motif_type,
+    "uniform" = mean(x),
+    "gradational" = c(min(x), max(x)),
+    "exponential" = c(max(x), 0.01),
+    "wetting_front" = c(quantile(x, 0.25), quantile(x, 0.75)),
+    "abrupt" = c(which.max(diff(x)), sd(x)),
+    "peak" = c(which.max(x), sd(x)),
+    "minimax" = c(which.min(x), sd(x), which.max(x), sd(x)),
+    stop("Unknown motif_type: ", motif_type)
+  )
 }
 

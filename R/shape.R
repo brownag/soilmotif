@@ -2,18 +2,16 @@
 # or define your own custom function/parameters
 
 #' @importFrom stats dnorm plogis
-
-#' Shape functions
 #'
-#' @param x numeric. inputs to shape function
-#' @param xlim numeric. parameter(s) to be applied in shape function with `x` as input.
-#' @param ascending logical. Should the resulting shape be "increasing" (default: `TRUE`) or "decreasing"?
+#' Models an S-shaped curve; smooth transition between depths. Useful for wetting fronts, reaction fronts.
 #'
-#' @return numeric
+#' @param x numeric. Depth vector.
+#' @param xlim numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
+#' @param ascending logical. If TRUE, increases with depth. If FALSE, decreases.
+#'
+#' @return numeric vector in the range 0 to 1 representing the shape.
 #' @export
-#'
 #' @examples
-#'
 #' plot(sm_shape_sigmoid(0:100, c(20, 50)), 0:100, ylim = c(100, 0))
 sm_shape_sigmoid <- function(x, xlim, ascending = TRUE) {
   num2 <- sum(xlim) / 2
