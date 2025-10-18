@@ -44,8 +44,8 @@ Fit a Soil Property Shape Function
 \item \strong{Gradational:} c(start_value, end_value); order matters
 \item \strong{Exponential:} c(surface_value, decay_rate); order matters
 \item \strong{Wetting Front:} c(inflection_start, inflection_end); can be sorted
-\item \strong{Abrupt:} c(discontinuity_depth, \link{transition_width}); order matters
-\item \strong{Peak:} c(depth_of_max, width, \link{skewness}); order matters
+\item \strong{Abrupt:} c(discontinuity_depth, transition_width); order matters
+\item \strong{Peak:} c(depth_of_max, width, skewness); order matters
 \item \strong{MiniMax:} c(depth_min, width_min, depth_max, width_max); order matters
 }
 }

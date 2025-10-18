@@ -51,8 +51,8 @@ sm_optim_ssq <- function(x, y, ...) {
 #' - **Gradational:** c(start_value, end_value); order matters
 #' - **Exponential:** c(surface_value, decay_rate); order matters
 #' - **Wetting Front:** c(inflection_start, inflection_end); can be sorted
-#' - **Abrupt:** c(discontinuity_depth, [transition_width]); order matters
-#' - **Peak:** c(depth_of_max, width, [skewness]); order matters
+#' - **Abrupt:** c(discontinuity_depth, transition_width); order matters
+#' - **Peak:** c(depth_of_max, width, skewness); order matters
 #' - **MiniMax:** c(depth_min, width_min, depth_max, width_max); order matters
 #' @examples
 #' clay_spline <- inverse.rle(structure(list(lengths = c(19, 8, 5, 3, 1, 2, 1,
@@ -88,7 +88,13 @@ sm_motif <- function(x, X,
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse) {
-  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x))
+  # Use Brent method for 1D optimization to avoid Nelder-Mead issues
+  method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
+  lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
+  upper <- if (length(X) == 1) 1 else Inf
+  
+  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
+                      method = method, lower = lower, upper = upper)
   
   # Only sort for specific motif types where it makes sense
   final_par <- fit$par
@@ -110,14 +116,37 @@ sm_optim <- function(x, X, ...,
 #' @return numeric vector of initial parameters.
 #' @keywords internal
 .suggest_initial_params <- function(x, motif_type = "exponential") {
+  n <- length(x)
+  # Ensure depths are within valid range
+  clamp_depth <- function(d) max(1, min(n, d))
+  
   switch(motif_type,
     "uniform" = mean(x),
     "gradational" = c(min(x), max(x)),
     "exponential" = c(max(x), 0.01),
-    "wetting_front" = c(quantile(x, 0.25), quantile(x, 0.75)),
-    "abrupt" = c(which.max(diff(x)), sd(x)),
-    "peak" = c(which.max(x), sd(x)),
-    "minimax" = c(which.min(x), sd(x), which.max(x), sd(x)),
+    "wetting_front" = {
+      q <- quantile(x, c(0.25, 0.75))
+      # If quantiles are the same, use fixed positions
+      if (q[1] == q[2]) c(0.25 * n, 0.75 * n) else c(q[1], q[2])
+    },
+    "abrupt" = {
+      # Find largest change point, default to middle if no change
+      changes <- diff(x)
+      depth <- if (all(changes == 0)) n/2 else which.max(abs(changes))
+      width <- max(sd(x), 0.1)  # Minimum width to avoid division by zero
+      c(clamp_depth(depth), width)
+    },
+    "peak" = {
+      depth <- clamp_depth(which.max(x))
+      width <- max(sd(x), 0.1)
+      c(depth, width)
+    },
+    "minimax" = {
+      depth_min <- clamp_depth(which.min(x))
+      depth_max <- clamp_depth(which.max(x))
+      width <- max(sd(x), 0.1)
+      c(depth_min, width, depth_max, width)
+    },
     stop("Unknown motif_type: ", motif_type)
   )
 }

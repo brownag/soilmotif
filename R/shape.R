@@ -2,8 +2,8 @@
 # or define your own custom function/parameters
 
 #' @importFrom stats dnorm plogis
-#'
-#' Models an S-shaped curve; smooth transition between depths. Useful for wetting fronts, reaction fronts.
+#' @title Sigmoid Shape Function
+#' @description Models an S-shaped curve; smooth transition between depths. Useful for wetting fronts, reaction fronts.
 #'
 #' @param x numeric. Depth vector.
 #' @param xlim numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
@@ -128,7 +128,11 @@ sm_shape_abrupt <- function(x, xlim, ascending = TRUE) {
   depth_disc <- xlim[1]
   transition_width <- if (length(xlim) > 1) xlim[2] else 0
   
-  if (transition_width == 0) {
+  # Clamp parameters to valid ranges
+  depth_disc <- max(min(x), min(max(x), depth_disc))  # within x range
+  transition_width <- max(1e-6, transition_width)  # positive small value
+  
+  if (transition_width <= 1e-6) {
     shape <- as.numeric(x >= depth_disc)
   } else {
     # Smooth step using logistic
@@ -157,6 +161,10 @@ sm_shape_peak <- function(x, xlim, ascending = TRUE) {
   depth_max <- xlim[1]
   width <- xlim[2]
   skew <- if (length(xlim) > 2) xlim[3] else 0  # TODO: implement skewness
+  
+  # Clamp parameters
+  depth_max <- max(min(x), min(max(x), depth_max))
+  width <- max(1e-6, width)
   
   # Normal distribution
   shape <- dnorm(x, mean = depth_max, sd = width)
@@ -187,6 +195,12 @@ sm_shape_minimax <- function(x, xlim, ascending = TRUE) {
   width_max <- xlim[4]
   # skew_min <- if (length(xlim) > 4) xlim[5] else 0
   # skew_max <- if (length(xlim) > 5) xlim[6] else 0
+  
+  # Clamp parameters
+  depth_min <- max(min(x), min(max(x), depth_min))
+  depth_max <- max(min(x), min(max(x), depth_max))
+  width_min <- max(1e-6, width_min)
+  width_max <- max(1e-6, width_max)
   
   # Create valley and peak
   valley <- 1 - dnorm(x, mean = depth_min, sd = width_min)
