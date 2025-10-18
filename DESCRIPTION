@@ -1,6 +1,6 @@
 Package: soilmotif
 Type: Package
-Version: 0.0.1
+Version: 0.0.4
 Title: Analyze, Fit, and Generalize Soil Depth Functions
 Authors@R: person(given="Andrew", family="Brown", email="brown.andrewg@gmail.com", role = c("aut", "cre"))
 Author: Andrew G. Brown [aut, cre]
