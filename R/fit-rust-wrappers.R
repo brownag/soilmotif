@@ -183,38 +183,100 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
   })
 }
 
-#' Rust-backed optimization (internal dispatch)
+#' Optimize with pluggable objective function (Rust backend)
 #'
-#' @param x numeric. Data vector
-#' @param X numeric. Initial parameters
-#' @param FUN function. Shape function
-#' @param use_rust logical. If TRUE, use Rust backend; else use R
-#' @param ... additional arguments
+#' @param observed numeric. Observed data vector
+#' @param x numeric. Depth/position vector (typically 1..200)
+#' @param initial_params numeric. Initial shape function parameters
+#' @param shape_type character. Name of shape function ("uniform", "gradational", etc.)
+#' @param ascending logical. Direction flag (TRUE = increasing, FALSE = decreasing)
+#' @param objective_type character. Objective function ("rmse", "sse", "mae", "r2")
 #'
-#' @return numeric vector of fitted values
+#' @return numeric vector of optimized parameters
 #' @keywords internal
-sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid, 
+#' @examples
+#' \dontrun{
+#'   observed <- c(rep(10, 50), seq(10, 40, length.out=100), rep(40, 50))
+#'   x <- 1:200
+#'   params <- c(100, 20)
+#'   result <- optimize_profile_rust_flexible(observed, x, params, 
+#'                                             "wetting_front", TRUE, "rmse")
+#' }
+optimize_profile_rust_flexible <- function(observed, x, initial_params,
+                                           shape_type = "sigmoid",
+                                           ascending = TRUE,
+                                           objective_type = "rmse") {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available")
+  }
+  
+  tryCatch({
+    result <- .Call("wrap__optimize_profile_rust",
+                    as.numeric(observed),
+                    as.numeric(x),
+                    as.numeric(initial_params),
+                    as.character(shape_type),
+                    as.logical(ascending),
+                    as.character(objective_type),
+                    PACKAGE = "soilmotif")
+    as.numeric(result)
+  }, error = function(e) {
+    warning("Rust optimization failed: ", e$message, 
+            "; returning initial parameters")
+    initial_params
+  })
+}
+
+#' Rust-backed optimization with R dispatch logic
+#'
+#' @param x numeric. Data vector (observed property)
+#' @param X numeric. Initial parameters for shape function
+#' @param FUN function. Shape function to fit
+#' @param OPTFUN function. Objective function (sm_optim_rmse or sm_optim_ssq)
+#' @param ascending logical. Shape direction (TRUE = increasing)
+#' @param use_rust logical. If TRUE, use Rust backend when available
+#' @param ... additional arguments (currently unused)
+#'
+#' @return numeric vector of optimized parameters
+#' @keywords internal
+sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
+                              OPTFUN = sm_optim_rmse,
+                              ascending = TRUE,
                               use_rust = FALSE, ...) {
   if (!use_rust) {
     # Existing R implementation
-    return(sm_optim_r_impl(x, X, FUN = FUN, ...))
+    return(sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
   }
   
   # Check if Rust backend is available
   if (!rust_backend_available()) {
     warning("Rust backend not available; falling back to R")
-    return(sm_optim_r_impl(x, X, FUN = FUN, ...))
+    return(sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
   }
   
-  # Call Rust implementation
+  # Determine objective type from OPTFUN
+  objective_type <- if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse"
+  
+  # Determine shape type from FUN
+  shape_type <- deparse(substitute(FUN))
+  shape_type <- gsub("^sm_shape_", "", shape_type)
+  
+  # Determine depth vector
+  depth_vector <- seq_along(x)
+  
+  # Call Rust implementation with flexible objectives
   result <- tryCatch({
-    .Call("wrap__optimize_single_profile_rust", 
-          as.numeric(x), 
-          as.numeric(X),
-          PACKAGE = "soilmotif")
+    optimize_profile_rust_flexible(
+      observed = x,
+      x = depth_vector,
+      initial_params = X,
+      shape_type = shape_type,
+      ascending = ascending,
+      objective_type = objective_type
+    )
   }, error = function(e) {
     warning("Rust optimization failed: ", e$message, "; falling back to R")
-    sm_optim_r_impl(x, X, FUN = FUN, ...)
+    sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...)
   })
   
   result

@@ -21,6 +21,7 @@ target/
 Cargo.lock
 *.rlib
 *.rmeta
+*.so
 
 # Package check
 *.tar.gz

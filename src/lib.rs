@@ -83,16 +83,46 @@ fn shape_eval_rust(
     }
 }
 
-/// Single-profile optimization (Rust implementation)
+/// Optimize single profile with pluggable objective function
 /// 
-/// Called via R: `.Call("optimize_single_profile_rust", x, X, ..., PACKAGE = "soilmotif")`
+/// Fits shape function parameters to observed data.
+/// Supports flexible objective functions (RMSE, SSE, MAE, R²).
+///
+/// Called via R: `.Call("optimize_profile_rust", observed, x, initial_params, 
+///                      shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
 #[extendr]
-fn optimize_single_profile_rust(
+fn optimize_profile_rust(
+    observed: Vec<f64>,
     x: Vec<f64>,
-    initial_par: Vec<f64>,
+    initial_params: Vec<f64>,
+    shape_type: &str,
+    ascending: bool,
+    objective_type: &str,
 ) -> Vec<f64> {
-    // Placeholder: will implement in 2.C
-    initial_par
+    // Create objective function by name
+    let objective = match optimizer::create_objective(objective_type) {
+        Ok(obj) => obj,
+        Err(e) => {
+            eprintln!("Failed to create objective '{}': {}", objective_type, e);
+            return initial_params;
+        }
+    };
+
+    // Try optimization with fallback strategy
+    match optimizer::optimize_with_fallback(
+        &observed,
+        &x,
+        &initial_params,
+        shape_type,
+        ascending,
+        objective,
+    ) {
+        Ok(result) => result.params,
+        Err(e) => {
+            eprintln!("Optimization failed: {}", e);
+            initial_params
+        }
+    }
 }
 
 /// Batch profile processing (Rust implementation)
@@ -106,7 +136,6 @@ fn batch_process_rust() -> String {
     "Batch processing not yet implemented".to_string()
 }
 
-// Macro to generate R module exports
 extendr_module! {
     mod soilmotif;
     fn check_rust_backend;
@@ -115,6 +144,6 @@ extendr_module! {
     fn objective_mae_rust;
     fn objective_r2_rust;
     fn shape_eval_rust;
-    fn optimize_single_profile_rust;
+    fn optimize_profile_rust;
     fn batch_process_rust;
 }
