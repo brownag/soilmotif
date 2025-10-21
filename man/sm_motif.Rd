@@ -14,7 +14,14 @@ sm_motif(
   as_function = FALSE
 )
 
-sm_optim(x, X, ..., FUN = sm_shape_sigmoid, OPTFUN = sm_optim_rmse)
+sm_optim(
+  x,
+  X,
+  ...,
+  FUN = sm_shape_sigmoid,
+  OPTFUN = sm_optim_rmse,
+  use_rust = FALSE
+)
 }
 \arguments{
 \item{x}{A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.}
@@ -30,6 +37,8 @@ sm_optim(x, X, ..., FUN = sm_shape_sigmoid, OPTFUN = sm_optim_rmse)
 \item{as_function}{Return function that takes \code{Y} (depth) vector as input?}
 
 \item{OPTFUN}{Objective function. Defaults to \code{sm_optim_rmse()}.}
+
+\item{use_rust}{logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.}
 }
 \value{
 numeric vector or function when \code{as_function=TRUE}

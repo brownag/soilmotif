@@ -1,0 +1,23 @@
+[package]
+name = "soilmotif"
+version = "0.2.0"
+edition = "2021"
+authors = ["Andrew G. Brown <brown.andrewg@gmail.com>"]
+license = "GPL (>= 3)"
+
+[dependencies]
+extendr-api = "0.8"
+ndarray = "0.15"
+nalgebra = "0.33"
+argmin = { version = "0.9", features = ["serde"] }
+rayon = "1.8"
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+
+[lib]
+name = "soilmotif"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+lto = true

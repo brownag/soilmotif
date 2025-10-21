@@ -1,7 +1,38 @@
+# R and RStudio
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+.Rcheck
 ..Rcheck
-.github/prompts
 Rplots.pdf
+
+# Build artifacts
+src/*.o
+src/*.so
+src/soilmotif.so
+src/Makefile
+src/Makevars
+inst/libs/
+libs/
+
+# Rust/Cargo
+target/
+Cargo.lock
+*.rlib
+*.rmeta
+
+# Package check
+*.tar.gz
+*.zip
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+.github/prompts

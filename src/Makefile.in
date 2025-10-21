@@ -1,0 +1,13 @@
+# Makefile.in for soilmotif - configure processes this
+# Since the Rust library is built by configure, we just need to ensure
+# it's available as soilmotif.so for R to load
+
+# Empty C/Fortran code
+SOURCES = 
+
+# Create soilmotif.so from the Rust library
+soilmotif.so: ../target/release/libsoilmotif.so
+	cp $< $@
+
+.PHONY: all
+all: soilmotif.so

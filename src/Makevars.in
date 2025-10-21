@@ -1,0 +1,12 @@
+# Makevars for R build of soilmotif with Rust backend
+# Compiles a minimal C wrapper that delegates to extendr-generated R_init
+# and links with the Rust library containing all the functionality
+
+# C source files (wrapper for extendr init)
+SOURCES = extendr_registration.c
+
+# Objects
+OBJECTS = extendr_registration.o
+
+# Link against the Rust library (placed in src/ by configure)
+PKG_LIBS = ./soilmotif.so

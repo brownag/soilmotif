@@ -84,6 +84,7 @@ sm_motif <- function(x, X,
 
 #' @export
 #' @rdname sm_motif
+#' @param use_rust logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.
 #' @details
 #' sm_optim uses numerical optimization to find the best-fitting parameters for a given
 #' shape function. It employs Brent's method for single parameters and Nelder-Mead
@@ -155,5 +156,27 @@ sm_optim <- function(x, X, ...,
     },
     stop("Unknown motif_type: ", motif_type)
   )
+}
+
+# ============================================================================
+# Rust Backend Integration (Phase 2)
+# ============================================================================
+
+# Store original R implementation for dispatch
+sm_optim_r_impl <- sm_optim
+
+# Replace sm_optim with dispatch wrapper that can route to Rust
+sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
+                     OPTFUN = sm_optim_rmse, use_rust = FALSE) {
+  # If Rust requested, dispatch to Rust backend (with R fallback)
+  if (use_rust) {
+    # TODO: After Phase 2.C, implement proper Rust dispatch
+    # For now, just use R
+    warning("Rust backend not yet fully implemented; using R")
+    use_rust <- FALSE
+  }
+  
+  # Use R implementation (default path)
+  sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN)
 }
 

@@ -5,3 +5,6 @@
 ^misc$
 ^\.github$
 ^\.\.Rcheck$
+^Cargo\.lock$
+^rust-toolchain\.toml$
+^target/

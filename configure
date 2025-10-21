@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Configure script for soilmotif
+# Builds the Rust backend using cargo and prepares the shared object
+
+set -e
+
+# Check if cargo is available
+if ! command -v cargo &> /dev/null; then
+    echo "Warning: cargo not found. Rust functionality will not be compiled."
+    echo "Please install Rust from https://rustup.rs/"
+    exit 0
+fi
+
+# Navigate to package root
+PACKAGE_ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$PACKAGE_ROOT"
+
+# Build Rust code in release mode
+echo "Building Rust backend..."
+cargo build --release --target-dir target
+
+# Ensure the compiled library exists
+if [ ! -f target/release/libsoilmotif.so ]; then
+    echo "Warning: Rust library not found at target/release/libsoilmotif.so"
+    exit 1
+fi
+
+# Copy the library directly to src so it gets included in the package
+# R will place it in the libs/ directory during installation
+mkdir -p src
+cp target/release/libsoilmotif.so src/soilmotif.so
+
+echo "Rust backend built successfully"
+exit 0
+
+
