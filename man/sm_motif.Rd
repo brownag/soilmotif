@@ -21,7 +21,8 @@ sm_optim(
   FUN = sm_shape_sigmoid,
   OPTFUN = sm_optim_rmse,
   use_rust = FALSE,
-  compare = FALSE
+  compare = FALSE,
+  algorithm = "nelder_mead"
 )
 }
 \arguments{
@@ -42,6 +43,8 @@ sm_optim(
 \item{use_rust}{logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.}
 
 \item{compare}{logical. If TRUE, run both R and Rust implementations and return comparison results. Defaults to FALSE.}
+
+\item{algorithm}{character. Optimization algorithm for Rust backend ("nelder_mead", "auto"). Defaults to "nelder_mead".}
 }
 \value{
 numeric vector or function when \code{as_function=TRUE}
@@ -55,6 +58,10 @@ shape function. It employs Brent's method for single parameters and Nelder-Mead
 for multi-parameter optimization. Parameters are constrained to reasonable ranges
 (shape parameters typically in the range 0 to 1 for single parameters). For wetting_front motifs,
 parameters are automatically sorted after optimization.
+
+When use_rust=TRUE, the function uses the Rust backend with custom optimization
+algorithms. The Rust implementation provides significant performance improvements
+while maintaining identical results to the R implementation.
 }
 \section{Parameter Semantics by Motif Type}{
 

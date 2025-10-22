@@ -17,6 +17,8 @@ pub mod shape_functions;
 pub mod optimizer;
 pub mod batch;
 
+use crate::optimizer::ObjectiveFunction;
+
 /// Check that Rust backend is available and working
 /// 
 /// # Examples
@@ -29,8 +31,13 @@ fn check_rust_backend() -> String {
     "Rust backend available".to_string()
 }
 
-// Placeholder stubs for later implementation
-// (will be filled in by Subphases 2.B-2.D)
+/// Test function to check if extendr generates wrappers for multi-parameter functions
+/// 
+/// Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
+#[extendr]
+fn test_multi_param_rust(a: Vec<f64>, b: Vec<f64>, c: Vec<f64>, d: f64) -> f64 {
+    d
+}
 
 /// Compute RMSE between observed and predicted (Rust implementation)
 /// 
@@ -62,6 +69,75 @@ fn objective_mae_rust(x: Vec<f64>, y: Vec<f64>) -> f64 {
 #[extendr]
 fn objective_r2_rust(x: Vec<f64>, y: Vec<f64>) -> f64 {
     objective::r_squared(&x, &y)
+}
+
+/// Compute weighted RMSE (Rust implementation)
+/// 
+/// Called via R: `.Call("objective_weighted_rmse_rust", observed, predicted, depths, target_depth, weight_factor, PACKAGE = "soilmotif")`
+#[extendr]
+fn objective_weighted_rmse_rust(
+    observed: Vec<f64>,
+    predicted: Vec<f64>,
+    depths: Vec<f64>,
+    target_depth: f64,
+    weight_factor: f64,
+) -> f64 {
+    objective::weighted_rmse(&observed, &predicted, &depths, target_depth, weight_factor)
+}
+
+/// Compute ordinal error (Rust implementation)
+/// 
+/// Called via R: `.Call("objective_ordinal_rust", observed, predicted, depths, under_penalty, over_penalty, PACKAGE = "soilmotif")`
+#[extendr]
+fn objective_ordinal_rust(
+    observed: Vec<f64>,
+    predicted: Vec<f64>,
+    depths: Vec<f64>,
+    underpredict_penalty: f64,
+    overpredict_penalty: f64,
+) -> f64 {
+    objective::ordinal_error(&observed, &predicted, &depths, underpredict_penalty, overpredict_penalty)
+}
+
+/// Compute bounded error (Rust implementation)
+/// 
+/// Called via R: `.Call("objective_bounded_rust", observed, predicted, depths, obs_min, obs_max, penalty_factor, PACKAGE = "soilmotif")`
+#[extendr]
+fn objective_bounded_rust(
+    observed: Vec<f64>,
+    predicted: Vec<f64>,
+    depths: Vec<f64>,
+    obs_min: f64,
+    obs_max: f64,
+    penalty_factor: f64,
+) -> f64 {
+    objective::bounded_error(&observed, &predicted, &depths, obs_min, obs_max, penalty_factor)
+}
+
+/// Compute Huber loss (Rust implementation)
+/// 
+/// Called via R: `.Call("objective_huber_rust", observed, predicted, depths, delta, PACKAGE = "soilmotif")`
+#[extendr]
+fn objective_huber_rust(
+    observed: Vec<f64>,
+    predicted: Vec<f64>,
+    depths: Vec<f64>,
+    delta: f64,
+) -> f64 {
+    objective::huber_loss(&observed, &predicted, &depths, delta)
+}
+
+/// Compute quantile loss (Rust implementation)
+/// 
+/// Called via R: `.Call("objective_quantile_rust", observed, predicted, depths, quantile, PACKAGE = "soilmotif")`
+#[extendr]
+fn objective_quantile_rust(
+    observed: Vec<f64>,
+    predicted: Vec<f64>,
+    depths: Vec<f64>,
+    quantile: f64,
+) -> f64 {
+    objective::quantile_loss(&observed, &predicted, &depths, quantile)
 }
 
 /// Evaluate a shape function (Rust implementation)
@@ -266,10 +342,16 @@ fn batch_optimize_profiles_rust(
 extendr_module! {
     mod soilmotif;
     fn check_rust_backend;
+    fn test_multi_param_rust;
     fn objective_rmse_rust;
     fn objective_sse_rust;
     fn objective_mae_rust;
     fn objective_r2_rust;
+    fn objective_weighted_rmse_rust;
+    fn objective_ordinal_rust;
+    fn objective_bounded_rust;
+    fn objective_huber_rust;
+    fn objective_quantile_rust;
     fn shape_eval_rust;
     fn optimize_profile_rust;
     fn batch_optimize_profiles_rust;

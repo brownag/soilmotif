@@ -167,8 +167,6 @@ test_that("sm_prepare validates inputs", {
 test_that("sm_prepare handles SoilProfileCollection input", {
   skip_if_not_installed("aqp")
 
-  library(aqp)
-
   # Create a simple SoilProfileCollection
   data <- data.frame(
     id = c("P1", "P1", "P2"),
@@ -178,7 +176,7 @@ test_that("sm_prepare handles SoilProfileCollection input", {
   )
 
   spc <- data
-  depths(spc) <- id ~ top + bottom
+  aqp::depths(spc) <- id ~ top + bottom
 
   result <- sm_prepare(spc, property = "clay", method = "step")
 

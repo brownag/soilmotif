@@ -411,7 +411,7 @@ mod tests {
     /// Simple test objective for testing batch processing logic
     struct TestObjective;
     impl crate::optimizer::ObjectiveFunction for TestObjective {
-        fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64 {
+        fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
             (observed.iter().zip(predicted).map(|(o, p)| (o - p).powi(2)).sum::<f64>() / observed.len() as f64).sqrt()
         }
         fn name(&self) -> &'static str { "Test" }

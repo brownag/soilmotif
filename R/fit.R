@@ -83,6 +83,123 @@ sm_motif <- function(x, X,
   .fun(seq(ylim[1], ylim[2]))
 }
 
+#' Create Parameterized Soil Objective Functions
+#'
+#' Creates objective functions with soil science-specific parameters for use with sm_optim().
+#' These objectives extend the basic RMSE/SSE/MAE with domain knowledge.
+#'
+#' @param type character. Objective type: "weighted_rmse", "ordinal", "bounded", "huber", "quantile"
+#' @param ... Additional parameters specific to the objective type
+#' @return A function that takes (predicted, observed) vectors and returns the objective value
+#' @export
+#' @examples
+#' # Weighted RMSE emphasizing clay accumulation zone
+#' clay_objective <- create_soil_objective("weighted_rmse", target_depth = 100, weight_factor = 2.0)
+#' 
+#' # Ordinal error for argillic horizon (prefer underestimation)
+#' ordinal_obj <- create_soil_objective("ordinal", underpredict_penalty = 1.5, overpredict_penalty = 1.0)
+#' 
+#' # Bounded error for pH (3-10 range)
+#' ph_objective <- create_soil_objective("bounded", obs_min = 3, obs_max = 10, penalty_factor = 100)
+#' 
+#' # Huber loss for robust fitting with outliers
+#' robust_obj <- create_soil_objective("huber", delta = 1.35)
+#' 
+#' # Quantile regression for conservative estimates
+#' conservative_obj <- create_soil_objective("quantile", quantile = 0.9)
+create_soil_objective <- function(type, ...) {
+  args <- list(...)
+  
+  switch(type,
+    "weighted_rmse" = {
+      if (!"target_depth" %in% names(args)) stop("target_depth required for weighted_rmse")
+      target_depth <- args$target_depth
+      weight_factor <- if ("weight_factor" %in% names(args)) args$weight_factor else 1.0
+      function(predicted, observed) {
+        depths <- seq_along(observed)
+        # Gaussian weighting centered on target_depth
+        weights <- exp(-weight_factor * (depths - target_depth)^2)
+        residuals <- observed - predicted
+        sqrt(sum(weights * residuals^2) / sum(weights))
+      }
+    },
+    "ordinal" = {
+      underpredict_penalty <- if ("underpredict_penalty" %in% names(args)) args$underpredict_penalty else 1.0
+      overpredict_penalty <- if ("overpredict_penalty" %in% names(args)) args$overpredict_penalty else 1.0
+      function(predicted, observed) {
+        residuals <- observed - predicted
+        total_cost <- 0
+        for (i in seq_along(residuals)) {
+          if (residuals[i] > 0) {
+            # Under-prediction: predicted < observed
+            total_cost <- total_cost + underpredict_penalty * abs(residuals[i])
+          } else {
+            # Over-prediction: predicted > observed
+            total_cost <- total_cost + overpredict_penalty * abs(residuals[i])
+          }
+        }
+        total_cost / length(observed)
+      }
+    },
+    "bounded" = {
+      if (!"obs_min" %in% names(args)) stop("obs_min required for bounded")
+      if (!"obs_max" %in% names(args)) stop("obs_max required for bounded")
+      obs_min <- args$obs_min
+      obs_max <- args$obs_max
+      penalty_factor <- if ("penalty_factor" %in% names(args)) args$penalty_factor else 10.0
+      function(predicted, observed) {
+        residuals <- observed - predicted
+        residual_sq <- residuals^2
+        
+        # Check if prediction is out of bounds
+        out_of_bounds <- predicted < obs_min | predicted > obs_max
+        
+        # Apply penalty for out-of-bounds predictions
+        total_cost <- ifelse(out_of_bounds, penalty_factor * residual_sq, residual_sq)
+        
+        sqrt(sum(total_cost) / length(observed))
+      }
+    },
+    "huber" = {
+      delta <- if ("delta" %in% names(args)) args$delta else 1.35
+      function(predicted, observed) {
+        residuals <- abs(observed - predicted)
+        total_cost <- 0
+        for (i in seq_along(residuals)) {
+          if (residuals[i] <= delta) {
+            # Quadratic loss for small residuals
+            total_cost <- total_cost + 0.5 * residuals[i]^2
+          } else {
+            # Linear loss for large residuals
+            total_cost <- total_cost + delta * residuals[i] - 0.5 * delta^2
+          }
+        }
+        total_cost / length(observed)
+      }
+    },
+    "quantile" = {
+      if (!"quantile" %in% names(args)) stop("quantile required for quantile loss")
+      quantile <- args$quantile
+      if (quantile <= 0 || quantile >= 1) stop("quantile must be between 0 and 1")
+      function(predicted, observed) {
+        residuals <- observed - predicted
+        total_cost <- 0
+        for (i in seq_along(residuals)) {
+          if (residuals[i] > 0) {
+            # Under-prediction penalty
+            total_cost <- total_cost + quantile * residuals[i]
+          } else {
+            # Over-prediction penalty
+            total_cost <- total_cost + (1 - quantile) * abs(residuals[i])
+          }
+        }
+        total_cost / length(observed)
+      }
+    },
+    stop("Unknown objective type: ", type)
+  )
+}
+
 #' @export
 #' @rdname sm_motif
 #' @param use_rust logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.
@@ -103,7 +220,6 @@ sm_motif <- function(x, X,
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse) {
-  # Use Brent method for 1D optimization to avoid Nelder-Mead issues
   method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
   lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
   upper <- if (length(X) == 1) 1 else Inf

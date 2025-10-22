@@ -152,6 +152,210 @@ pub fn mae(observed: &[f64], predicted: &[f64]) -> f64 {
         .sum::<f64>() / n
 }
 
+/// Compute weighted RMSE (depth-aware)
+///
+/// Applies Gaussian weighting centered on target_depth.
+/// Emphasizes fit quality at specific soil horizons.
+///
+/// # Arguments
+/// * `observed` - Observed/measured data vector
+/// * `predicted` - Predicted/model data vector
+/// * `depths` - Depth vector corresponding to observations
+/// * `target_depth` - Depth to emphasize (cm)
+/// * `weight_factor` - Weight concentration factor (higher = more concentrated)
+///
+/// # Returns
+/// Weighted RMSE value
+pub fn weighted_rmse(
+    observed: &[f64], 
+    predicted: &[f64], 
+    depths: &[f64], 
+    target_depth: f64, 
+    weight_factor: f64
+) -> f64 {
+    assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+    assert_eq!(observed.len(), depths.len(), "observed and depths must have same length");
+    
+    let mut weighted_sum_sq = 0.0;
+    let mut sum_weights = 0.0;
+    
+    for i in 0..observed.len() {
+        let weight = (-weight_factor * (depths[i] - target_depth).powi(2)).exp();
+        let residual_sq = (observed[i] - predicted[i]).powi(2);
+        weighted_sum_sq += weight * residual_sq;
+        sum_weights += weight;
+    }
+    
+    if sum_weights > 0.0 {
+        (weighted_sum_sq / sum_weights).sqrt()
+    } else {
+        0.0
+    }
+}
+
+/// Compute ordinal error (asymmetric penalties)
+///
+/// Penalizes under-prediction and over-prediction differently.
+/// Useful for soil properties where under/over-estimation has different costs.
+///
+/// # Arguments
+/// * `observed` - Observed/measured data vector
+/// * `predicted` - Predicted/model data vector
+/// * `depths` - Depth vector (unused, kept for API consistency)
+/// * `underpredict_penalty` - Penalty multiplier for under-prediction
+/// * `overpredict_penalty` - Penalty multiplier for over-prediction
+///
+/// # Returns
+/// Ordinal error value
+pub fn ordinal_error(
+    observed: &[f64], 
+    predicted: &[f64], 
+    _depths: &[f64], 
+    underpredict_penalty: f64, 
+    overpredict_penalty: f64
+) -> f64 {
+    assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+    
+    let n = observed.len() as f64;
+    let mut total_cost = 0.0;
+    
+    for i in 0..observed.len() {
+        let residual = observed[i] - predicted[i];
+        if residual > 0.0 {
+            // Under-prediction: predicted < observed
+            total_cost += underpredict_penalty * residual.abs();
+        } else {
+            // Over-prediction: predicted > observed
+            total_cost += overpredict_penalty * residual.abs();
+        }
+    }
+    
+    total_cost / n
+}
+
+/// Compute bounded error (with physical constraints)
+///
+/// Applies penalty when predictions exceed physical bounds.
+/// Ensures soil property predictions stay within realistic ranges.
+///
+/// # Arguments
+/// * `observed` - Observed/measured data vector
+/// * `predicted` - Predicted/model data vector
+/// * `depths` - Depth vector (unused, kept for API consistency)
+/// * `obs_min` - Minimum allowed value
+/// * `obs_max` - Maximum allowed value
+/// * `penalty_factor` - Penalty multiplier for out-of-bounds predictions
+///
+/// # Returns
+/// Bounded error value (RMSE with penalties)
+pub fn bounded_error(
+    observed: &[f64], 
+    predicted: &[f64], 
+    _depths: &[f64], 
+    obs_min: f64, 
+    obs_max: f64, 
+    penalty_factor: f64
+) -> f64 {
+    assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+    
+    let n = observed.len() as f64;
+    let mut total_cost = 0.0;
+    
+    for i in 0..observed.len() {
+        let residual = observed[i] - predicted[i];
+        let residual_sq = residual.powi(2);
+        
+        // Check if prediction is out of bounds
+        let pred = predicted[i];
+        if pred < obs_min || pred > obs_max {
+            // Apply penalty for out-of-bounds prediction
+            total_cost += penalty_factor * residual_sq;
+        } else {
+            // Normal squared error
+            total_cost += residual_sq;
+        }
+    }
+    
+    (total_cost / n).sqrt()
+}
+
+/// Compute Huber loss (robust to outliers)
+///
+/// Combines squared error for small residuals with absolute error for large residuals.
+/// More robust to outliers than RMSE while maintaining differentiability.
+///
+/// # Arguments
+/// * `observed` - Observed/measured data vector
+/// * `predicted` - Predicted/model data vector
+/// * `depths` - Depth vector (unused, kept for API consistency)
+/// * `delta` - Threshold separating quadratic and linear regions
+///
+/// # Returns
+/// Huber loss value
+pub fn huber_loss(
+    observed: &[f64], 
+    predicted: &[f64], 
+    _depths: &[f64], 
+    delta: f64
+) -> f64 {
+    assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+    
+    let n = observed.len() as f64;
+    let mut total_cost = 0.0;
+    
+    for i in 0..observed.len() {
+        let residual = (observed[i] - predicted[i]).abs();
+        if residual <= delta {
+            // Quadratic loss for small residuals
+            total_cost += 0.5 * residual.powi(2);
+        } else {
+            // Linear loss for large residuals
+            total_cost += delta * residual - 0.5 * delta.powi(2);
+        }
+    }
+    
+    total_cost / n
+}
+
+/// Compute quantile loss (asymmetric quantile regression)
+///
+/// Penalizes under/over-prediction based on quantile.
+/// Useful for predicting conditional quantiles of soil properties.
+///
+/// # Arguments
+/// * `observed` - Observed/measured data vector
+/// * `predicted` - Predicted/model data vector
+/// * `depths` - Depth vector (unused, kept for API consistency)
+/// * `quantile` - Quantile to predict (0.5 = median, 0.9 = 90th percentile)
+///
+/// # Returns
+/// Quantile loss value
+pub fn quantile_loss(
+    observed: &[f64], 
+    predicted: &[f64], 
+    _depths: &[f64], 
+    quantile: f64
+) -> f64 {
+    assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+    assert!(quantile > 0.0 && quantile < 1.0, "quantile must be between 0 and 1");
+    
+    let n = observed.len() as f64;
+    let mut total_cost = 0.0;
+    
+    for i in 0..observed.len() {
+        let residual = observed[i] - predicted[i];
+        if residual > 0.0 {
+            // Under-prediction penalty
+            total_cost += quantile * residual;
+        } else {
+            // Over-prediction penalty
+            total_cost += (1.0 - quantile) * residual.abs();
+        }
+    }
+    
+    total_cost / n
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

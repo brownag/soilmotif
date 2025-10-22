@@ -50,6 +50,23 @@ pub enum AlgorithmType {
     // Future: LBFGS, Newton, etc.
 }
 
+/// Parameters for configuring objective functions
+#[derive(Debug, Clone)]
+pub enum ObjectiveParams {
+    /// Basic objectives without parameters (RMSE, SSE, MAE, R2)
+    Basic,
+    /// Depth-weighted RMSE with Gaussian weighting
+    Weighted { target_depth: f64, weight_factor: f64 },
+    /// Ordinal error with asymmetric penalties
+    Ordinal { underpredict_penalty: f64, overpredict_penalty: f64 },
+    /// Bounded error with penalties for out-of-bounds predictions
+    Bounded { obs_min: f64, obs_max: f64, penalty_factor: f64 },
+    /// Huber loss for robust regression
+    Huber { delta: f64 },
+    /// Quantile loss for quantile regression
+    Quantile { quantile: f64 },
+}
+
 /// Result of optimization attempt
 #[derive(Debug, Clone)]
 pub struct OptimResult {
@@ -81,7 +98,7 @@ impl CostFunction for ShapeCostFunction {
 
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
         match eval_shape(&self.shape_type, &self.x, &param.0, self.ascending) {
-            Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted)),
+            Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted, &self.x)),
             Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
         }
     }
@@ -115,7 +132,7 @@ pub trait ObjectiveFunction: Send + Sync {
     /// Compute objective (cost) for given predicted vs observed data
     ///
     /// Lower cost is better (for minimization problems)
-    fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64;
+    fn cost(&self, observed: &[f64], predicted: &[f64], depths: &[f64]) -> f64;
     
     /// Get name of objective for logging/diagnostics
     fn name(&self) -> &'static str;
@@ -125,7 +142,7 @@ pub trait ObjectiveFunction: Send + Sync {
 pub struct RmseObjective;
 
 impl ObjectiveFunction for RmseObjective {
-    fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64 {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
         rmse(observed, predicted)
     }
     
@@ -138,7 +155,7 @@ impl ObjectiveFunction for RmseObjective {
 pub struct SseObjective;
 
 impl ObjectiveFunction for SseObjective {
-    fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64 {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
         sse(observed, predicted)
     }
     
@@ -151,7 +168,7 @@ impl ObjectiveFunction for SseObjective {
 pub struct MaeObjective;
 
 impl ObjectiveFunction for MaeObjective {
-    fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64 {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
         mae(observed, predicted)
     }
     
@@ -166,13 +183,184 @@ impl ObjectiveFunction for MaeObjective {
 pub struct R2Objective;
 
 impl ObjectiveFunction for R2Objective {
-    fn cost(&self, observed: &[f64], predicted: &[f64]) -> f64 {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
         // Convert to minimization: minimize (1 - r²)
         1.0 - r_squared(observed, predicted)
     }
     
     fn name(&self) -> &'static str {
         "R2-inverse"
+    }
+}
+
+/// Depth-weighted RMSE with Gaussian weighting centered on target depth
+#[derive(Clone, Debug)]
+pub struct WeightedRMSE {
+    pub target_depth: f64,
+    pub weight_factor: f64,
+}
+
+impl ObjectiveFunction for WeightedRMSE {
+    fn cost(&self, observed: &[f64], predicted: &[f64], depths: &[f64]) -> f64 {
+        assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+        assert_eq!(observed.len(), depths.len(), "observed and depths must have same length");
+        
+        let n = observed.len() as f64;
+        let mut weighted_sum_sq = 0.0;
+        let mut sum_weights = 0.0;
+        
+        for i in 0..observed.len() {
+            let weight = (-self.weight_factor * (depths[i] - self.target_depth).powi(2)).exp();
+            let residual_sq = (observed[i] - predicted[i]).powi(2);
+            weighted_sum_sq += weight * residual_sq;
+            sum_weights += weight;
+        }
+        
+        if sum_weights > 0.0 {
+            (weighted_sum_sq / sum_weights).sqrt()
+        } else {
+            0.0
+        }
+    }
+    
+    fn name(&self) -> &'static str {
+        "WeightedRMSE"
+    }
+}
+
+/// Ordinal error with asymmetric penalties for over/under prediction
+#[derive(Clone, Debug)]
+pub struct OrdinalError {
+    pub underpredict_penalty: f64,
+    pub overpredict_penalty: f64,
+}
+
+impl ObjectiveFunction for OrdinalError {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
+        assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+        
+        let n = observed.len() as f64;
+        let mut total_cost = 0.0;
+        
+        for i in 0..observed.len() {
+            let residual = observed[i] - predicted[i];
+            if residual > 0.0 {
+                // Under-prediction: predicted < observed
+                total_cost += self.underpredict_penalty * residual.abs();
+            } else {
+                // Over-prediction: predicted > observed
+                total_cost += self.overpredict_penalty * residual.abs();
+            }
+        }
+        
+        total_cost / n
+    }
+    
+    fn name(&self) -> &'static str {
+        "OrdinalError"
+    }
+}
+
+/// Bounded error with penalties for predictions outside physical bounds
+#[derive(Clone, Debug)]
+pub struct BoundedError {
+    pub obs_min: f64,
+    pub obs_max: f64,
+    pub penalty_factor: f64,
+}
+
+impl ObjectiveFunction for BoundedError {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
+        assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+        
+        let n = observed.len() as f64;
+        let mut total_cost = 0.0;
+        
+        for i in 0..observed.len() {
+            let residual = observed[i] - predicted[i];
+            let residual_sq = residual.powi(2);
+            
+            // Check if prediction is out of bounds
+            let pred = predicted[i];
+            if pred < self.obs_min || pred > self.obs_max {
+                // Apply penalty for out-of-bounds prediction
+                total_cost += self.penalty_factor * residual_sq;
+            } else {
+                // Normal squared error
+                total_cost += residual_sq;
+            }
+        }
+        
+        (total_cost / n).sqrt()
+    }
+    
+    fn name(&self) -> &'static str {
+        "BoundedError"
+    }
+}
+
+/// Huber loss for robust regression with smooth transition between quadratic and linear
+#[derive(Clone, Debug)]
+pub struct HuberLoss {
+    pub delta: f64,
+}
+
+impl ObjectiveFunction for HuberLoss {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
+        assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+        
+        let n = observed.len() as f64;
+        let mut total_cost = 0.0;
+        
+        for i in 0..observed.len() {
+            let residual = (observed[i] - predicted[i]).abs();
+            if residual <= self.delta {
+                // Quadratic loss for small residuals
+                total_cost += 0.5 * residual.powi(2);
+            } else {
+                // Linear loss for large residuals
+                total_cost += self.delta * residual - 0.5 * self.delta.powi(2);
+            }
+        }
+        
+        total_cost / n
+    }
+    
+    fn name(&self) -> &'static str {
+        "HuberLoss"
+    }
+}
+
+/// Quantile loss for quantile regression (asymmetric penalty based on quantile)
+#[derive(Clone, Debug)]
+pub struct QuantileLoss {
+    pub quantile: f64,
+}
+
+impl ObjectiveFunction for QuantileLoss {
+    fn cost(&self, observed: &[f64], predicted: &[f64], _depths: &[f64]) -> f64 {
+        assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
+        assert!(self.quantile > 0.0 && self.quantile < 1.0, "quantile must be between 0 and 1");
+        
+        let n = observed.len() as f64;
+        let mut total_cost = 0.0;
+        
+        for i in 0..observed.len() {
+            let residual = observed[i] - predicted[i];
+            if residual > 0.0 {
+                // Under-prediction penalty
+                total_cost += self.quantile * residual;
+            } else {
+                // Over-prediction penalty
+                total_cost += (1.0 - self.quantile) * residual.abs();
+            }
+        }
+        
+        total_cost / n
+    }
+    
+    fn name(&self) -> &'static str {
+        "QuantileLoss"
     }
 }
 
@@ -184,12 +372,39 @@ impl ObjectiveFunction for R2Objective {
 /// # Returns
 /// Arc-wrapped trait object, or error for unknown objective
 pub fn create_objective(objective_name: &str) -> Result<Arc<dyn ObjectiveFunction>, String> {
-    match objective_name.to_lowercase().as_str() {
-        "rmse" => Ok(Arc::new(RmseObjective)),
-        "sse" => Ok(Arc::new(SseObjective)),
-        "mae" => Ok(Arc::new(MaeObjective)),
-        "r2" => Ok(Arc::new(R2Objective)),
-        _ => Err(format!("Unknown objective: {}", objective_name)),
+    create_objective_with_params(objective_name, &ObjectiveParams::Basic)
+}
+
+/// Create objective function with parameters
+///
+/// # Arguments
+/// * `objective_name` - Name of objective type
+/// * `params` - Parameters for the objective function
+///
+/// # Returns
+/// Arc-wrapped trait object, or error for unknown objective or invalid params
+pub fn create_objective_with_params(objective_name: &str, params: &ObjectiveParams) -> Result<Arc<dyn ObjectiveFunction>, String> {
+    match (objective_name.to_lowercase().as_str(), params) {
+        ("rmse", ObjectiveParams::Basic) => Ok(Arc::new(RmseObjective)),
+        ("sse", ObjectiveParams::Basic) => Ok(Arc::new(SseObjective)),
+        ("mae", ObjectiveParams::Basic) => Ok(Arc::new(MaeObjective)),
+        ("r2", ObjectiveParams::Basic) => Ok(Arc::new(R2Objective)),
+        ("weighted_rmse", ObjectiveParams::Weighted { target_depth, weight_factor }) => {
+            Ok(Arc::new(WeightedRMSE { target_depth: *target_depth, weight_factor: *weight_factor }))
+        },
+        ("ordinal", ObjectiveParams::Ordinal { underpredict_penalty, overpredict_penalty }) => {
+            Ok(Arc::new(OrdinalError { underpredict_penalty: *underpredict_penalty, overpredict_penalty: *overpredict_penalty }))
+        },
+        ("bounded", ObjectiveParams::Bounded { obs_min, obs_max, penalty_factor }) => {
+            Ok(Arc::new(BoundedError { obs_min: *obs_min, obs_max: *obs_max, penalty_factor: *penalty_factor }))
+        },
+        ("huber", ObjectiveParams::Huber { delta }) => {
+            Ok(Arc::new(HuberLoss { delta: *delta }))
+        },
+        ("quantile", ObjectiveParams::Quantile { quantile }) => {
+            Ok(Arc::new(QuantileLoss { quantile: *quantile }))
+        },
+        _ => Err(format!("Unknown objective: {} with given parameters", objective_name)),
     }
 }
 
@@ -312,7 +527,7 @@ pub fn optimize_grid_search(
             // Evaluate this combination
             let pred = eval_shape(shape_type, x, current_params, ascending)
                 .map_err(|e| format!("eval_shape failed: {}", e))?;
-            let cost = objective.cost(observed, &pred);
+            let cost = objective.cost(observed, &pred, x);
 
             *count += 1;
             if cost < *best_cost {
@@ -469,8 +684,9 @@ mod tests {
     fn test_rmse_objective() {
         let obs = vec![1.0, 2.0, 3.0];
         let pred = vec![1.1, 2.1, 3.1];
+        let depths = vec![1.0, 2.0, 3.0];
         let obj = RmseObjective;
-        let cost = obj.cost(&obs, &pred);
+        let cost = obj.cost(&obs, &pred, &depths);
         assert!((cost - 0.1).abs() < 1e-10);
     }
 
@@ -478,8 +694,9 @@ mod tests {
     fn test_sse_objective() {
         let obs = vec![1.0, 2.0, 3.0];
         let pred = vec![1.1, 2.1, 3.1];
+        let depths = vec![1.0, 2.0, 3.0];
         let obj = SseObjective;
-        let cost = obj.cost(&obs, &pred);
+        let cost = obj.cost(&obs, &pred, &depths);
         assert!((cost - 0.03).abs() < 1e-10);
     }
 
@@ -487,8 +704,9 @@ mod tests {
     fn test_mae_objective() {
         let obs = vec![1.0, 2.0, 3.0];
         let pred = vec![1.1, 2.1, 3.1];
+        let depths = vec![1.0, 2.0, 3.0];
         let obj = MaeObjective;
-        let cost = obj.cost(&obs, &pred);
+        let cost = obj.cost(&obs, &pred, &depths);
         assert!((cost - 0.1).abs() < 1e-10);
     }
 
@@ -573,5 +791,84 @@ mod tests {
         // Should find level close to 0.6 (Nelder-Mead may not be exact)
         assert!((result.params[0] - 0.6).abs() < 0.05);
         assert!(result.final_cost < 0.1); // Should have low error
+    }
+
+    #[test]
+    fn test_weighted_rmse() {
+        let obs = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let pred = vec![1.1, 2.1, 3.1, 4.1, 5.1];
+        let depths = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let obj = WeightedRMSE { target_depth: 3.0, weight_factor: 1.0 };
+        let cost = obj.cost(&obs, &pred, &depths);
+        // Should be approximately 0.1 (same as unweighted for this case)
+        assert!((cost - 0.1).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_ordinal_error() {
+        let obs = vec![2.0, 2.0, 2.0];
+        let pred = vec![1.0, 2.0, 3.0]; // Under, exact, over
+        let depths = vec![1.0, 2.0, 3.0];
+        let obj = OrdinalError { underpredict_penalty: 2.0, overpredict_penalty: 1.0 };
+        let cost = obj.cost(&obs, &pred, &depths);
+        // Under-prediction (1.0) gets 2.0 * 1.0 = 2.0
+        // Over-prediction (1.0) gets 1.0 * 1.0 = 1.0
+        // Total cost = (2.0 + 0.0 + 1.0) / 3 = 1.0
+        assert!((cost - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_bounded_error() {
+        let obs = vec![5.0, 5.0, 5.0];
+        let pred = vec![3.0, 5.0, 7.0]; // Out of bounds, in bounds, out of bounds
+        let depths = vec![1.0, 2.0, 3.0];
+        let obj = BoundedError { obs_min: 4.0, obs_max: 6.0, penalty_factor: 10.0 };
+        let cost = obj.cost(&obs, &pred, &depths);
+        // RMSE would be sqrt((4+0+4)/3) = sqrt(8/3) ≈ 1.63
+        // But with penalty: sqrt((4*10 + 0 + 4*10)/3) = sqrt(80/3) ≈ 5.16
+        assert!(cost > 4.0); // Should be higher due to penalty
+    }
+
+    #[test]
+    fn test_huber_loss() {
+        let obs = vec![1.0, 2.0, 3.0];
+        let pred = vec![1.5, 2.5, 3.5]; // Residuals of 0.5 each
+        let depths = vec![1.0, 2.0, 3.0];
+        let obj = HuberLoss { delta: 1.0 };
+        let cost = obj.cost(&obs, &pred, &depths);
+        // All residuals <= delta, so quadratic: 0.5 * (0.5^2 * 3) / 3 = 0.5 * 0.75 / 3 wait
+        // For each: 0.5 * 0.5^2 = 0.125, total 0.375, divided by 3 = 0.125
+        assert!((cost - 0.125).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_quantile_loss() {
+        let obs = vec![2.0, 2.0, 2.0];
+        let pred = vec![1.0, 2.0, 3.0]; // Under, exact, over
+        let depths = vec![1.0, 2.0, 3.0];
+        let obj = QuantileLoss { quantile: 0.9 }; // Conservative (high) estimates
+        let cost = obj.cost(&obs, &pred, &depths);
+        // Under: 0.9 * 1.0 = 0.9
+        // Over: 0.1 * 1.0 = 0.1
+        // Total: (0.9 + 0.0 + 0.1) / 3 = 1.0 / 3 ≈ 0.333
+        assert!((cost - (1.0 / 3.0)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_create_objective_weighted_rmse() {
+        let params = ObjectiveParams::Weighted { target_depth: 100.0, weight_factor: 2.0 };
+        let result = create_objective_with_params("weighted_rmse", &params);
+        assert!(result.is_ok());
+        let obj = result.unwrap();
+        assert_eq!(obj.name(), "WeightedRMSE");
+    }
+
+    #[test]
+    fn test_create_objective_ordinal() {
+        let params = ObjectiveParams::Ordinal { underpredict_penalty: 1.5, overpredict_penalty: 1.0 };
+        let result = create_objective_with_params("ordinal", &params);
+        assert!(result.is_ok());
+        let obj = result.unwrap();
+        assert_eq!(obj.name(), "OrdinalError");
     }
 }
