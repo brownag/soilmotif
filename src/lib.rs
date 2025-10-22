@@ -17,8 +17,6 @@ pub mod shape_functions;
 pub mod optimizer;
 pub mod batch;
 
-use crate::optimizer::ObjectiveFunction;
-
 /// Check that Rust backend is available and working
 /// 
 /// # Examples
@@ -31,11 +29,27 @@ fn check_rust_backend() -> String {
     "Rust backend available".to_string()
 }
 
+/// Test function
+#[extendr]
+fn test_new_function() -> String {
+    "test".to_string()
+}
+
+/// Recommend optimization algorithm based on problem characteristics
+/// 
+/// Called via R: `.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")`
+#[extendr]
+fn recommend_optimizer_rust(_n_params: i32, _n_obs: i32, _objective_type: &str) -> String {
+    // For now, only Nelder-Mead is implemented
+    // Future: Add logic to recommend different algorithms based on problem size
+    "nelder_mead".to_string()
+}
+
 /// Test function to check if extendr generates wrappers for multi-parameter functions
 /// 
 /// Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
 #[extendr]
-fn test_multi_param_rust(a: Vec<f64>, b: Vec<f64>, c: Vec<f64>, d: f64) -> f64 {
+fn test_multi_param_rust(_a: Vec<f64>, _b: Vec<f64>, _c: Vec<f64>, d: f64) -> f64 {
     d
 }
 
@@ -159,13 +173,11 @@ fn shape_eval_rust(
     }
 }
 
-/// Optimize single profile with pluggable objective function
+/// Optimize single profile (legacy interface)
 /// 
-/// Fits shape function parameters to observed data.
-/// Supports flexible objective functions (RMSE, SSE, MAE, R²).
-///
 /// Called via R: `.Call("optimize_profile_rust", observed, x, initial_params, 
-///                      shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
+///                      shape_type, ascending, PACKAGE = "soilmotif")`
+/// Returns Vec<f64> on success, or stops with an error message on failure
 #[extendr]
 fn optimize_profile_rust(
     observed: Vec<f64>,
@@ -173,7 +185,35 @@ fn optimize_profile_rust(
     initial_params: Vec<f64>,
     shape_type: &str,
     ascending: bool,
+) -> Vec<f64> {
+    // Use RMSE objective by default for backward compatibility
+    optimize_profile_rust_flexible(
+        observed,
+        x,
+        initial_params,
+        shape_type,
+        ascending,
+        "rmse",
+        "auto",
+    )
+}
+
+/// Optimize single profile with flexible algorithm selection
+/// 
+/// Fits shape function parameters to observed data with choice of optimization algorithm.
+/// Supports flexible objective functions (RMSE, SSE, MAE, R²) and algorithms (Nelder-Mead).
+///
+/// Called via R: `.Call("optimize_profile_rust_flexible", observed, x, initial_params, 
+///                      shape_type, ascending, objective_type, algorithm, PACKAGE = "soilmotif")`
+#[extendr]
+fn optimize_profile_rust_flexible(
+    observed: Vec<f64>,
+    x: Vec<f64>,
+    initial_params: Vec<f64>,
+    shape_type: &str,
+    ascending: bool,
     objective_type: &str,
+    algorithm: &str,
 ) -> Vec<f64> {
     // Create objective function by name
     let objective = match optimizer::create_objective(objective_type) {
@@ -184,14 +224,24 @@ fn optimize_profile_rust(
         }
     };
 
-    // Try optimization with fallback strategy
-    match optimizer::optimize_with_fallback(
+    // Parse algorithm
+    let algorithm_type = match algorithm.to_lowercase().as_str() {
+        "nelder_mead" => optimizer::AlgorithmType::NelderMead,
+        _ => {
+            eprintln!("Unknown algorithm '{}', using Nelder-Mead", algorithm);
+            optimizer::AlgorithmType::NelderMead
+        }
+    };
+
+    // Try optimization with specified algorithm
+    match optimizer::optimize_with_algorithm(
         &observed,
         &x,
         &initial_params,
         shape_type,
         ascending,
         objective,
+        algorithm_type,
     ) {
         Ok(result) => result.params,
         Err(e) => {
@@ -236,7 +286,7 @@ fn batch_optimize_profiles_rust(
     ascending: bool,
     objective_type: &str,
 ) -> List {
-        // Convert R List of profiles to Rust Vec<Vec<f64>>
+    // Convert R List of profiles to Rust Vec<Vec<f64>>
     let mut profiles_vec: Vec<Vec<f64>> = Vec::new();
     for prof_entry in profiles_list {
         let (_name, prof_robj) = prof_entry;
@@ -352,7 +402,10 @@ extendr_module! {
     fn objective_bounded_rust;
     fn objective_huber_rust;
     fn objective_quantile_rust;
+    fn test_new_function;
+    fn recommend_optimizer_rust;
     fn shape_eval_rust;
     fn optimize_profile_rust;
+    fn optimize_profile_rust_flexible;
     fn batch_optimize_profiles_rust;
 }

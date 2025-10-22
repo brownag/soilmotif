@@ -169,7 +169,7 @@ pub fn batch_optimize_sequential(
     shape_type: &str,
     ascending: bool,
     objective: Arc<dyn crate::optimizer::ObjectiveFunction>,
-    x_per_profile: bool,
+    _x_per_profile: bool,
 ) -> Result<BatchResult, String> {
     if profiles.is_empty() {
         return Err("profiles list is empty".to_string());

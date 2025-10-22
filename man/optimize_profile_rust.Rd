@@ -2,21 +2,11 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{optimize_profile_rust}
 \alias{optimize_profile_rust}
-\title{Optimize single profile with pluggable objective function}
+\title{Optimize single profile (legacy interface)}
 \usage{
-optimize_profile_rust(
-  observed,
-  x,
-  initial_params,
-  shape_type,
-  ascending,
-  objective_type
-)
+optimize_profile_rust(observed, x, initial_params, shape_type, ascending)
 }
 \description{
-Fits shape function parameters to observed data.
-Supports flexible objective functions (RMSE, SSE, MAE, R²).
-}
-\details{
-Called via R: \code{.Call("optimize_profile_rust", observed, x, initial_params,  shape_type, ascending, objective_type, PACKAGE = "soilmotif")}
+Called via R: \code{.Call("optimize_profile_rust", observed, x, initial_params,  shape_type, ascending, PACKAGE = "soilmotif")}
+Returns Vec\if{html}{\out{<f64>}} on success, or stops with an error message on failure
 }

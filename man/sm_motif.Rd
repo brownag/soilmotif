@@ -22,7 +22,7 @@ sm_optim(
   OPTFUN = sm_optim_rmse,
   use_rust = FALSE,
   compare = FALSE,
-  algorithm = "nelder_mead"
+  algorithm = "auto"
 )
 }
 \arguments{

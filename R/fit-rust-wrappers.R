@@ -6,7 +6,6 @@
 #'
 #' @return logical TRUE if Rust backend is available
 #' @export
-#' @keywords internal
 #' @examples
 #' \dontrun{
 #'   if (rust_backend_available()) {
@@ -28,7 +27,6 @@ rust_backend_available <- function() {
 #' @param predicted numeric vector of predicted values
 #'
 #' @return numeric RMSE value
-#' @export
 #' @keywords internal
 objective_rmse_rust <- function(observed, predicted) {
   if (!rust_backend_available()) {
@@ -52,7 +50,6 @@ objective_rmse_rust <- function(observed, predicted) {
 #' @param predicted numeric vector of predicted values
 #'
 #' @return numeric SSE value
-#' @export
 #' @keywords internal
 objective_sse_rust <- function(observed, predicted) {
   if (!rust_backend_available()) {
@@ -76,7 +73,6 @@ objective_sse_rust <- function(observed, predicted) {
 #' @param predicted numeric vector of predicted values
 #'
 #' @return numeric MAE value
-#' @export
 #' @keywords internal
 objective_mae_rust <- function(observed, predicted) {
   if (!rust_backend_available()) {
@@ -100,7 +96,6 @@ objective_mae_rust <- function(observed, predicted) {
 #' @param predicted numeric vector of predicted values
 #'
 #' @return numeric R-squared value
-#' @export
 #' @keywords internal
 objective_r2_rust <- function(observed, predicted) {
   if (!rust_backend_available()) {
@@ -133,7 +128,6 @@ objective_r2_rust <- function(observed, predicted) {
 #' @param ascending logical whether values increase (TRUE) or decrease (FALSE)
 #'
 #' @return numeric vector of shape values in 0 to 1 range
-#' @export
 #' @keywords internal
 shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
   if (!rust_backend_available()) {
@@ -210,26 +204,28 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
 optimize_profile_rust_flexible <- function(observed, x, initial_params,
                                            shape_type = "sigmoid",
                                            ascending = TRUE,
-                                           objective_type = "rmse") {
+                                           objective_type = "rmse",
+                                           algorithm = "auto") {
   if (!rust_backend_available()) {
     stop("Rust backend not available")
   }
-  
+
   # Map sigmoid to wetting_front for Rust backend
   rust_shape_type <- if (shape_type == "sigmoid") "wetting_front" else shape_type
-  
+
   tryCatch({
-    result <- .Call("wrap__optimize_profile_rust",
+    result <- .Call("wrap__optimize_profile_rust_flexible",
                     as.numeric(observed),
                     as.numeric(x),
                     as.numeric(initial_params),
                     as.character(rust_shape_type),
                     as.logical(ascending),
                     as.character(objective_type),
+                    as.character(algorithm),
                     PACKAGE = "soilmotif")
     as.numeric(result)
   }, error = function(e) {
-    warning("Rust optimization failed: ", e$message, 
+    warning("Rust optimization failed: ", e$message,
             "; returning initial parameters")
     initial_params
   })
@@ -280,7 +276,8 @@ sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
       initial_params = X,
       shape_type = shape_type,
       ascending = ascending,
-      objective_type = objective_type
+      objective_type = objective_type,
+      algorithm = "auto"
     )
   }, error = function(e) {
     warning("Rust optimization failed: ", e$message, "; falling back to R")
@@ -303,7 +300,6 @@ sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
 #' @param ... additional arguments passed to shape/objective functions
 #'
 #' @return list with r_result, rust_result, r_rmse, rust_rmse, diff_rmse, passed
-#' @export
 #' @keywords internal
 #' @examples
 #' \dontrun{
@@ -354,7 +350,8 @@ compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
       initial_params = X,
       shape_type = shape_type,
       ascending = TRUE,
-      objective_type = objective_type
+      objective_type = objective_type,
+      algorithm = "auto"
     )
 
     rust_result <- sm_motif(x, rust_params, FUN = FUN, ...)

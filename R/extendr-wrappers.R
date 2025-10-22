@@ -19,6 +19,11 @@ NULL
 #' ```
 check_rust_backend <- function() .Call(wrap__check_rust_backend)
 
+#' Test function to check if extendr generates wrappers for multi-parameter functions
+#' 
+#' Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
+test_multi_param_rust <- function(`_a`, `_b`, `_c`, d) .Call(wrap__test_multi_param_rust, `_a`, `_b`, `_c`, d)
+
 #' Compute RMSE between observed and predicted (Rust implementation)
 #' 
 #' Called via R: `.Call("objective_rmse_rust", x, y, PACKAGE = "soilmotif")`
@@ -39,20 +44,60 @@ objective_mae_rust <- function(x, y) .Call(wrap__objective_mae_rust, x, y)
 #' Called via R: `.Call("objective_r2_rust", x, y, PACKAGE = "soilmotif")`
 objective_r2_rust <- function(x, y) .Call(wrap__objective_r2_rust, x, y)
 
+#' Compute weighted RMSE (Rust implementation)
+#' 
+#' Called via R: `.Call("objective_weighted_rmse_rust", observed, predicted, depths, target_depth, weight_factor, PACKAGE = "soilmotif")`
+objective_weighted_rmse_rust <- function(observed, predicted, depths, target_depth, weight_factor) .Call(wrap__objective_weighted_rmse_rust, observed, predicted, depths, target_depth, weight_factor)
+
+#' Compute ordinal error (Rust implementation)
+#' 
+#' Called via R: `.Call("objective_ordinal_rust", observed, predicted, depths, under_penalty, over_penalty, PACKAGE = "soilmotif")`
+objective_ordinal_rust <- function(observed, predicted, depths, underpredict_penalty, overpredict_penalty) .Call(wrap__objective_ordinal_rust, observed, predicted, depths, underpredict_penalty, overpredict_penalty)
+
+#' Compute bounded error (Rust implementation)
+#' 
+#' Called via R: `.Call("objective_bounded_rust", observed, predicted, depths, obs_min, obs_max, penalty_factor, PACKAGE = "soilmotif")`
+objective_bounded_rust <- function(observed, predicted, depths, obs_min, obs_max, penalty_factor) .Call(wrap__objective_bounded_rust, observed, predicted, depths, obs_min, obs_max, penalty_factor)
+
+#' Compute Huber loss (Rust implementation)
+#' 
+#' Called via R: `.Call("objective_huber_rust", observed, predicted, depths, delta, PACKAGE = "soilmotif")`
+objective_huber_rust <- function(observed, predicted, depths, delta) .Call(wrap__objective_huber_rust, observed, predicted, depths, delta)
+
+#' Compute quantile loss (Rust implementation)
+#' 
+#' Called via R: `.Call("objective_quantile_rust", observed, predicted, depths, quantile, PACKAGE = "soilmotif")`
+objective_quantile_rust <- function(observed, predicted, depths, quantile) .Call(wrap__objective_quantile_rust, observed, predicted, depths, quantile)
+
+#' Test function
+test_new_function <- function() .Call(wrap__test_new_function)
+
+#' Recommend optimization algorithm based on problem characteristics
+#' 
+#' Called via R: `.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")`
+recommend_optimizer_rust <- function(`_n_params`, `_n_obs`, `_objective_type`) .Call(wrap__recommend_optimizer_rust, `_n_params`, `_n_obs`, `_objective_type`)
+
 #' Evaluate a shape function (Rust implementation)
 #' 
 #' Called via R: `.Call("shape_eval_rust", shape_type, x, params, ascending, PACKAGE = "soilmotif")`
 #' Returns Vec<f64> on success, or stops with an error message on failure
 shape_eval_rust <- function(shape_type, x, params, ascending) .Call(wrap__shape_eval_rust, shape_type, x, params, ascending)
 
-#' Optimize single profile with pluggable objective function
+#' Optimize single profile (legacy interface)
 #' 
-#' Fits shape function parameters to observed data.
-#' Supports flexible objective functions (RMSE, SSE, MAE, R²).
-#'
 #' Called via R: `.Call("optimize_profile_rust", observed, x, initial_params, 
-#'                      shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
-optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending, objective_type) .Call(wrap__optimize_profile_rust, observed, x, initial_params, shape_type, ascending, objective_type)
+#'                      shape_type, ascending, PACKAGE = "soilmotif")`
+#' Returns Vec<f64> on success, or stops with an error message on failure
+optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending) .Call(wrap__optimize_profile_rust, observed, x, initial_params, shape_type, ascending)
+
+#' Optimize single profile with flexible algorithm selection
+#' 
+#' Fits shape function parameters to observed data with choice of optimization algorithm.
+#' Supports flexible objective functions (RMSE, SSE, MAE, R²) and algorithms (Nelder-Mead).
+#'
+#' Called via R: `.Call("optimize_profile_rust_flexible", observed, x, initial_params, 
+#'                      shape_type, ascending, objective_type, algorithm, PACKAGE = "soilmotif")`
+optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, algorithm) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, algorithm)
 
 #' Batch profile processing (Rust implementation, returns data.frame-like result)
 #' 

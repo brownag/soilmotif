@@ -282,6 +282,30 @@ sm_optim <- function(x, X, ...,
   )
 }
 
+#' Recommend Optimization Algorithm
+#'
+#' Recommends the best optimization algorithm based on problem characteristics.
+#'
+#' @param n_params integer. Number of parameters to optimize.
+#' @param n_obs integer. Number of observations.
+#' @param objective_type character. Type of objective function ("rmse", "weighted_rmse", etc.).
+#' @return character. Recommended algorithm name.
+#' @export
+#' @examples
+#' sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
+sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rmse") {
+  if (!rust_backend_available()) {
+    return("nelder_mead")  # Default fallback
+  }
+  
+  tryCatch({
+    recommend_optimizer_rust(as.integer(n_params), as.integer(n_obs %||% 100), objective_type)
+  }, error = function(e) {
+    warning("Failed to get recommendation from Rust: ", e$message)
+    "nelder_mead"
+  })
+}
+
 # ============================================================================
 # Rust Backend Integration (Phase 2)
 # ============================================================================
@@ -292,7 +316,7 @@ sm_optim_r_impl <- sm_optim
 # Replace sm_optim with dispatch wrapper that can route to Rust
 sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse, use_rust = FALSE,
-                     compare = FALSE, algorithm = "nelder_mead") {
+                     compare = FALSE, algorithm = "auto") {
   # If comparison mode requested, run both R and Rust and return comparison
   if (compare) {
     return(compare_r_vs_rust(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
@@ -311,6 +335,24 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
     # Determine shape type from FUN
     shape_type <- deparse(substitute(FUN))
     shape_type <- gsub("^sm_shape_", "", shape_type)
+    
+    # Map R function names to Rust shape type names
+    shape_type <- switch(shape_type,
+      "sigmoid" = "wetting_front",
+      "wetting_front" = "wetting_front",
+      "uniform" = "uniform",
+      "gradational" = "gradational", 
+      "exponential" = "exponential",
+      "abrupt" = "abrupt",
+      "peak" = "peak",
+      "minimax" = "minimax",
+      "wetting_front"  # default fallback
+    )
+
+    # Determine algorithm
+    if (algorithm == "auto") {
+      algorithm <- sm_recommend_optimizer(length(X), length(x), objective_type)
+    }
 
     # Determine depth vector
     depth_vector <- seq_along(x)
@@ -318,12 +360,13 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
     # Try Rust implementation with algorithm selection and fallback to R
     tryCatch({
       result <- optimize_profile_rust_flexible(
-        observed = x,
-        x = depth_vector,
-        initial_params = X,
-        shape_type = shape_type,
-        ascending = TRUE,  # Default for now
-        objective_type = objective_type
+        as.numeric(x),
+        as.numeric(depth_vector),
+        as.numeric(X),
+        as.character(shape_type),
+        TRUE,
+        as.character(objective_type),
+        as.character(algorithm)
       )
 
       # Return result in same format as R implementation

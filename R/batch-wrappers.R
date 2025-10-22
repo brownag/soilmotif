@@ -88,7 +88,7 @@ batch_optimize_profiles <- function(profiles,
   if (is.null(initial_params_list)) {
     # Use default parameters for shape type
     default_params <- switch(shape_type,
-      uniform = 100,
+      uniform = c(100),
       gradational = c(100, 20),
       exponential = c(100, 20),
       wetting_front = c(100, 20),

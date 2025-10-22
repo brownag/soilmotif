@@ -20,4 +20,3 @@ Check if Rust backend is available and loaded
   }
 }
 }
-\keyword{internal}

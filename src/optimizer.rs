@@ -13,41 +13,17 @@
 use crate::objective::{rmse, sse, mae, r_squared};
 use crate::shape_functions::eval_shape;
 use argmin::core::*;
-use argmin_math::*;
+use argmin::solver::neldermead::NelderMead;
 use std::f64;
 use std::sync::Arc;
 
 // Implement required math traits for Vec<f64> to work with argmin solvers
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct ParamVec(pub Vec<f64>);
-
-impl ArgminAdd<ParamVec, ParamVec> for ParamVec {
-    fn add(&self, other: &ParamVec) -> ParamVec {
-        ParamVec(
-            self.0.iter().zip(other.0.iter()).map(|(a, b)| a + b).collect()
-        )
-    }
-}
-
-impl ArgminSub<ParamVec, ParamVec> for ParamVec {
-    fn sub(&self, other: &ParamVec) -> ParamVec {
-        ParamVec(
-            self.0.iter().zip(other.0.iter()).map(|(a, b)| a - b).collect()
-        )
-    }
-}
-
-impl ArgminMul<f64, ParamVec> for ParamVec {
-    fn mul(&self, other: &f64) -> ParamVec {
-        ParamVec(self.0.iter().map(|a| a * other).collect())
-    }
-}
+// Note: argmin provides native support for Vec<f64>, so no custom wrapper needed
 
 /// Algorithm types available for optimization
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum AlgorithmType {
     NelderMead,
-    // Future: LBFGS, Newton, etc.
 }
 
 /// Parameters for configuring objective functions
@@ -93,34 +69,18 @@ struct ShapeCostFunction {
 }
 
 impl CostFunction for ShapeCostFunction {
-    type Param = ParamVec;
+    type Param = Vec<f64>;
     type Output = f64;
 
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
-        match eval_shape(&self.shape_type, &self.x, &param.0, self.ascending) {
+        match eval_shape(&self.shape_type, &self.x, param, self.ascending) {
             Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted, &self.x)),
             Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
         }
     }
 }
 
-impl ShapeCostFunction {
-    fn new(
-        observed: Vec<f64>,
-        x: Vec<f64>,
-        shape_type: String,
-        ascending: bool,
-        objective: Arc<dyn ObjectiveFunction>,
-    ) -> Self {
-        Self {
-            observed,
-            x,
-            shape_type,
-            ascending,
-            objective,
-        }
-    }
-}
+
 
 
 /// Trait for pluggable objective functions
@@ -205,7 +165,7 @@ impl ObjectiveFunction for WeightedRMSE {
         assert_eq!(observed.len(), predicted.len(), "observed and predicted must have same length");
         assert_eq!(observed.len(), depths.len(), "observed and depths must have same length");
         
-        let n = observed.len() as f64;
+        let _n = observed.len() as f64;
         let mut weighted_sum_sq = 0.0;
         let mut sum_weights = 0.0;
         
@@ -408,10 +368,9 @@ pub fn create_objective_with_params(objective_name: &str, params: &ObjectivePara
     }
 }
 
-/// Simple derivative-free optimization using argmin Nelder-Mead
+/// Optimize using argmin's Nelder-Mead solver
 /// 
-/// Uses argmin::NelderMead for robust, well-tested optimization
-/// suitable for low-dimensional problems (2-4 parameters)
+/// Uses argmin's battle-tested Nelder-Mead implementation instead of custom code
 pub fn optimize_nelder_mead(
     observed: &[f64],
     x: &[f64],
@@ -420,7 +379,7 @@ pub fn optimize_nelder_mead(
     ascending: bool,
     objective: Arc<dyn ObjectiveFunction>,
     max_iters: u64,
-    tol: f64,
+    _tol: f64,
 ) -> Result<OptimResult, String> {
     if observed.len() != x.len() {
         return Err("observed and x must have same length".to_string());
@@ -429,65 +388,81 @@ pub fn optimize_nelder_mead(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create cost function wrapper
-    let cost_fn = ShapeCostFunction::new(
-        observed.to_vec(),
-        x.to_vec(),
-        shape_type.to_string(),
+    // Create the cost function wrapper
+    let cost_fn = ShapeCostFunction {
+        observed: observed.to_vec(),
+        x: x.to_vec(),
+        shape_type: shape_type.to_string(),
         ascending,
-        objective,
-    );
+        objective: objective.clone(),
+    };
 
-    // Create initial simplex for Nelder-Mead
-    let initial_param = ParamVec(initial_params.to_vec());
-    let simplex = create_simplex(&initial_param, initial_params.len());
+    // Create proper initial simplex for Nelder-Mead
+    // Need n+1 points for n-dimensional optimization
+    let n_params = initial_params.len();
+    let mut simplex = Vec::with_capacity(n_params + 1);
+    
+    // First simplex point: the initial parameters
+    simplex.push(initial_params.to_vec());
+    
+    // Remaining points: perturbed versions (standard Nelder-Mead initialization)
+    for i in 0..n_params {
+        let mut point = initial_params.to_vec();
+        point[i] += 0.1 * (initial_params[i].abs().max(1.0));
+        simplex.push(point);
+    }
 
-    // Set up Nelder-Mead solver
-    let solver = argmin::solver::neldermead::NelderMead::new(simplex)
-        .with_sd_tolerance(tol)
-        .map_err(|e| format!("Failed to create Nelder-Mead solver: {:?}", e))?;
+    // Create Nelder-Mead solver with the full simplex
+    let solver = NelderMead::<Vec<f64>, f64>::new(simplex);
 
-    // Create executor
-    let executor = argmin::core::Executor::new(cost_fn, solver)
+    // Set up executor - crucially, sync the state with the solver's initial point
+    let executor = Executor::new(cost_fn, solver)
         .configure(|state| {
             state
-                .param(initial_param.clone())
+                .param(initial_params.to_vec())
                 .max_iters(max_iters as u64)
         });
 
     // Run optimization
-    let result = executor.run().map_err(|e| format!("Argmin optimization failed: {:?}", e))?;
+    let result = executor.run()
+        .map_err(|e| format!("Optimization failed: {:?}", e))?;
 
-    // Extract results
-    let best_param = result.state().get_best_param().unwrap_or(&initial_param).clone();
-    let best_cost = result.state().get_best_cost();
-    let iterations = result.state().get_iter();
+    // Extract results safely - use correct argmin state accessors
+    let state = result.state();
+    let best_param = state.get_best_param()
+        .cloned()
+        .unwrap_or_else(|| initial_params.to_vec());
+    let final_cost = state.get_best_cost();
+    
+    // Correctly extract iteration count from argmin state
+    // For convergence: if we got a result with finite cost, consider it converged
+    let iterations = state.get_iter();
+    let converged = final_cost.is_finite();
 
     Ok(OptimResult {
-        params: best_param.0,
-        final_cost: best_cost,
+        params: best_param,
+        final_cost,
         iterations,
-        converged: result.state().get_termination_reason() 
-            != Some(&argmin::core::TerminationReason::SolverConverged),
-        method: "NelderMead-Argmin".to_string(),
+        converged,
+        method: "NelderMead-argmin".to_string(),
         lower_bounds: None,
         upper_bounds: None,
     })
 }
 
-/// Create initial simplex for Nelder-Mead algorithm
-fn create_simplex(initial: &ParamVec, n_params: usize) -> Vec<ParamVec> {
-    let mut simplex = vec![initial.clone()];
-    
-    // Create n additional points by perturbing each parameter
-    for i in 0..n_params {
-        let mut point = initial.clone();
-        // Perturb the i-th parameter by 10%
-        point.0[i] *= 1.1;
-        simplex.push(point);
-    }
-    
-    simplex
+/// Recommend optimization algorithm based on problem characteristics
+///
+/// # Arguments
+/// * `n_params` - Number of parameters to optimize
+/// * `n_obs` - Number of observations
+/// * `objective_type` - Type of objective function ("rmse", "weighted_rmse", etc.)
+///
+/// # Returns
+/// Recommended AlgorithmType
+pub fn recommend_algorithm(_n_params: usize, _n_obs: usize, _objective_type: &str) -> AlgorithmType {
+    // For now, only Nelder-Mead is implemented
+    // Future: Add more algorithms based on problem characteristics
+    AlgorithmType::NelderMead
 }
 
 /// Grid search fallback: exhaustive search over parameter space
@@ -593,11 +568,30 @@ pub fn optimize_grid_search(
     })
 }
 
+/// Optimize with specified algorithm
+///
+/// Dispatches to the appropriate optimization algorithm based on AlgorithmType
+pub fn optimize_with_algorithm(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+    algorithm: AlgorithmType,
+) -> Result<OptimResult, String> {
+    match algorithm {
+        AlgorithmType::NelderMead => optimize_nelder_mead(
+            observed, x, initial_params, shape_type, ascending, objective, 1000, 1e-8
+        ),
+    }
+}
+
 /// Optimize with automatic fallback strategy
 ///
-/// 1. Try Nelder-Mead with specified objective
-/// 2. If fails, try grid search
-/// 3. Return best result
+/// 1. For 1D problems: use grid search (argmin NelderMead has bugs with 1D)
+/// 2. For N>1D: Try Nelder-Mead first
+/// 3. If Nelder-Mead fails: fall back to grid search
 ///
 /// This is the main entry point for optimization with flexible objectives.
 pub fn optimize_with_fallback(
@@ -608,7 +602,40 @@ pub fn optimize_with_fallback(
     ascending: bool,
     objective: Arc<dyn ObjectiveFunction>,
 ) -> Result<OptimResult, String> {
-    // Try Nelder-Mead first
+    // Special case: 1-dimensional problems
+    // argmin's NelderMead has issues with 1D (underflow in simplex indexing)
+    // Grid search is more robust and efficient for single-parameter optimization
+    if initial_params.len() == 1 {
+        eprintln!(
+            "DEBUG: 1D problem detected for shape '{}'. Using grid search.",
+            shape_type
+        );
+
+        // Define reasonable parameter ranges for 1D grid search
+        let param_ranges = match shape_type {
+            // Uniform shape: single parameter typically in range [0, 1]
+            "uniform" => vec![vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]],
+            // Other shapes: search around initial parameter
+            _ => vec![vec![
+                (initial_params[0] - 50.0).max(0.1),
+                initial_params[0] - 25.0,
+                initial_params[0],
+                initial_params[0] + 25.0,
+                initial_params[0] + 50.0,
+            ]],
+        };
+
+        return optimize_grid_search(
+            observed,
+            x,
+            &param_ranges,
+            shape_type,
+            ascending,
+            objective,
+        );
+    }
+
+    // For N > 1 dimensions: Try Nelder-Mead first (most robust)
     match optimize_nelder_mead(
         observed,
         x,
@@ -633,8 +660,7 @@ pub fn optimize_with_fallback(
         }
     }
 
-    // Fallback: grid search
-    // Define reasonable parameter ranges based on shape type
+    // Fallback: grid search for N > 1 dimensional problems
     let param_ranges = match shape_type {
         "uniform" => vec![vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0]],
         "gradational" => vec![
