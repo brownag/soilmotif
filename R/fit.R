@@ -286,13 +286,22 @@ sm_optim <- function(x, X, ...,
 #'
 #' Recommends the best optimization algorithm based on problem characteristics.
 #'
+#' Selection logic:
+#' - Small problems (≤3 params): Nelder-Mead (fast, robust)
+#' - Large problems with complex objectives: Simulated Annealing (escapes local minima)
+#' - Large problems with smooth objectives: Nelder-Mead
+#'
 #' @param n_params integer. Number of parameters to optimize.
 #' @param n_obs integer. Number of observations.
-#' @param objective_type character. Type of objective function ("rmse", "weighted_rmse", etc.).
-#' @return character. Recommended algorithm name.
+#' @param objective_type character. Type of objective function ("rmse", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").
+#' @return character. Recommended algorithm name ("nelder_mead" or "simulated_annealing").
 #' @export
 #' @examples
+#' # Small problem - recommends Nelder-Mead
 #' sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
+#'
+#' # Large problem with complex objective - recommends Simulated Annealing
+#' sm_recommend_optimizer(n_params = 5, n_obs = 100, objective_type = "huber")
 sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rmse") {
   if (!rust_backend_available()) {
     return("nelder_mead")  # Default fallback
@@ -317,6 +326,10 @@ sm_optim_r_impl <- sm_optim
 sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse, use_rust = FALSE,
                      compare = FALSE, algorithm = "auto") {
+  # algorithm can be:
+  #   "auto" - auto-select based on problem characteristics (default)
+  #   "nelder_mead" - Nelder-Mead simplex method
+  #   "simulated_annealing" or "sa" - Simulated Annealing
   # If comparison mode requested, run both R and Rust and return comparison
   if (compare) {
     return(compare_r_vs_rust(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))

@@ -36,13 +36,20 @@ fn test_new_function() -> String {
 }
 
 /// Recommend optimization algorithm based on problem characteristics
-/// 
+///
 /// Called via R: `.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")`
 #[extendr]
-fn recommend_optimizer_rust(_n_params: i32, _n_obs: i32, _objective_type: &str) -> String {
-    // For now, only Nelder-Mead is implemented
-    // Future: Add logic to recommend different algorithms based on problem size
-    "nelder_mead".to_string()
+fn recommend_optimizer_rust(n_params: i32, n_obs: i32, objective_type: &str) -> String {
+    let algorithm = optimizer::recommend_algorithm(
+        n_params as usize,
+        n_obs as usize,
+        objective_type
+    );
+
+    match algorithm {
+        optimizer::AlgorithmType::NelderMead => "nelder_mead".to_string(),
+        optimizer::AlgorithmType::SimulatedAnnealing => "simulated_annealing".to_string(),
+    }
 }
 
 /// Test function to check if extendr generates wrappers for multi-parameter functions
@@ -227,6 +234,13 @@ fn optimize_profile_rust_flexible(
     // Parse algorithm
     let algorithm_type = match algorithm.to_lowercase().as_str() {
         "nelder_mead" => optimizer::AlgorithmType::NelderMead,
+        "simulated_annealing" | "sa" => optimizer::AlgorithmType::SimulatedAnnealing,
+        "auto" => {
+            // Auto-select based on problem characteristics
+            let n_params = initial_params.len();
+            let n_obs = observed.len();
+            optimizer::recommend_algorithm(n_params, n_obs, objective_type)
+        }
         _ => {
             eprintln!("Unknown algorithm '{}', using Nelder-Mead", algorithm);
             optimizer::AlgorithmType::NelderMead

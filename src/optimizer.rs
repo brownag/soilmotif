@@ -14,6 +14,8 @@ use crate::objective::{rmse, sse, mae, r_squared};
 use crate::shape_functions::eval_shape;
 use argmin::core::*;
 use argmin::solver::neldermead::NelderMead;
+use argmin::solver::simulatedannealing::{SimulatedAnnealing, SATempFunc};
+use rand::Rng;
 use std::f64;
 use std::sync::Arc;
 
@@ -23,7 +25,10 @@ use std::sync::Arc;
 /// Algorithm types available for optimization
 #[derive(Debug, Clone, PartialEq)]
 pub enum AlgorithmType {
+    /// Nelder-Mead simplex method (gradient-free, robust)
     NelderMead,
+    /// Simulated Annealing (probabilistic, escapes local minima)
+    SimulatedAnnealing,
 }
 
 /// Parameters for configuring objective functions
@@ -77,6 +82,28 @@ impl CostFunction for ShapeCostFunction {
             Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted, &self.x)),
             Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
         }
+    }
+}
+
+/// Implement Anneal trait for Simulated Annealing
+impl argmin::solver::simulatedannealing::Anneal for ShapeCostFunction {
+    type Param = Vec<f64>;
+    type Output = Vec<f64>;
+    type Float = f64;
+
+    fn anneal(&self, param: &Self::Param, extent: Self::Float) -> Result<Self::Output, Error> {
+        // Perturb each parameter by a random amount scaled by extent
+        let mut rng = rand::thread_rng();
+        let perturbed: Vec<f64> = param
+            .iter()
+            .map(|&p| {
+                // Random perturbation in range [-extent, +extent]
+                let delta = (rng.gen::<f64>() - 0.5) * 2.0 * extent;
+                // Ensure parameters stay positive (most soil parameters are positive)
+                (p + delta).max(0.1)
+            })
+            .collect();
+        Ok(perturbed)
     }
 }
 
@@ -459,10 +486,32 @@ pub fn optimize_nelder_mead(
 ///
 /// # Returns
 /// Recommended AlgorithmType
-pub fn recommend_algorithm(_n_params: usize, _n_obs: usize, _objective_type: &str) -> AlgorithmType {
-    // For now, only Nelder-Mead is implemented
-    // Future: Add more algorithms based on problem characteristics
-    AlgorithmType::NelderMead
+///
+/// # Selection Logic
+/// - **≤3 params, any objective:** Nelder-Mead (fast, robust, well-tested)
+/// - **>3 params, complex objectives:** Simulated Annealing (escapes local minima)
+/// - **Default fallback:** Nelder-Mead
+pub fn recommend_algorithm(n_params: usize, _n_obs: usize, objective_type: &str) -> AlgorithmType {
+    // Check for complex objectives that might have multiple local minima
+    let is_complex_objective = matches!(
+        objective_type.to_lowercase().as_str(),
+        "huber" | "quantile" | "ordinal" | "bounded"
+    );
+
+    // Selection logic based on problem characteristics
+    match (n_params, is_complex_objective) {
+        // Small problems (≤3 parameters): Nelder-Mead is fast and reliable
+        (1..=3, _) => AlgorithmType::NelderMead,
+
+        // Large problems with complex objectives: Simulated Annealing for global search
+        (4.., true) => AlgorithmType::SimulatedAnnealing,
+
+        // Large problems with smooth objectives: Nelder-Mead still works well
+        (4.., false) => AlgorithmType::NelderMead,
+
+        // Default fallback
+        _ => AlgorithmType::NelderMead,
+    }
 }
 
 /// Grid search fallback: exhaustive search over parameter space
@@ -568,6 +617,73 @@ pub fn optimize_grid_search(
     })
 }
 
+/// Optimize using Simulated Annealing
+///
+/// SA is a probabilistic method that can escape local minima, useful for multi-modal landscapes
+pub fn optimize_simulated_annealing(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+    max_iters: u64,
+) -> Result<OptimResult, String> {
+    if observed.len() != x.len() {
+        return Err("observed and x must have same length".to_string());
+    }
+    if initial_params.is_empty() {
+        return Err("initial_params cannot be empty".to_string());
+    }
+
+    // Create the cost function wrapper
+    let cost_fn = ShapeCostFunction {
+        observed: observed.to_vec(),
+        x: x.to_vec(),
+        shape_type: shape_type.to_string(),
+        ascending,
+        objective: objective.clone(),
+    };
+
+    // Create Simulated Annealing solver
+    // Initial temperature based on parameter scale
+    let initial_temp = initial_params.iter().map(|&p| p.abs()).sum::<f64>() / initial_params.len() as f64;
+    let solver = SimulatedAnnealing::new(initial_temp.max(10.0))
+        .map_err(|e| format!("Failed to create SA solver: {:?}", e))?
+        .with_temp_func(SATempFunc::Exponential(0.95)); // Exponential cooling with rate 0.95
+
+    // Set up executor
+    let executor = Executor::new(cost_fn, solver)
+        .configure(|state| {
+            state
+                .param(initial_params.to_vec())
+                .max_iters(max_iters)
+        });
+
+    // Run optimization
+    let result = executor.run()
+        .map_err(|e| format!("Simulated Annealing optimization failed: {:?}", e))?;
+
+    // Extract results
+    let state = result.state();
+    let best_param = state.get_best_param()
+        .cloned()
+        .unwrap_or_else(|| initial_params.to_vec());
+    let final_cost = state.get_best_cost();
+    let iterations = state.get_iter();
+    let converged = final_cost.is_finite();
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost,
+        iterations,
+        converged,
+        method: "SimulatedAnnealing".to_string(),
+        lower_bounds: None,
+        upper_bounds: None,
+    })
+}
+
 /// Optimize with specified algorithm
 ///
 /// Dispatches to the appropriate optimization algorithm based on AlgorithmType
@@ -583,6 +699,9 @@ pub fn optimize_with_algorithm(
     match algorithm {
         AlgorithmType::NelderMead => optimize_nelder_mead(
             observed, x, initial_params, shape_type, ascending, objective, 1000, 1e-8
+        ),
+        AlgorithmType::SimulatedAnnealing => optimize_simulated_annealing(
+            observed, x, initial_params, shape_type, ascending, objective, 1000
         ),
     }
 }
@@ -606,10 +725,6 @@ pub fn optimize_with_fallback(
     // argmin's NelderMead has issues with 1D (underflow in simplex indexing)
     // Grid search is more robust and efficient for single-parameter optimization
     if initial_params.len() == 1 {
-        eprintln!(
-            "DEBUG: 1D problem detected for shape '{}'. Using grid search.",
-            shape_type
-        );
 
         // Define reasonable parameter ranges for 1D grid search
         let param_ranges = match shape_type {
@@ -651,12 +766,8 @@ pub fn optimize_with_fallback(
                 return Ok(result);
             }
         }
-        Err(e) => {
-            eprintln!(
-                "Nelder-Mead failed (objective: {}): {}",
-                objective.name(),
-                e
-            );
+        Err(_e) => {
+            // Nelder-Mead failed, fall back to grid search
         }
     }
 
@@ -896,5 +1007,65 @@ mod tests {
         assert!(result.is_ok());
         let obj = result.unwrap();
         assert_eq!(obj.name(), "OrdinalError");
+    }
+
+    #[test]
+    fn test_simulated_annealing_basic() {
+        // Create synthetic data: uniform level 0.6
+        let x: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let observed = vec![0.6; 200];
+        let initial_par = vec![0.3]; // Poor guess
+        let objective = create_objective("rmse").unwrap();
+
+        let result = optimize_simulated_annealing(
+            &observed,
+            &x,
+            &initial_par,
+            "uniform",
+            true,
+            objective,
+            500, // Reduced iterations for test speed
+        );
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        // SA should find a reasonable solution (within 0.2 of target)
+        assert!((result.params[0] - 0.6).abs() < 0.2);
+        assert!(result.final_cost < 0.3); // Should have low error
+    }
+
+    #[test]
+    fn test_recommend_algorithm() {
+        // Small problem, any objective -> Nelder-Mead
+        assert_eq!(recommend_algorithm(2, 100, "rmse"), AlgorithmType::NelderMead);
+
+        // Large problem, complex objective -> Simulated Annealing
+        assert_eq!(recommend_algorithm(4, 100, "huber"), AlgorithmType::SimulatedAnnealing);
+
+        // Large problem, smooth objective -> Nelder-Mead
+        assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::NelderMead);
+    }
+
+    #[test]
+    fn test_optimize_with_algorithm() {
+        // Test dispatch to different algorithms
+        let x: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let observed = vec![0.5; 200];
+        let initial_par = vec![0.3];
+        let objective = create_objective("rmse").unwrap();
+
+        // Test Nelder-Mead
+        let result_nm = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective.clone(), AlgorithmType::NelderMead
+        );
+        assert!(result_nm.is_ok());
+
+        // Test Simulated Annealing
+        let result_sa = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective, AlgorithmType::SimulatedAnnealing
+        );
+        assert!(result_sa.is_ok());
     }
 }

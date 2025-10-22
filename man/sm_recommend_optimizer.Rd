@@ -11,14 +11,26 @@ sm_recommend_optimizer(n_params, n_obs = NULL, objective_type = "rmse")
 
 \item{n_obs}{integer. Number of observations.}
 
-\item{objective_type}{character. Type of objective function ("rmse", "weighted_rmse", etc.).}
+\item{objective_type}{character. Type of objective function ("rmse", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").}
 }
 \value{
-character. Recommended algorithm name.
+character. Recommended algorithm name ("nelder_mead" or "simulated_annealing").
 }
 \description{
 Recommends the best optimization algorithm based on problem characteristics.
 }
+\details{
+Selection logic:
+\itemize{
+\item Small problems (≤3 params): Nelder-Mead (fast, robust)
+\item Large problems with complex objectives: Simulated Annealing (escapes local minima)
+\item Large problems with smooth objectives: Nelder-Mead
+}
+}
 \examples{
+# Small problem - recommends Nelder-Mead
 sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
+
+# Large problem with complex objective - recommends Simulated Annealing
+sm_recommend_optimizer(n_params = 5, n_obs = 100, objective_type = "huber")
 }

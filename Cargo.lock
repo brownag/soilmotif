@@ -985,6 +985,7 @@ dependencies = [
  "extendr-api",
  "nalgebra",
  "ndarray",
+ "rand",
  "rayon",
  "serde",
  "tokio",
