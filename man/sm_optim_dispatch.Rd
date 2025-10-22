@@ -2,25 +2,37 @@
 % Please edit documentation in R/fit-rust-wrappers.R
 \name{sm_optim_dispatch}
 \alias{sm_optim_dispatch}
-\title{Rust-backed optimization (internal dispatch)}
+\title{Rust-backed optimization with R dispatch logic}
 \usage{
-sm_optim_dispatch(x, X, FUN = sm_shape_sigmoid, use_rust = FALSE, ...)
+sm_optim_dispatch(
+  x,
+  X,
+  FUN = sm_shape_sigmoid,
+  OPTFUN = sm_optim_rmse,
+  ascending = TRUE,
+  use_rust = FALSE,
+  ...
+)
 }
 \arguments{
-\item{x}{numeric. Data vector}
+\item{x}{numeric. Data vector (observed property)}
 
-\item{X}{numeric. Initial parameters}
+\item{X}{numeric. Initial parameters for shape function}
 
-\item{FUN}{function. Shape function}
+\item{FUN}{function. Shape function to fit}
 
-\item{use_rust}{logical. If TRUE, use Rust backend; else use R}
+\item{OPTFUN}{function. Objective function (sm_optim_rmse or sm_optim_ssq)}
 
-\item{...}{additional arguments}
+\item{ascending}{logical. Shape direction (TRUE = increasing)}
+
+\item{use_rust}{logical. If TRUE, use Rust backend when available}
+
+\item{...}{additional arguments (currently unused)}
 }
 \value{
-numeric vector of fitted values
+numeric vector of optimized parameters
 }
 \description{
-Rust-backed optimization (internal dispatch)
+Rust-backed optimization with R dispatch logic
 }
 \keyword{internal}

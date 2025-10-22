@@ -125,16 +125,143 @@ fn optimize_profile_rust(
     }
 }
 
-/// Batch profile processing (Rust implementation)
+/// Batch profile processing (Rust implementation, returns data.frame-like result)
 /// 
-/// Called via R: `.Call("batch_process_rust", profiles_list, models, ..., PACKAGE = "soilmotif")`
-/// Note: Nested vectors require List conversion in R; implementation in Phase 2.D
+/// Optimizes multiple profiles in batch with error collection and reporting.
+/// Returns results as a structured list that R will process into proper format.
+/// 
+/// Called via R: `.Call("batch_optimize_profiles_rust", profiles_list, params_list, 
+///                      x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
+/// 
+/// # Arguments (from R)
+/// - profiles_list: List of numeric vectors (each profile)
+/// - params_list: List of numeric vectors (initial parameters for each profile)
+/// - x: numeric vector (depth positions, shared across all profiles)
+/// - shape_type: character shape function name
+/// - ascending: logical direction flag
+/// - objective_type: character objective function name ("rmse", "sse", "mae", "r2")
+/// 
+/// # Returns (to R)
+/// List with components (ungrouped, R will reconstruct):
+/// - profile_ids: integer vector of profile indices
+/// - params: list of numeric vectors (single NA for failed profiles)
+/// - rmse_values: numeric vector of final objective values
+/// - converged: logical vector of convergence flags
+/// - errors: character vector of error messages (empty for success)
+/// - method: character indicating optimization method used
+/// - summary: character summary string
+/// - failed_count: integer number of failed profiles
 #[extendr]
-fn batch_process_rust() -> String {
-    // Placeholder: will implement in 2.D
-    // Note: extendr FFI requires custom List handling for nested vectors
-    "Batch processing not yet implemented".to_string()
+fn batch_optimize_profiles_rust(
+    profiles_list: List,
+    params_list: List,
+    x: Vec<f64>,
+    shape_type: &str,
+    ascending: bool,
+    objective_type: &str,
+) -> List {
+        // Convert R List of profiles to Rust Vec<Vec<f64>>
+    let mut profiles_vec: Vec<Vec<f64>> = Vec::new();
+    for prof_entry in profiles_list {
+        let (_name, prof_robj) = prof_entry;
+        if let Some(p) = prof_robj.as_real_slice() {
+            profiles_vec.push(p.to_vec());
+        } else {
+            eprintln!("Failed to convert profile to numeric vector");
+            return Robj::from(()).as_list().unwrap();
+        }
+    }
+
+    // Convert R List of parameters to Rust Vec<Vec<f64>>
+    let mut params_vec: Vec<Vec<f64>> = Vec::new();
+    for param_entry in params_list {
+        let (_name, param_robj) = param_entry;
+        if let Some(p) = param_robj.as_real_slice() {
+            params_vec.push(p.to_vec());
+        } else {
+            eprintln!("Failed to convert parameter set to numeric vector");
+            return Robj::from(()).as_list().unwrap();
+        }
+    }
+
+    // Create objective function
+    let objective = match optimizer::create_objective(objective_type) {
+        Ok(obj) => obj,
+        Err(e) => {
+            eprintln!("Failed to create objective '{}': {}", objective_type, e);
+            return Robj::from(()).as_list().unwrap();
+        }
+    };
+
+    // Call batch optimizer
+    match batch::batch_optimize_sequential(
+        &profiles_vec,
+        &params_vec,
+        &x,
+        shape_type,
+        ascending,
+        objective,
+        false,
+    ) {
+        Ok(result) => {
+            // Convert components to R vectors/lists
+            let profile_ids_f64: Vec<f64> = result.profile_ids.iter().map(|&x| x as f64).collect();
+            
+            // Convert Option<Vec<f64>> to R list with NA for failures
+            let params_list_r: Vec<Robj> = result
+                .params
+                .iter()
+                .map(|opt_params| {
+                    match opt_params {
+                        Some(params) => Robj::from(params.clone()),
+                        None => Robj::from(vec![f64::NAN]),  // NA for failed profile
+                    }
+                })
+                .collect();
+            
+            let rmse_vec: Vec<f64> = result.rmse_values.clone();
+            let converged_bool: Vec<bool> = result.converged.clone();
+            let error_strs: Vec<String> = result
+                .errors
+                .iter()
+                .map(|err_opt| err_opt.as_ref().map(|s| s.clone()).unwrap_or_else(|| String::new()))
+                .collect();
+            
+            let method_str = result.method.clone();
+            let summary_str = result.summary();
+            let failed_count_f64 = result.failed_count as f64;
+            
+            // Build named list using List::from_names_and_values
+            let names = vec![
+                "profile_ids",
+                "params",
+                "rmse_values",
+                "converged",
+                "errors",
+                "method",
+                "summary",
+                "failed_count",
+            ];
+            let values = vec![
+                Robj::from(profile_ids_f64),
+                Robj::from(params_list_r),
+                Robj::from(rmse_vec),
+                Robj::from(converged_bool),
+                Robj::from(error_strs),
+                Robj::from(method_str),
+                Robj::from(summary_str),
+                Robj::from(failed_count_f64),
+            ];
+            
+            List::from_names_and_values(names, values).unwrap()
+        }
+        Err(e) => {
+            eprintln!("Batch optimization failed: {}", e);
+            Robj::from(()).as_list().unwrap()
+        }
+    }
 }
+
 
 extendr_module! {
     mod soilmotif;
@@ -145,5 +272,5 @@ extendr_module! {
     fn objective_r2_rust;
     fn shape_eval_rust;
     fn optimize_profile_rust;
-    fn batch_process_rust;
+    fn batch_optimize_profiles_rust;
 }

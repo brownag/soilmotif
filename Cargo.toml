@@ -14,9 +14,20 @@ rayon = "1.8"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 
+[features]
+# Feature flags for batch processing parallelization
+# - default: includes rayon-support for multi-core batch optimization
+# - rayon-support: enables rayon-based data parallelism
+# - tokio-support: enables tokio async (exploratory for future I/O-bound workloads)
+# - full-parallel: enables both rayon and tokio
+default = ["rayon-support"]
+rayon-support = []
+tokio-support = []
+full-parallel = ["rayon-support", "tokio-support"]
+
 [lib]
 name = "soilmotif"
-crate-type = ["cdylib"]
+crate-type = ["staticlib"]
 
 [profile.release]
 opt-level = 3

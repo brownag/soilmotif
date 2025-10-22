@@ -10,7 +10,7 @@ Rplots.pdf
 # Build artifacts
 src/*.o
 src/*.so
-src/soilmotif.so
+src/*.a
 src/Makefile
 src/Makevars
 inst/libs/

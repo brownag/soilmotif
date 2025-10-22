@@ -21,15 +21,15 @@ echo "Building Rust backend..."
 cargo build --release --target-dir target
 
 # Ensure the compiled library exists
-if [ ! -f target/release/libsoilmotif.so ]; then
-    echo "Warning: Rust library not found at target/release/libsoilmotif.so"
+if [ ! -f target/release/libsoilmotif.a ]; then
+    echo "Warning: Rust library not found at target/release/libsoilmotif.a"
     exit 1
 fi
 
 # Copy the library directly to src so it gets included in the package
-# R will place it in the libs/ directory during installation
+# Use a different name to avoid conflict with output soilmotif.so
 mkdir -p src
-cp target/release/libsoilmotif.so src/soilmotif.so
+cp target/release/libsoilmotif.a src/libsoilmotif_rust.a
 
 echo "Rust backend built successfully"
 exit 0
