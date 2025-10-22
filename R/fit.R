@@ -167,15 +167,52 @@ sm_optim_r_impl <- sm_optim
 
 # Replace sm_optim with dispatch wrapper that can route to Rust
 sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
-                     OPTFUN = sm_optim_rmse, use_rust = FALSE) {
+                     OPTFUN = sm_optim_rmse, use_rust = FALSE,
+                     compare = FALSE) {
+  # If comparison mode requested, run both R and Rust and return comparison
+  if (compare) {
+    return(compare_r_vs_rust(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
+  }
+
   # If Rust requested, dispatch to Rust backend (with R fallback)
   if (use_rust) {
-    # TODO: After Phase 2.C, implement proper Rust dispatch
-    # For now, just use R
-    warning("Rust backend not yet fully implemented; using R")
-    use_rust <- FALSE
+    if (!rust_backend_available()) {
+      warning("Rust backend not available; falling back to R")
+      return(sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN))
+    }
+
+    # Determine objective type from OPTFUN
+    objective_type <- if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse"
+
+    # Determine shape type from FUN
+    shape_type <- deparse(substitute(FUN))
+    shape_type <- gsub("^sm_shape_", "", shape_type)
+
+    # Determine depth vector
+    depth_vector <- seq_along(x)
+
+    # Try Rust implementation with fallback to R
+    tryCatch({
+      result <- optimize_profile_rust_flexible(
+        observed = x,
+        x = depth_vector,
+        initial_params = X,
+        shape_type = shape_type,
+        ascending = TRUE,  # Default for now
+        objective_type = objective_type
+      )
+
+      # Return result in same format as R implementation
+      predicted <- sm_motif(x, result, FUN = FUN, ...)
+      attr(predicted, 'par') <- result
+      return(predicted)
+
+    }, error = function(e) {
+      warning("Rust optimization failed: ", e$message, "; falling back to R")
+      return(sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN))
+    })
   }
-  
+
   # Use R implementation (default path)
   sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN)
 }

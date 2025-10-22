@@ -32,3 +32,6 @@ crate-type = ["staticlib"]
 [profile.release]
 opt-level = 3
 lto = true
+
+[dev-dependencies]
+criterion = "0.7.0"

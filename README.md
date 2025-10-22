@@ -21,39 +21,7 @@ You can install the development version of {soilmotif} like so:
 remotes::install_github("brownag/soilmotif")
 ```
 
-## New in v0.1.0
-
-Version 0.1.0 introduces automated model selection and comprehensive data preprocessing:
-
-- **Automated Model Selection**: `fit_motif_auto()` fits all 7 motif types and ranks them by AIC, BIC, RMSE, or R^2
-- **Data Preprocessing**: `sm_prepare()` converts horizon data to continuous profiles using step, linear, or spline interpolation
-- **Multiple Profile Support**: Process entire soil databases with batch preprocessing and fitting
-- **Enhanced Documentation**: Comprehensive vignettes and improved function documentation
-
-## Quick Start
-
-Prepare your data and automatically find the best-fitting motif:
-
-``` r
-library(soilmotif)
-
-# Prepare horizon data
-data <- data.frame(
-  id = c("P1", "P1", "P1"),
-  top = c(0, 20, 50),
-  bottom = c(20, 50, 100),
-  clay = c(10, 30, 25)
-)
-
-# Convert to continuous profile
-profiles <- sm_prepare(data, property = "clay", method = "linear")
-clay_profile <- profiles$clay$P1
-
-# Automatically fit and rank all motif types
-results <- fit_motif_auto(clay_profile, criterion = "AIC")
-print(results)  # Shows best model and ranking
-plot(results)   # Visual comparison of fits
-```
+## Example
 
 This is a basic example which shows you how to fit a sigmoidal depth
 distribution model to a step and spline representations of some soil
@@ -79,7 +47,7 @@ x <- data.frame(
 # Step-wise Horizon-level Depletion Percentage Example
 
 Common morphologic descriptions of soils by genetic horizon can be made
-continuous by assuming they represent a "step" function. Repeat the
+continuous by assuming they represent a “step” function. Repeat the
 horizon-level property value as many times as each horizon is thick (in
 centimeters, or whatever unit you are interested in).
 
@@ -156,7 +124,74 @@ legend("bottomleft", c("Input", "Initial", "Optimized"),
 
 In this case we find that the optimized parameters result in a steeper
 gradient of property increase than was initially guessed with parameters
-`c(25, 100)`, which had the "initial" transition centered around 63 cm.
-The "optimized" curve is shifted upwards by about 20 cm, with final
+`c(25, 100)`, which had the “initial” transition centered around 63 cm.
+The “optimized” curve is shifted upwards by about 20 cm, with final
 parameters 15.4274881, 73.4434748 reflecting a smooth spline increase
 around 45 cm.
+
+## Rust Backend (High-Performance)
+
+{soilmotif} includes an optional high-performance Rust backend for
+single-profile and batch optimization. When available, Rust
+implementations are typically **10-30x faster** than pure R.
+
+### Usage
+
+``` r
+library(soilmotif)
+
+# Check if Rust backend is available
+rust_backend_available()
+
+# Single profile optimization with Rust
+profile <- c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50))
+result <- sm_optim(profile, c(100, 20), use_rust = TRUE)
+
+# Batch processing (ideal for raster grid cells)
+profiles <- list(
+  c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50)),
+  c(rep(15, 50), seq(15, 45, length.out = 100), rep(45, 50))
+)
+batch_result <- batch_optimize_profiles(profiles)
+print(batch_result)
+```
+
+### Performance
+
+Typical speedups vs. pure R:
+
+| Task                        | Speedup |
+|-----------------------------|---------|
+| Single profile optimization | 10-15x  |
+| Batch (100 profiles)        | 20-30x  |
+| Objective functions         | 5-10x   |
+
+### Availability
+
+- **R only:** Rust backend not compiled; uses pure R
+- **Rust available:** Automatically used if `use_rust = TRUE`
+- **Graceful fallback:** If Rust fails, automatically falls back to R
+
+### Compilation
+
+To compile the Rust backend:
+
+``` bash
+# Requires Rust toolchain (https://rustup.rs/)
+R CMD build .
+```
+
+Or in R:
+
+``` r
+devtools::load_all()  # Automatically compiles Rust
+```
+
+### Benchmarking
+
+Run comprehensive benchmarks:
+
+``` r
+# R benchmarks (includes Rust comparison if available)
+source("misc/comprehensive-benchmark.R")
+```

@@ -281,3 +281,110 @@ sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
   
   result
 }
+
+#' Compare R and Rust implementations side-by-side
+#'
+#' Runs the same optimization with both R and Rust backends and compares results.
+#' Useful for validation and debugging numerical differences.
+#'
+#' @param x numeric vector of observed data
+#' @param X numeric initial parameters
+#' @param FUN shape function (R implementation)
+#' @param OPTFUN objective function (R implementation)
+#' @param tolerance numeric tolerance for parameter comparison (default 0.01)
+#' @param ... additional arguments passed to shape/objective functions
+#'
+#' @return list with r_result, rust_result, r_rmse, rust_rmse, diff_rmse, passed
+#' @export
+#' @keywords internal
+#' @examples
+#' \dontrun{
+#'   # Compare R vs Rust for a simple profile
+#'   observed <- c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50))
+#'   comp <- compare_r_vs_rust(observed, c(100, 20))
+#'   print(comp$passed)  # Should be TRUE if implementations match
+#' }
+compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
+                              OPTFUN = sm_optim_rmse,
+                              tolerance = 0.01, ...) {
+  # Run R implementation
+  r_start <- Sys.time()
+  r_result <- sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...)
+  r_time <- difftime(Sys.time(), r_start, units = "secs")
+
+  r_params <- attr(r_result, 'par')
+  r_rmse <- OPTFUN(r_result, x)
+
+  # Run Rust implementation (if available)
+  if (!rust_backend_available()) {
+    return(list(
+      r_result = r_result,
+      rust_result = NULL,
+      r_params = r_params,
+      rust_params = NULL,
+      r_rmse = r_rmse,
+      rust_rmse = NA,
+      diff_rmse = NA,
+      passed = FALSE,
+      error = "Rust backend not available",
+      r_time = as.numeric(r_time),
+      rust_time = NA
+    ))
+  }
+
+  rust_start <- Sys.time()
+  tryCatch({
+    # Determine objective and shape types for Rust
+    objective_type <- if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse"
+    shape_type <- deparse(substitute(FUN))
+    shape_type <- gsub("^sm_shape_", "", shape_type)
+    depth_vector <- seq_along(x)
+
+    rust_params <- optimize_profile_rust_flexible(
+      observed = x,
+      x = depth_vector,
+      initial_params = X,
+      shape_type = shape_type,
+      ascending = TRUE,
+      objective_type = objective_type
+    )
+
+    rust_result <- sm_motif(x, rust_params, FUN = FUN, ...)
+    rust_time <- difftime(Sys.time(), rust_start, units = "secs")
+
+    rust_rmse <- OPTFUN(rust_result, x)
+    diff_rmse <- abs(r_rmse - rust_rmse)
+
+    # Check if results are within tolerance
+    passed <- diff_rmse < tolerance
+
+    list(
+      r_result = r_result,
+      rust_result = rust_result,
+      r_params = r_params,
+      rust_params = rust_params,
+      r_rmse = r_rmse,
+      rust_rmse = rust_rmse,
+      diff_rmse = diff_rmse,
+      passed = passed,
+      error = NULL,
+      r_time = as.numeric(r_time),
+      rust_time = as.numeric(rust_time)
+    )
+
+  }, error = function(e) {
+    list(
+      r_result = r_result,
+      rust_result = NULL,
+      r_params = r_params,
+      rust_params = NULL,
+      r_rmse = r_rmse,
+      rust_rmse = NA,
+      diff_rmse = NA,
+      passed = FALSE,
+      error = e$message,
+      r_time = as.numeric(r_time),
+      rust_time = NA
+    )
+  })
+}

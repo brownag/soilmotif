@@ -20,7 +20,8 @@ sm_optim(
   ...,
   FUN = sm_shape_sigmoid,
   OPTFUN = sm_optim_rmse,
-  use_rust = FALSE
+  use_rust = FALSE,
+  compare = FALSE
 )
 }
 \arguments{
