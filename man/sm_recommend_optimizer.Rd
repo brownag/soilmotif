@@ -14,7 +14,7 @@ sm_recommend_optimizer(n_params, n_obs = NULL, objective_type = "rmse")
 \item{objective_type}{character. Type of objective function ("rmse", "sse", "mae", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").}
 }
 \value{
-character. Recommended algorithm name ("nelder_mead", "lbfgs", or "simulated_annealing").
+character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", or "simulated_annealing").
 }
 \description{
 Recommends the best optimization algorithm based on problem characteristics.
@@ -25,17 +25,21 @@ Selection logic:
 \item 1 param: Nelder-Mead (simple, grid search fallback)
 \item 2-3 params, smooth objective: L-BFGS (fast gradient-based)
 \item 2-3 params, complex objective: Nelder-Mead (robust gradient-free)
-\item 4+ params, smooth objective: L-BFGS (scales well with gradients)
-\item 4+ params, complex objective: Simulated Annealing (escapes local minima)
+\item 4 params, smooth objective: L-BFGS (scales well with gradients)
+\item 4 params, complex objective: Particle Swarm (global population-based search)
+\item 5+ params: Particle Swarm (handles high-dimensional spaces)
 }
 }
 \examples{
 # Small problem, smooth - recommends L-BFGS
 sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
 
-# Large problem with smooth objective - recommends L-BFGS
+# 4 params with smooth objective - recommends L-BFGS
 sm_recommend_optimizer(n_params = 4, n_obs = 100, objective_type = "rmse")
 
-# Large problem with complex objective - recommends Simulated Annealing
-sm_recommend_optimizer(n_params = 5, n_obs = 100, objective_type = "huber")
+# 4 params with complex objective - recommends Particle Swarm
+sm_recommend_optimizer(n_params = 4, n_obs = 100, objective_type = "huber")
+
+# Large problem (5+ params) - recommends Particle Swarm
+sm_recommend_optimizer(n_params = 6, n_obs = 100, objective_type = "rmse")
 }

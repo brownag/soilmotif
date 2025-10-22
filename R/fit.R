@@ -290,23 +290,27 @@ sm_optim <- function(x, X, ...,
 #' - 1 param: Nelder-Mead (simple, grid search fallback)
 #' - 2-3 params, smooth objective: L-BFGS (fast gradient-based)
 #' - 2-3 params, complex objective: Nelder-Mead (robust gradient-free)
-#' - 4+ params, smooth objective: L-BFGS (scales well with gradients)
-#' - 4+ params, complex objective: Simulated Annealing (escapes local minima)
+#' - 4 params, smooth objective: L-BFGS (scales well with gradients)
+#' - 4 params, complex objective: Particle Swarm (global population-based search)
+#' - 5+ params: Particle Swarm (handles high-dimensional spaces)
 #'
 #' @param n_params integer. Number of parameters to optimize.
 #' @param n_obs integer. Number of observations.
 #' @param objective_type character. Type of objective function ("rmse", "sse", "mae", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").
-#' @return character. Recommended algorithm name ("nelder_mead", "lbfgs", or "simulated_annealing").
+#' @return character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", or "simulated_annealing").
 #' @export
 #' @examples
 #' # Small problem, smooth - recommends L-BFGS
 #' sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
 #'
-#' # Large problem with smooth objective - recommends L-BFGS
+#' # 4 params with smooth objective - recommends L-BFGS
 #' sm_recommend_optimizer(n_params = 4, n_obs = 100, objective_type = "rmse")
 #'
-#' # Large problem with complex objective - recommends Simulated Annealing
-#' sm_recommend_optimizer(n_params = 5, n_obs = 100, objective_type = "huber")
+#' # 4 params with complex objective - recommends Particle Swarm
+#' sm_recommend_optimizer(n_params = 4, n_obs = 100, objective_type = "huber")
+#'
+#' # Large problem (5+ params) - recommends Particle Swarm
+#' sm_recommend_optimizer(n_params = 6, n_obs = 100, objective_type = "rmse")
 sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rmse") {
   if (!rust_backend_available()) {
     return("nelder_mead")  # Default fallback

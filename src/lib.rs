@@ -49,6 +49,7 @@ fn recommend_optimizer_rust(n_params: i32, n_obs: i32, objective_type: &str) -> 
     match algorithm {
         optimizer::AlgorithmType::NelderMead => "nelder_mead".to_string(),
         optimizer::AlgorithmType::LBFGS => "lbfgs".to_string(),
+        optimizer::AlgorithmType::ParticleSwarm => "particle_swarm".to_string(),
         optimizer::AlgorithmType::SimulatedAnnealing => "simulated_annealing".to_string(),
     }
 }
@@ -236,6 +237,7 @@ fn optimize_profile_rust_flexible(
     let algorithm_type = match algorithm.to_lowercase().as_str() {
         "nelder_mead" => optimizer::AlgorithmType::NelderMead,
         "lbfgs" | "l-bfgs" => optimizer::AlgorithmType::LBFGS,
+        "particle_swarm" | "pso" => optimizer::AlgorithmType::ParticleSwarm,
         "simulated_annealing" | "sa" => optimizer::AlgorithmType::SimulatedAnnealing,
         "auto" => {
             // Auto-select based on problem characteristics

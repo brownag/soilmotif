@@ -16,6 +16,7 @@ use argmin::core::*;
 use argmin::solver::neldermead::NelderMead;
 use argmin::solver::simulatedannealing::{SimulatedAnnealing, SATempFunc};
 use argmin::solver::quasinewton::LBFGS;
+use argmin::solver::particleswarm::ParticleSwarm;
 use rand::Rng;
 use std::f64;
 use std::sync::Arc;
@@ -32,6 +33,8 @@ pub enum AlgorithmType {
     SimulatedAnnealing,
     /// L-BFGS quasi-Newton method (gradient-based, fast convergence)
     LBFGS,
+    /// Particle Swarm Optimization (population-based, global search)
+    ParticleSwarm,
 }
 
 /// Parameters for configuring objective functions
@@ -533,8 +536,9 @@ pub fn optimize_nelder_mead(
 /// - **1 param**: Nelder-Mead (simple, grid search fallback available)
 /// - **2-3 params, smooth objective**: L-BFGS (fast gradient-based convergence)
 /// - **2-3 params, complex objective**: Nelder-Mead (robust gradient-free)
-/// - **4+ params, smooth objective**: L-BFGS (scales well with gradients)
-/// - **4+ params, complex objective**: Simulated Annealing (escapes local minima)
+/// - **4 params, smooth objective**: L-BFGS (scales well with gradients)
+/// - **4 params, complex objective**: Particle Swarm (global population-based search)
+/// - **5+ params, any objective**: Particle Swarm (handles high-dimensional spaces)
 pub fn recommend_algorithm(n_params: usize, _n_obs: usize, objective_type: &str) -> AlgorithmType {
     // Check for complex objectives that might have multiple local minima
     let is_complex_objective = matches!(
@@ -553,11 +557,14 @@ pub fn recommend_algorithm(n_params: usize, _n_obs: usize, objective_type: &str)
         // 2-3 params with complex objectives: Nelder-Mead is robust
         (2..=3, true) => AlgorithmType::NelderMead,
 
-        // 4+ params with smooth objectives: L-BFGS scales well
-        (4.., false) => AlgorithmType::LBFGS,
+        // 4 params with smooth objectives: L-BFGS scales well
+        (4, false) => AlgorithmType::LBFGS,
 
-        // 4+ params with complex objectives: Simulated Annealing for global search
-        (4.., true) => AlgorithmType::SimulatedAnnealing,
+        // 4 params with complex objectives: Particle Swarm for global search
+        (4, true) => AlgorithmType::ParticleSwarm,
+
+        // 5+ params: Particle Swarm handles high-dimensional spaces well
+        (5.., _) => AlgorithmType::ParticleSwarm,
 
         // Default fallback
         _ => AlgorithmType::NelderMead,
@@ -732,6 +739,80 @@ pub fn optimize_lbfgs(
     })
 }
 
+/// Optimize using Particle Swarm Optimization
+///
+/// PSO is a population-based global optimization method that works well for multi-modal problems
+pub fn optimize_particle_swarm(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+    max_iters: u64,
+) -> Result<OptimResult, String> {
+    if observed.len() != x.len() {
+        return Err("observed and x must have same length".to_string());
+    }
+    if initial_params.is_empty() {
+        return Err("initial_params cannot be empty".to_string());
+    }
+
+    // Create the cost function wrapper
+    let cost_fn = ShapeCostFunction {
+        observed: observed.to_vec(),
+        x: x.to_vec(),
+        shape_type: shape_type.to_string(),
+        ascending,
+        objective: objective.clone(),
+    };
+
+    // Define search bounds (reasonable ranges for soil parameters)
+    let n_params = initial_params.len();
+    let lower_bounds: Vec<f64> = initial_params.iter().map(|&p| (p * 0.1).max(0.1)).collect();
+    let upper_bounds: Vec<f64> = initial_params.iter().map(|&p| (p * 3.0).max(100.0)).collect();
+
+    // Create Particle Swarm solver
+    // Population size: 10 * number of parameters (standard heuristic)
+    let population_size = (10 * n_params).max(20);
+    let solver = ParticleSwarm::new((lower_bounds.clone(), upper_bounds.clone()), population_size);
+
+    // Set up executor
+    let executor = Executor::new(cost_fn, solver)
+        .configure(|state| {
+            state.max_iters(max_iters)
+        });
+
+    // Run optimization
+    let result = executor.run()
+        .map_err(|e| format!("Particle Swarm optimization failed: {:?}", e))?;
+
+    // Extract results
+    let state = result.state();
+    // Get the population (list of particles) and find the best one
+    let population = state.get_population()
+        .ok_or_else(|| "No population found".to_string())?;
+
+    // The population is sorted, so first particle is the best
+    let best_particle = population.first()
+        .ok_or_else(|| "Empty population".to_string())?;
+
+    let best_param = best_particle.position.clone();
+    let final_cost = best_particle.cost;
+    let iterations = state.get_iter();
+    let converged = final_cost.is_finite();
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost,
+        iterations,
+        converged,
+        method: "ParticleSwarm".to_string(),
+        lower_bounds: Some(lower_bounds),
+        upper_bounds: Some(upper_bounds),
+    })
+}
+
 /// Optimize using Simulated Annealing
 ///
 /// SA is a probabilistic method that can escape local minima, useful for multi-modal landscapes
@@ -817,6 +898,9 @@ pub fn optimize_with_algorithm(
         ),
         AlgorithmType::LBFGS => optimize_lbfgs(
             observed, x, initial_params, shape_type, ascending, objective, 1000
+        ),
+        AlgorithmType::ParticleSwarm => optimize_particle_swarm(
+            observed, x, initial_params, shape_type, ascending, objective, 100
         ),
         AlgorithmType::SimulatedAnnealing => optimize_simulated_annealing(
             observed, x, initial_params, shape_type, ascending, objective, 1000
@@ -1160,10 +1244,10 @@ mod tests {
         // 2 params, smooth objective -> L-BFGS (updated)
         assert_eq!(recommend_algorithm(2, 100, "rmse"), AlgorithmType::LBFGS);
 
-        // Large problem, complex objective -> Simulated Annealing
-        assert_eq!(recommend_algorithm(4, 100, "huber"), AlgorithmType::SimulatedAnnealing);
+        // 4 params, complex objective -> Particle Swarm (updated)
+        assert_eq!(recommend_algorithm(4, 100, "huber"), AlgorithmType::ParticleSwarm);
 
-        // Large problem, smooth objective -> L-BFGS (updated)
+        // 4 params, smooth objective -> L-BFGS (updated)
         assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::LBFGS);
     }
 
@@ -1255,7 +1339,7 @@ mod tests {
 
     #[test]
     fn test_recommend_algorithm_updated() {
-        // Test new recommendation logic with L-BFGS
+        // Test new recommendation logic with all algorithms
         // 1D problem -> Nelder-Mead
         assert_eq!(recommend_algorithm(1, 100, "rmse"), AlgorithmType::NelderMead);
 
@@ -1266,10 +1350,76 @@ mod tests {
         // 2-3 params, complex -> Nelder-Mead
         assert_eq!(recommend_algorithm(2, 100, "huber"), AlgorithmType::NelderMead);
 
-        // 4+ params, smooth -> L-BFGS
+        // 4 params, smooth -> L-BFGS
         assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::LBFGS);
 
-        // 4+ params, complex -> Simulated Annealing
-        assert_eq!(recommend_algorithm(5, 100, "quantile"), AlgorithmType::SimulatedAnnealing);
+        // 4 params, complex -> Particle Swarm
+        assert_eq!(recommend_algorithm(4, 100, "quantile"), AlgorithmType::ParticleSwarm);
+
+        // 5+ params -> Particle Swarm
+        assert_eq!(recommend_algorithm(5, 100, "rmse"), AlgorithmType::ParticleSwarm);
+        assert_eq!(recommend_algorithm(6, 100, "huber"), AlgorithmType::ParticleSwarm);
+    }
+
+    #[test]
+    fn test_particle_swarm_basic() {
+        // Test Particle Swarm on simple uniform shape
+        let x: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let observed = vec![0.6; 200];
+        let initial_par = vec![0.3]; // Poor guess
+        let objective = create_objective("rmse").unwrap();
+
+        let result = optimize_particle_swarm(
+            &observed,
+            &x,
+            &initial_par,
+            "uniform",
+            true,
+            objective,
+            50, // Reduced iterations for test speed
+        );
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        // PSO should find a reasonable solution (within 0.2 of target)
+        assert!((result.params[0] - 0.6).abs() < 0.2);
+        assert!(result.final_cost < 0.3); // Should have low error
+    }
+
+    #[test]
+    fn test_all_algorithms_dispatch() {
+        // Test that all algorithms can be dispatched
+        let x: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        let observed = vec![0.5; 200];
+        let initial_par = vec![0.3];
+        let objective = create_objective("rmse").unwrap();
+
+        // Test Nelder-Mead
+        let result_nm = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective.clone(), AlgorithmType::NelderMead
+        );
+        assert!(result_nm.is_ok());
+
+        // Test L-BFGS
+        let result_lbfgs = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective.clone(), AlgorithmType::LBFGS
+        );
+        assert!(result_lbfgs.is_ok());
+
+        // Test Particle Swarm
+        let result_pso = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective.clone(), AlgorithmType::ParticleSwarm
+        );
+        assert!(result_pso.is_ok());
+
+        // Test Simulated Annealing
+        let result_sa = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective, AlgorithmType::SimulatedAnnealing
+        );
+        assert!(result_sa.is_ok());
     }
 }
