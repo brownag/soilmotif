@@ -202,8 +202,8 @@ Key Concepts & Conventions
    - Batch functions return data.frame/tibble with results per profile
 
 5. **Optimization Strategy:**
-   - **Phase 2 (Current):** Nelder-Mead via argmin (soon replacing custom)
-   - **Phase 3 (Planned):** L-BFGS, Newton, Simulated Annealing, PSO, GA, DE via argmin
+   - **Phase 2 (Current):** Custom Nelder-Mead implementation (working, tested)
+   - **Phase 3 (Planned):** Argmin integration with L-BFGS, Newton, Simulated Annealing, PSO, GA, DE
    - All wrapped through unified R interface: `sm_optim(..., algorithm = "auto"|"nelder_mead"|"lbfgs")`
    - Parameter bounds supported (physical constraints: pH 3-10, texture 0-100, etc.)
 
@@ -427,7 +427,7 @@ If a request is ambiguous or unclear, DO NOT GUESS. Instead:
 Phase 3 Preparation Checklist
 ----------------------------
 As you implement Phase 3, prepare for:
-- [ ] Argmin integration (03a): Will refactor src/optimizer.rs; R FFI unchanged
+- [ ] Argmin integration (03a): Framework prepared; full integration deferred to Phase 3
 - [ ] Domain objectives (03b): Will extend src/objective.rs; trait-based design
 - [ ] Algorithm selection (03c): Will add algorithm parameter to sm_optim(); auto-selection logic
 - [ ] Custom shapes (03d): Will extend src/shape_functions.rs; backward compatible

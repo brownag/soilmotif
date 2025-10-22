@@ -203,7 +203,7 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
 #' \dontrun{
 #'   observed <- c(rep(10, 50), seq(10, 40, length.out=100), rep(40, 50))
 #'   x <- 1:200
-#'   params <- c(100, 20)
+#' @param params <- c(100, 20)
 #'   result <- optimize_profile_rust_flexible(observed, x, params, 
 #'                                             "wetting_front", TRUE, "rmse")
 #' }

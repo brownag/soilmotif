@@ -980,6 +980,7 @@ name = "soilmotif"
 version = "0.2.0"
 dependencies = [
  "argmin",
+ "argmin-math",
  "criterion",
  "extendr-api",
  "nalgebra",

@@ -7,7 +7,7 @@
 //!
 //! - `objective`: RMSE and SSQ calculations
 //! - `shape_functions`: Rust implementations of R shape functions
-//! - `optimizer`: Single-profile fitting with argmin/alternatives
+//! - `optimizer`: Single-profile fitting with custom optimization (argmin framework prepared)
 //! - `batch`: Batch processing with optional rayon/tokio parallelization
 
 use extendr_api::prelude::*;
