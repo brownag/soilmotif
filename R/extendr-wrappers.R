@@ -52,6 +52,7 @@ shape_eval_rust <- function(shape_type, x, params, ascending) .Call(wrap__shape_
 #'
 #' Called via R: `.Call("optimize_profile_rust", observed, x, initial_params, 
 #'                      shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
+#' @noRd
 optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending, objective_type) .Call(wrap__optimize_profile_rust, observed, x, initial_params, shape_type, ascending, objective_type)
 
 #' Batch profile processing (Rust implementation, returns data.frame-like result)
@@ -80,6 +81,7 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 #' - method: character indicating optimization method used
 #' - summary: character summary string
 #' - failed_count: integer number of failed profiles
+#' @noRd
 batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) .Call(wrap__batch_optimize_profiles_rust, profiles_list, params_list, x, shape_type, ascending, objective_type)
 
 

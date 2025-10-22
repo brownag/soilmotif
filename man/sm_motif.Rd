@@ -40,6 +40,8 @@ sm_optim(
 \item{OPTFUN}{Objective function. Defaults to \code{sm_optim_rmse()}.}
 
 \item{use_rust}{logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.}
+
+\item{compare}{logical. If TRUE, run both R and Rust implementations and return comparison results. Defaults to FALSE.}
 }
 \value{
 numeric vector or function when \code{as_function=TRUE}

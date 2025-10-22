@@ -85,6 +85,7 @@ sm_motif <- function(x, X,
 #' @export
 #' @rdname sm_motif
 #' @param use_rust logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.
+#' @param compare logical. If TRUE, run both R and Rust implementations and return comparison results. Defaults to FALSE.
 #' @details
 #' sm_optim uses numerical optimization to find the best-fitting parameters for a given
 #' shape function. It employs Brent's method for single parameters and Nelder-Mead
