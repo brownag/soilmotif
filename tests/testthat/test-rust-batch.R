@@ -133,7 +133,7 @@ test_that("batch_get_failed returns empty if all succeed", {
   )
   
   failed <- batch_get_failed(result)
-  expect_is(failed, "data.frame")
+  expect_s3_class(failed, "data.frame")
   expect_equal(nrow(failed), 0)
 })
 
@@ -149,15 +149,15 @@ test_that("batch_get extracts components correctly", {
   
   # Extract each component
   params <- batch_get(result, "params")
-  expect_is(params, "list")
+  expect_type(params, "list")
   expect_equal(length(params), 1)
   
   rmse <- batch_get(result, "rmse")
-  expect_is(rmse, "numeric")
+  expect_type(rmse, "double")
   expect_equal(length(rmse), 1)
   
   converged <- batch_get(result, "converged")
-  expect_is(converged, "logical")
+  expect_type(converged, "logical")
   expect_equal(length(converged), 1)
 })
 
@@ -212,7 +212,7 @@ test_that("batch_optimize_profiles handles different objective types", {
       objective_type = obj_type
     )
     
-    expect_is(result, "batch_result")
+    expect_s3_class(result, "batch_result")
     expect_equal(result$failed_count, 0)
     expect_true(result$converged[1])
   }
@@ -265,7 +265,7 @@ test_that("as_summary_table creates correct structure", {
   )
   
   summary_df <- as_summary_table(result)
-  expect_is(summary_df, "data.frame")
+  expect_s3_class(summary_df, "data.frame")
   expect_equal(nrow(summary_df), 3)
   expect_true("profile_id" %in% names(summary_df))
   expect_true("converged" %in% names(summary_df))
@@ -287,7 +287,7 @@ test_that("batch_optimize_profiles uses custom depth vector", {
     shape_type = "uniform"
   )
   
-  expect_is(result, "batch_result")
+  expect_s3_class(result, "batch_result")
   expect_equal(result$failed_count, 0)
 })
 
@@ -303,6 +303,6 @@ test_that("batch_optimize_profiles infers default depth vector", {
     shape_type = "uniform"
   )
   
-  expect_is(result, "batch_result")
+  expect_s3_class(result, "batch_result")
   expect_equal(result$failed_count, 0)
 })

@@ -201,7 +201,7 @@ test_that("Shape eval dispatcher handles unknown shape gracefully", {
   params <- c(0.5)
   
   # Should return error for unknown shape
-  result <- shape_eval_rust("unknown_shape", x, params, TRUE)
+  expect_warning({result <- shape_eval_rust("unknown_shape", x, params, TRUE)})
   
   expect_null(result, label = "Unknown shape returns NULL")
 })

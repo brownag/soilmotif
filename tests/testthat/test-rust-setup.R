@@ -1,15 +1,16 @@
 test_that("Rust backend loads and is callable", {
-  # This will fail until we implement check_rust_backend in 2.B
-  # For now, it documents the expected behavior
-  skip("Rust backend not yet fully implemented")
+  # Test that the Rust backend is available and callable
+  expect_true(rust_backend_available())
   
-  result <- tryCatch({
-    .Call("check_rust_backend", PACKAGE = "soilmotif")
-  }, error = function(e) {
-    NA_character_
-  })
+  # Test basic functionality by calling a working Rust function
+  x <- c(1.0, 2.0, 3.0)
+  y <- c(1.1, 1.9, 3.1)
+  result <- objective_rmse_rust(x, y)
   
-  expect_equal(result, "Rust backend available")
+  # Should return a finite numeric value
+  expect_type(result, "double")
+  expect_true(is.finite(result))
+  expect_true(result > 0)
 })
 
 test_that("sm_optim still works with use_rust = FALSE", {

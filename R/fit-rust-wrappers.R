@@ -144,6 +144,7 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
       gradational = sm_shape_gradational(x, c(params[1], params[2]), ascending = ascending),
       exponential = sm_shape_exponential(x, c(params[1], params[2]), ascending = ascending),
       wetting_front = sm_shape_wetting_front(x, c(params[1], params[2]), ascending = ascending),
+      sigmoid = sm_shape_sigmoid(x, c(params[1], params[2]), ascending = ascending),  # sigmoid is alias for wetting_front
       abrupt = sm_shape_abrupt(x, c(params[1], params[2]), ascending = ascending),
       peak = sm_shape_peak(x, c(params[1], params[2]), ascending = ascending),
       minimax = sm_shape_minimax(x, c(params[1], params[2], params[3]), ascending = ascending),
@@ -155,9 +156,12 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
     return(result)
   }
   
+  # Map sigmoid to wetting_front for Rust backend
+  rust_shape_type <- if (shape_type == "sigmoid") "wetting_front" else shape_type
+  
   tryCatch({
     result <- .Call("wrap__shape_eval_rust", 
-                    as.character(shape_type),
+                    as.character(rust_shape_type),
                     as.numeric(x), 
                     as.numeric(params), 
                     as.logical(ascending),
@@ -174,6 +178,7 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
       gradational = sm_shape_gradational(x, c(params[1], params[2]), ascending = ascending),
       exponential = sm_shape_exponential(x, c(params[1], params[2]), ascending = ascending),
       wetting_front = sm_shape_wetting_front(x, c(params[1], params[2]), ascending = ascending),
+      sigmoid = sm_shape_sigmoid(x, c(params[1], params[2]), ascending = ascending),  # sigmoid is alias for wetting_front
       abrupt = sm_shape_abrupt(x, c(params[1], params[2]), ascending = ascending),
       peak = sm_shape_peak(x, c(params[1], params[2]), ascending = ascending),
       minimax = sm_shape_minimax(x, c(params[1], params[2], params[3]), ascending = ascending),
@@ -210,12 +215,15 @@ optimize_profile_rust_flexible <- function(observed, x, initial_params,
     stop("Rust backend not available")
   }
   
+  # Map sigmoid to wetting_front for Rust backend
+  rust_shape_type <- if (shape_type == "sigmoid") "wetting_front" else shape_type
+  
   tryCatch({
     result <- .Call("wrap__optimize_profile_rust",
                     as.numeric(observed),
                     as.numeric(x),
                     as.numeric(initial_params),
-                    as.character(shape_type),
+                    as.character(rust_shape_type),
                     as.logical(ascending),
                     as.character(objective_type),
                     PACKAGE = "soilmotif")

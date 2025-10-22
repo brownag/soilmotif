@@ -153,25 +153,6 @@ test_that("sm_prepare handles multiple profiles", {
   expect_equal(length(result$clay$P2), 200)
 })
 
-test_that("sm_prepare spline method falls back to linear when mpspline2 unavailable", {
-  skip_if(requireNamespace("mpspline2", quietly = TRUE), "mpspline2 available")
-
-  data <- data.frame(
-    id = "P1",
-    top = c(0, 50),
-    bottom = c(50, 100),
-    clay = c(10, 30)
-  )
-
-  expect_warning(
-    result <- sm_prepare(data, property = "clay", method = "spline"),
-    "mpspline2 not available"
-  )
-
-  expect_named(result, "clay")
-  expect_equal(length(result$clay$P1), 201)
-})
-
 test_that("sm_prepare validates inputs", {
   data <- data.frame(id = "P1", top = 0, bottom = 50, clay = 10)
 

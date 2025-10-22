@@ -21,6 +21,61 @@ You can install the development version of {soilmotif} like so:
 remotes::install_github("brownag/soilmotif")
 ```
 
+## Development
+
+The package includes a `Makefile` with common development workflows. This file is ignored by `.Rbuildignore` and should not be included in releases.
+
+### Quick Setup
+
+Install development dependencies:
+
+``` bash
+make install
+```
+
+### Common Development Tasks
+
+``` bash
+# Run the full test suite
+make test
+
+# Run fast tests (skip integration tests)
+make test-fast
+
+# Run R CMD check (fast version without vignettes)
+make check-fast
+
+# Generate documentation with roxygen2
+make document
+
+# Full development cycle: document, test, check
+make dev-cycle
+
+# Clean build artifacts and Rust target directory
+make clean
+
+# Rebuild and reinstall package
+make rebuild
+```
+
+### Available Makefile Targets
+
+- `make install` - Install package dependencies
+- `make build` - Build package tarball
+- `make install-pkg` - Install package from source
+- `make test` - Run full test suite
+- `make test-fast` - Run tests without integration
+- `make check` - Run R CMD check
+- `make check-fast` - Run fast R CMD check (no vignettes, no manual)
+- `make document` - Generate documentation with roxygen2
+- `make clean` - Clean build artifacts
+- `make benchmark` - Run performance benchmarks
+- `make validate` - Run comprehensive validation
+- `make dev-cycle` - Quick development cycle (document, test-fast, check-fast)
+- `make release-prep` - Full release preparation (document, test, check)
+- `make install-test` - Install and test in one go
+- `make rebuild` - Clean build and reinstall
+
 ## Example
 
 This is a basic example which shows you how to fit a sigmoidal depth

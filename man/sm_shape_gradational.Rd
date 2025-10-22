@@ -9,9 +9,9 @@ sm_shape_gradational(x, xlim, ascending = TRUE, type = "linear")
 \arguments{
 \item{x}{numeric. Depth vector.}
 
-\item{xlim}{numeric. Parameters: c(start_value, end_value). Values in the range 0 to 1.}
+\item{xlim}{numeric. Parameters: c(start_depth, end_depth). Depths defining the transition zone.}
 
-\item{ascending}{logical. If TRUE, increases from start to end. If FALSE, decreases.}
+\item{ascending}{logical. If TRUE, increases from 0 to 1 between start_depth and end_depth. If FALSE, decreases.}
 
 \item{type}{character. "linear" (default) or "smooth" (polynomial).}
 }
@@ -22,5 +22,5 @@ numeric vector in the range 0 to 1 representing the shape.
 Models a linear or smooth change with depth. Useful for steady accumulation processes.
 }
 \examples{
-plot(sm_shape_gradational(0:100, c(0.2, 0.8)), 0:100, ylim = c(100, 0))
+plot(sm_shape_gradational(0:100, c(20, 80)), 0:100, ylim = c(100, 0))
 }
