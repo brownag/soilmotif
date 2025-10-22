@@ -87,3 +87,8 @@ legend("bottomleft", c("Input", "Initial", "Optimized"),
        lty = c(NA, 2, 1),
        col = c("BLACK","RED","BLUE"))
 }
+\seealso{
+\code{\link{sm_optim}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
+
+\code{\link{sm_motif}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
+}

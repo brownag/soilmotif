@@ -4,21 +4,62 @@
 \alias{sm_shape_peak}
 \title{Peak Shape Function}
 \usage{
-sm_shape_peak(x, xlim, ascending = TRUE)
+sm_shape_peak(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(depth_of_max, width, skewness). Skewness optional, default 0.}
+\item{params}{numeric. Parameters: c(depth_of_max, width, skewness).
+\itemize{
+\item depth_of_max: Depth (cm) of maximum property value (typically 40-120 cm)
+\item width: Standard deviation of the peak (cm, typically 10-50 cm). Controls peak width.
+\item skewness: Asymmetry parameter (optional, default 0 = symmetric). Not yet implemented.
+}}
 
-\item{ascending}{logical. If TRUE, peak. If FALSE, valley.}
+\item{ascending}{logical. If TRUE, creates a peak (maximum). If FALSE, creates a valley (minimum).}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing bell-shaped accumulation/depletion.
 }
 \description{
 Models a bell-shaped accumulation zone. Useful for Bt horizon, clay peaks.
 }
+\details{
+The peak shape represents localized accumulation or depletion zones typical of
+specific pedogenic processes. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Argillic horizons:} Clay accumulation peaks (Bt horizons)
+\item \strong{Carbonate nodules:} Localized carbonate concentrations
+\item \strong{Salt crusts:} Surface salt accumulation in arid soils
+\item \strong{Depletion zones:} Eluvial horizons with clay removal (E horizons)
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item depth_of_max indicates the position of maximum pedogenic activity
+\item width reflects the thickness of the active zone (narrow = intense, wide = diffuse)
+\item Peak position often corresponds to water table or maximum root activity
+\item Valley shapes (ascending=FALSE) represent eluvial zones
+}
+
+\strong{Valid Ranges:} depth_of_max within profile (0-200 cm), width > 0 (typically 10-50 cm).
+}
 \examples{
-plot(sm_shape_peak(0:100, c(50, 20)), 0:100, ylim = c(100, 0))
+# Clay accumulation in Bt horizon
+depths <- 1:120
+clay_peak <- sm_shape_peak(depths, c(70, 25))  # Peak at 70 cm, 25 cm wide
+plot(clay_peak, depths, ylim = c(120, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Argillic Horizon Clay Peak")
+
+# Carbonate nodule zone
+carbonate_peak <- sm_shape_peak(depths, c(50, 15))  # Narrow peak at 50 cm
+plot(carbonate_peak, depths, ylim = c(120, 0), type = "l",
+     xlab = "Carbonate Content", ylab = "Depth (cm)",
+     main = "Carbonate Accumulation")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

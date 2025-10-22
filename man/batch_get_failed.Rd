@@ -16,4 +16,7 @@ data.frame with profile_id and error columns (empty if no failures)
 Returns profile IDs and error messages for profiles that failed optimization.
 Useful for spatial debugging (e.g., identify which raster cells failed).
 }
+\seealso{
+\code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{as_summary_table}}
+}
 \keyword{internal}

@@ -138,16 +138,16 @@ objective_r2_rust <- function(observed, predicted) {
 shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
   if (!rust_backend_available()) {
     # Fall back to R implementation using built-in shape functions
-    # Reconstruct xlim from params (params is expected to match Rust parameter order)
+    # params is expected to match Rust parameter order
     result <- switch(shape_type,
       uniform = sm_shape_uniform(x, params[1], ascending = ascending),
-      gradational = sm_shape_gradational(x, c(params[1], params[2]), ascending = ascending),
-      exponential = sm_shape_exponential(x, c(params[1], params[2]), ascending = ascending),
-      wetting_front = sm_shape_wetting_front(x, c(params[1], params[2]), ascending = ascending),
-      sigmoid = sm_shape_sigmoid(x, c(params[1], params[2]), ascending = ascending),  # sigmoid is alias for wetting_front
-      abrupt = sm_shape_abrupt(x, c(params[1], params[2]), ascending = ascending),
-      peak = sm_shape_peak(x, c(params[1], params[2]), ascending = ascending),
-      minimax = sm_shape_minimax(x, c(params[1], params[2], params[3]), ascending = ascending),
+      gradational = sm_shape_gradational(x, params[1:2], ascending = ascending),
+      exponential = sm_shape_exponential(x, params[1:2], ascending = ascending),
+      wetting_front = sm_shape_wetting_front(x, params[1:2], ascending = ascending),
+      sigmoid = sm_shape_sigmoid(x, params[1:2], ascending = ascending),  # sigmoid is alias for wetting_front
+      abrupt = sm_shape_abrupt(x, params[1:2], ascending = ascending),
+      peak = sm_shape_peak(x, params[1:2], ascending = ascending),
+      minimax = sm_shape_minimax(x, params[1:4], ascending = ascending),
       {
         warning("Unknown shape type: ", shape_type)
         NULL
@@ -175,13 +175,13 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
     # Fall back to R implementation on error
     result <- switch(shape_type,
       uniform = sm_shape_uniform(x, params[1], ascending = ascending),
-      gradational = sm_shape_gradational(x, c(params[1], params[2]), ascending = ascending),
-      exponential = sm_shape_exponential(x, c(params[1], params[2]), ascending = ascending),
-      wetting_front = sm_shape_wetting_front(x, c(params[1], params[2]), ascending = ascending),
-      sigmoid = sm_shape_sigmoid(x, c(params[1], params[2]), ascending = ascending),  # sigmoid is alias for wetting_front
-      abrupt = sm_shape_abrupt(x, c(params[1], params[2]), ascending = ascending),
-      peak = sm_shape_peak(x, c(params[1], params[2]), ascending = ascending),
-      minimax = sm_shape_minimax(x, c(params[1], params[2], params[3]), ascending = ascending),
+      gradational = sm_shape_gradational(x, params[1:2], ascending = ascending),
+      exponential = sm_shape_exponential(x, params[1:2], ascending = ascending),
+      wetting_front = sm_shape_wetting_front(x, params[1:2], ascending = ascending),
+      sigmoid = sm_shape_sigmoid(x, params[1:2], ascending = ascending),  # sigmoid is alias for wetting_front
+      abrupt = sm_shape_abrupt(x, params[1:2], ascending = ascending),
+      peak = sm_shape_peak(x, params[1:2], ascending = ascending),
+      minimax = sm_shape_minimax(x, params[1:4], ascending = ascending),
       NULL
     )
     result

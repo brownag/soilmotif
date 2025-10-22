@@ -4,23 +4,65 @@
 \alias{sm_shape_gradational}
 \title{Gradational Shape Function}
 \usage{
-sm_shape_gradational(x, xlim, ascending = TRUE, type = "linear")
+sm_shape_gradational(x, params, ascending = TRUE, type = "linear")
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(start_depth, end_depth). Depths defining the transition zone.}
+\item{params}{numeric. Parameters: c(start_depth, end_depth).
+\itemize{
+\item start_depth: Upper depth (cm) where property begins changing (typically 0-100 cm)
+\item end_depth: Lower depth (cm) where property reaches final value (typically 50-200 cm)
+}}
 
-\item{ascending}{logical. If TRUE, increases from 0 to 1 between start_depth and end_depth. If FALSE, decreases.}
+\item{ascending}{logical. If TRUE, property increases linearly from 0 at start_depth to 1 at end_depth.
+If FALSE, decreases from 1 at start_depth to 0 at end_depth.}
 
 \item{type}{character. "linear" (default) or "smooth" (polynomial).}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing linear property change with depth.
 }
 \description{
 Models a linear or smooth change with depth. Useful for steady accumulation processes.
 }
+\details{
+The gradational shape represents steady, directional changes typical of many pedogenic
+processes. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Organic matter decrease:} Steady decline from surface to depth
+\item \strong{Clay increase:} Gradual accumulation through illuviation
+\item \strong{pH changes:} Progressive acidification or alkalinization
+\item \strong{Texture changes:} Gradual fining or coarsening of particles
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item The depth range (end_depth - start_depth) indicates the thickness of the active zone
+\item Steeper gradients (smaller depth ranges) suggest more intense pedogenesis
+\item Shallower transitions indicate surface-controlled processes
+\item The direction (ascending/descending) reflects the pedogenic mechanism
+}
+
+\strong{Valid Ranges:} start_depth < end_depth, both within profile depth (0-200 cm typically).
+Parameter order matters for correct gradient direction.
+}
 \examples{
-plot(sm_shape_gradational(0:100, c(20, 80)), 0:100, ylim = c(100, 0))
+# Organic matter decline with depth (typical A horizon)
+depths <- 1:100
+om_profile <- sm_shape_gradational(depths, c(0, 50), ascending = FALSE)
+plot(om_profile, depths, ylim = c(100, 0), type = "l",
+     xlab = "Organic Matter", ylab = "Depth (cm)",
+     main = "Surface Organic Matter Decline")
+
+# Clay increase through B horizon (illuviation)
+clay_profile <- sm_shape_gradational(depths, c(20, 80), ascending = TRUE)
+plot(clay_profile, depths, ylim = c(100, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Clay Illuviation")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

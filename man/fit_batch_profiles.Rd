@@ -33,4 +33,7 @@ batch_result object
 \description{
 Wrapper around batch_optimize_profiles with sensible defaults for common workflows.
 }
+\seealso{
+\code{\link{batch_optimize_profiles}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
+}
 \keyword{internal}

@@ -4,21 +4,62 @@
 \alias{sm_shape_exponential}
 \title{Exponential Shape Function}
 \usage{
-sm_shape_exponential(x, xlim, ascending = TRUE)
+sm_shape_exponential(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(C0_surface_value, k_decay_rate). C0 in the range 0 to 1, k > 0.}
+\item{params}{numeric. Parameters: c(C0_surface_value, k_decay_rate).
+\itemize{
+\item C0_surface_value: Initial value at surface (0-1 range, relative scale)
+\item k_decay_rate: Decay constant (> 0, typically 0.01-0.5). Higher values = faster decay.
+}}
 
-\item{ascending}{logical. If TRUE, high at surface, low at depth. If FALSE, low at surface, high at depth.}
+\item{ascending}{logical. If TRUE, high at surface, approaches 0 with depth.
+If FALSE, low at surface, approaches maximum with depth.}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing exponential decay/growth from surface.
 }
 \description{
 Models rapid change at surface with asymptotic behavior. Useful for OM, roots, surface-driven processes.
 }
+\details{
+The exponential shape represents surface-controlled processes that decrease rapidly
+near the surface and approach asymptotic values at depth. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Organic matter:} Rapid decomposition near surface, stable at depth
+\item \strong{Root density:} Exponential decline with soil depth
+\item \strong{Surface amendments:} Fertilizer or contaminant concentration gradients
+\item \strong{Biological activity:} Microbial populations decreasing with depth
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item C0 indicates the intensity of surface processes or inputs
+\item k reflects the rate of change (higher k = more rapid transition)
+\item Small k values indicate deep influence of surface processes
+\item Large k values indicate processes confined to near-surface
+}
+
+\strong{Valid Ranges:} C0 in the range 0 to 1, k > 0 (typically 0.01-0.5 for soil profiles).
+}
 \examples{
-plot(sm_shape_exponential(0:100, c(1, 0.05)), 0:100, ylim = c(100, 0))
+# Organic matter decline (typical surface horizon)
+depths <- 1:100
+om_profile <- sm_shape_exponential(depths, c(1.0, 0.08))  # High OM at surface
+plot(om_profile, depths, ylim = c(100, 0), type = "l",
+     xlab = "Organic Matter", ylab = "Depth (cm)",
+     main = "Organic Matter Decline")
+
+# Root density decrease
+root_profile <- sm_shape_exponential(depths, c(0.9, 0.15))  # Dense near surface
+plot(root_profile, depths, ylim = c(100, 0), type = "l",
+     xlab = "Root Density", ylab = "Depth (cm)",
+     main = "Root Distribution")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

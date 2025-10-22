@@ -54,6 +54,7 @@ sm_optim_ssq <- function(x, y, ...) {
 #' - **Abrupt:** c(discontinuity_depth, transition_width); order matters
 #' - **Peak:** c(depth_of_max, width, skewness); order matters
 #' - **MiniMax:** c(depth_min, width_min, depth_max, width_max); order matters
+#' @seealso \code{\link{sm_optim}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
 #' @examples
 #' clay_spline <- inverse.rle(structure(list(lengths = c(19, 8, 5, 3, 1, 2, 1,
 #'                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 3, 4, 17, 7,
@@ -93,6 +94,7 @@ sm_motif <- function(x, X,
 #' (shape parameters typically in the range 0 to 1 for single parameters). For wetting_front motifs,
 #' parameters are automatically sorted after optimization.
 #' @importFrom stats optim quantile sd
+#' @seealso \code{\link{sm_motif}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
 sm_optim <- function(x, X, ...,
                      FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse) {

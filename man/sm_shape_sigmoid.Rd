@@ -4,30 +4,65 @@
 \alias{sm_shape_sigmoid}
 \title{Sigmoid Shape Function}
 \usage{
-sm_shape_sigmoid(x, xlim, ascending = TRUE)
+sm_shape_sigmoid(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (typically 1 to 200 cm).}
+\item{x}{numeric. Depth vector (typically 1 to 200 cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end). Both depths should be within the range of x.}
+\item{params}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
+\itemize{
+\item depth_inflection_start: Upper depth (cm) where transition begins (typically 20-80 cm)
+\item depth_inflection_end: Lower depth (cm) where transition completes (typically 40-150 cm)
+Both depths should be within the range of x and depth_inflection_start < depth_inflection_end.
+}}
 
-\item{ascending}{logical. If TRUE, increases with depth (e.g., clay accumulation). If FALSE, decreases with depth.}
+\item{ascending}{logical. If TRUE, property increases with depth (e.g., clay accumulation in Bt horizon).
+If FALSE, property decreases with depth (e.g., carbonate leaching).}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape function.
+numeric vector in the range 0 to 1 representing the shape function, where 0 indicates
+minimal expression of the property and 1 indicates maximal expression.
 }
 \description{
 Models an S-shaped curve with smooth transition between depths. Useful for wetting fronts, reaction fronts, and gradual pedogenic changes.
 }
 \details{
-The sigmoid shape represents gradual transitions typical of wetting fronts in soils,
-where water infiltration creates smooth S-shaped moisture or chemical gradients.
-This motif is common in redoximorphic features, carbonate leaching, or clay translocation zones.
+The sigmoid shape represents gradual transitions typical of pedogenic processes where
+soil-forming factors change smoothly over depth. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Wetting fronts:} Moisture redistribution creating smooth chemical gradients
+\item \strong{Clay translocation:} Illuvial clay accumulation (Bt horizons) with gradual boundaries
+\item \strong{Carbonate leaching:} Progressive dissolution of carbonates with depth
+\item \strong{Redoximorphic features:} Gradual changes in reduction/oxidation zones
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item The inflection zone (between start and end depths) represents the active pedogenic layer
+\item Steeper transitions (smaller depth range) indicate more abrupt soil changes
+\item Shallower transitions suggest surface-influenced processes
+\item Deeper transitions indicate groundwater or saprolite influences
+}
+
+\strong{Valid Ranges:} Depth parameters should be within soil profile depth (typically 0-200 cm).
+Parameter order matters: start_depth < end_depth for ascending profiles.
 }
 \examples{
-# Basic sigmoid shape
-plot(sm_shape_sigmoid(1:200, c(50, 150)), 1:200, ylim = c(200, 0), type = "l")
+# Clay accumulation in Bt horizon (typical argillic horizon)
+depths <- 1:150
+clay_profile <- sm_shape_sigmoid(depths, c(40, 90))  # Transition 40-90 cm
+plot(clay_profile, depths, ylim = c(150, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Argillic Horizon Clay Accumulation")
 
-# Inverted (decreasing with depth)
-plot(sm_shape_sigmoid(1:200, c(50, 150), ascending = FALSE), 1:200, ylim = c(200, 0), type = "l")
+# Carbonate leaching front (decreasing with depth)
+carbonate_profile <- sm_shape_sigmoid(depths, c(30, 80), ascending = FALSE)
+plot(carbonate_profile, depths, ylim = c(150, 0), type = "l",
+     xlab = "Carbonate Content", ylab = "Depth (cm)",
+     main = "Carbonate Leaching Zone")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}, \code{\link{sm_shape_wetting_front}}
 }

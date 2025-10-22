@@ -85,4 +85,7 @@ appropriate reshaping.
   }
 }
 }
+\seealso{
+\code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
+}
 \keyword{internal}

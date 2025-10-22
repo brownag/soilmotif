@@ -4,21 +4,67 @@
 \alias{sm_shape_minimax}
 \title{MiniMax Shape Function}
 \usage{
-sm_shape_minimax(x, xlim, ascending = TRUE)
+sm_shape_minimax(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(depth_min, width_min, depth_max, width_max, skew_min, skew_max).}
+\item{params}{numeric. Parameters: c(depth_min, width_min, depth_max, width_max, skew_min, skew_max).
+\itemize{
+\item depth_min: Depth (cm) of minimum/depletion zone (typically 20-80 cm)
+\item width_min: Width (cm) of minimum zone (typically 10-30 cm)
+\item depth_max: Depth (cm) of maximum/accumulation zone (typically 60-150 cm)
+\item width_max: Width (cm) of maximum zone (typically 15-40 cm)
+\item skew_min, skew_max: Skewness parameters (optional, not yet implemented)
+}}
 
-\item{ascending}{logical. If TRUE, minimum then maximum. If FALSE, inverted.}
+\item{ascending}{logical. If TRUE, minimum then maximum (eluvial-illuvial sequence).
+If FALSE, inverted pattern.}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing complex two-zone pattern.
 }
 \description{
 Models two peaks: minimum then maximum. Useful for complex multi-process soils.
 }
+\details{
+The minimax shape represents soils with both depletion and accumulation zones,
+typical of advanced pedogenesis with clay migration. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Eluvial-illuvial sequences:} E horizon depletion over Bt horizon accumulation
+\item \strong{Podzolization:} Organic matter and sesquioxides translocation
+\item \strong{Ferrallitization:} Complex weathering sequences
+\item \strong{Salinization:} Salt depletion and accumulation zones
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item depth_min < depth_max creates the typical E-Bt sequence
+\item The separation between min and max reflects pedogenic intensity
+\item Width parameters indicate the thickness of active zones
+\item This shape captures the complexity of polygenetic soils
+}
+
+\strong{Valid Ranges:} depth_min < depth_max, both within profile (0-200 cm),
+widths > 0 (typically 10-40 cm).
+}
 \examples{
-plot(sm_shape_minimax(0:100, c(30, 10, 70, 15)), 0:100, ylim = c(100, 0))
+# Classic E-Bt horizon sequence (clay depletion then accumulation)
+depths <- 1:140
+clay_profile <- sm_shape_minimax(depths, c(35, 15, 85, 30))
+plot(clay_profile, depths, ylim = c(140, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Eluvial-Illuvial Sequence")
+abline(h = c(35, 85), lty = 2, col = "red")  # Mark zone boundaries
+
+# Podzol profile (organic matter translocation)
+om_profile <- sm_shape_minimax(depths, c(25, 12, 65, 25))
+plot(om_profile, depths, ylim = c(140, 0), type = "l",
+     xlab = "Organic Matter", ylab = "Depth (cm)",
+     main = "Podzol Organic Matter Distribution")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

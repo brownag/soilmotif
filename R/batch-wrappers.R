@@ -39,6 +39,7 @@
 #'
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
 #' @examples
 #' \dontrun{
 #'   # Single profile (for testing)
@@ -148,6 +149,7 @@ batch_optimize_profiles <- function(profiles,
 #' @return data.frame with profile_id, params (as list column), and optionally rmse
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
 batch_get_successful <- function(x, include_rmse = TRUE) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
@@ -190,6 +192,7 @@ batch_get_successful <- function(x, include_rmse = TRUE) {
 #' @return data.frame with profile_id and error columns (empty if no failures)
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{as_summary_table}}
 batch_get_failed <- function(x) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
@@ -243,6 +246,7 @@ print.batch_result <- function(x, ...) {
 #' @return data.frame with profile_id, converged, rmse, error, and optionally params
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
 as_summary_table <- function(x, include_params = TRUE) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
@@ -271,6 +275,7 @@ as_summary_table <- function(x, include_params = TRUE) {
 #' @return Extracted component
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
 batch_get <- function(x, what = "params") {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
@@ -301,6 +306,7 @@ batch_get <- function(x, what = "params") {
 #' @return batch_result object
 #' @export
 #' @keywords internal
+#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
 fit_batch_profiles <- function(profile_data,
                                shape_type = "wetting_front",
                                ascending = TRUE,

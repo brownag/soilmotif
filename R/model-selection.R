@@ -63,6 +63,7 @@
 #'   \item{input_length}{Length of input vector x.}
 #'
 #' @export
+#' @seealso \code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
 #' @examples
 #' # Synthetic peak profile
 #' x <- sm_motif(1:200, c(100, 30), FUN = sm_shape_peak)

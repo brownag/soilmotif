@@ -59,3 +59,6 @@ result <- sm_prepare(data, property = "clay", method = "step")
 depths <- seq(1, 200, by = 1)
 plot(result$clay$P1, depths, ylim = c(200, 1), type = "l")
 }
+\seealso{
+\code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{sm_spline}}
+}

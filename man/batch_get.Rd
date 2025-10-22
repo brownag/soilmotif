@@ -17,4 +17,7 @@ Extracted component
 \description{
 Extract component data from batch result
 }
+\seealso{
+\code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
+}
 \keyword{internal}

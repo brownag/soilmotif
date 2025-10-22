@@ -4,21 +4,63 @@
 \alias{sm_shape_wetting_front}
 \title{Wetting Front Shape Function}
 \usage{
-sm_shape_wetting_front(x, xlim, ascending = TRUE)
+sm_shape_wetting_front(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).}
+\item{params}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
+\itemize{
+\item depth_inflection_start: Upper depth (cm) where wetting front begins (typically 30-100 cm)
+\item depth_inflection_end: Lower depth (cm) where wetting front stabilizes (typically 60-150 cm)
+}}
 
-\item{ascending}{logical. If TRUE, increases with depth. If FALSE, decreases.}
+\item{ascending}{logical. If TRUE, property increases with depth through wetting front.
+If FALSE, decreases with depth (uncommon for wetting fronts).}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing wetting front progression.
 }
 \description{
 Models an S-shaped curve; smooth transition between depths. Useful for reaction fronts, leaching.
 }
+\details{
+The wetting front shape is identical to the sigmoid but emphasizes hydrological
+and chemical transport processes. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Wetting fronts:} Moisture movement creating reaction zones
+\item \strong{Salt accumulation:} Evaporation-driven solute concentration
+\item \strong{Calcium carbonate:} Precipitation fronts in arid soils
+\item \strong{Redox boundaries:} Changes in oxidation state with water table
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item The inflection zone represents the active wetting front depth
+\item Narrow fronts (small depth range) indicate sharp hydrologic boundaries
+\item Wide fronts suggest diffuse moisture movement or slow drainage
+\item Position reflects water table depth or irrigation patterns
+}
+
+\strong{Valid Ranges:} Depth parameters within soil profile (0-200 cm typically).
+This is an alias for sm_shape_sigmoid() with identical behavior.
+}
 \examples{
-plot(sm_shape_wetting_front(0:100, c(20, 50)), 0:100, ylim = c(100, 0))
+# Soil moisture wetting front after irrigation
+depths <- 1:120
+moisture_profile <- sm_shape_wetting_front(depths, c(40, 70))
+plot(moisture_profile, depths, ylim = c(120, 0), type = "l",
+     xlab = "Soil Moisture", ylab = "Depth (cm)",
+     main = "Wetting Front Propagation")
+
+# Salt accumulation in arid soil (evaporation front)
+salt_profile <- sm_shape_wetting_front(depths, c(30, 60))
+plot(salt_profile, depths, ylim = c(120, 0), type = "l",
+     xlab = "Salt Concentration", ylab = "Depth (cm)",
+     main = "Salt Accumulation Zone")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}, \code{\link{sm_shape_sigmoid}}
 }

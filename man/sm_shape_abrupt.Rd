@@ -4,21 +4,63 @@
 \alias{sm_shape_abrupt}
 \title{Abrupt Shape Function}
 \usage{
-sm_shape_abrupt(x, xlim, ascending = TRUE)
+sm_shape_abrupt(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(depth_discontinuity, transition_width). Width optional, default 0 for hard step.}
+\item{params}{numeric. Parameters: c(depth_discontinuity, transition_width).
+\itemize{
+\item depth_discontinuity: Depth (cm) of the sharp boundary (typically 30-150 cm)
+\item transition_width: Width (cm) of transition zone (0 for hard boundary, >0 for gradual).
+Optional, defaults to 0 (sharp discontinuity).
+}}
 
-\item{ascending}{logical. If TRUE, 0 above, 1 below. If FALSE, 1 above, 0 below.}
+\item{ascending}{logical. If TRUE, property = 0 above discontinuity, 1 below.
+If FALSE, property = 1 above discontinuity, 0 below.}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector in the range 0 to 1 representing step function with optional smoothing.
 }
 \description{
 Models a sharp step-like discontinuity at a single depth. Useful for lithologic changes.
 }
+\details{
+The abrupt shape represents sharp boundaries between soil materials or conditions.
+Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Lithologic discontinuities:} Changes in parent material or texture
+\item \strong{Horizon boundaries:} Sharp transitions between soil horizons
+\item \strong{Water table fluctuations:} Rapid changes at saturation boundaries
+\item \strong{Anthropogenic layers:} Construction or fill boundaries
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item depth_discontinuity indicates the boundary position
+\item transition_width = 0 creates hard boundaries (lithologic discontinuities)
+\item transition_width > 0 creates diffuse boundaries (pedogenic mixing)
+\item The direction reflects which material has higher property values
+}
+
+\strong{Valid Ranges:} depth_discontinuity within profile (0-200 cm), transition_width >= 0.
+}
 \examples{
-plot(sm_shape_abrupt(0:100, c(50, 0)), 0:100, ylim = c(100, 0))  # hard step
+# Lithologic discontinuity (sharp textural change)
+depths <- 1:150
+texture_profile <- sm_shape_abrupt(depths, c(80, 0))  # Hard boundary at 80 cm
+plot(texture_profile, depths, ylim = c(150, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Lithologic Discontinuity")
+
+# Gradual horizon boundary (pedogenic mixing)
+clay_profile <- sm_shape_abrupt(depths, c(60, 15))  # 15 cm transition zone
+plot(clay_profile, depths, ylim = c(150, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Diffuse Horizon Boundary")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

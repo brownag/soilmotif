@@ -7,7 +7,7 @@
 #'
 #' @return a data.frame or SoilProfileCollection (when `x` is a SoilProfileCollection)
 #' @export
-#'
+#' @seealso \code{\link{sm_prepare}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
 #' @examples
 #'
 #' x <- data.frame(id=1,

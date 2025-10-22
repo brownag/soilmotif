@@ -25,7 +25,7 @@
 #'
 #' @return Named list of lists: outer names = properties, inner names = profile IDs, values = numeric vectors
 #' @export
-#'
+#' @seealso \code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{sm_spline}}
 #' @examples
 #' # Example with data.frame
 #' data <- data.frame(

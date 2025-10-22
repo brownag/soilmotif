@@ -17,4 +17,7 @@ data.frame with profile_id, converged, rmse, error, and optionally params
 \description{
 Creates a data.frame with optimization results and diagnostics for each profile.
 }
+\seealso{
+\code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
+}
 \keyword{internal}

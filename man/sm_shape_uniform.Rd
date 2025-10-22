@@ -4,21 +4,59 @@
 \alias{sm_shape_uniform}
 \title{Uniform Shape Function}
 \usage{
-sm_shape_uniform(x, xlim, ascending = TRUE)
+sm_shape_uniform(x, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector.}
+\item{x}{numeric. Depth vector (cm, increasing downward).}
 
-\item{xlim}{numeric. Parameters: c(mean_value). The constant value in the range 0 to 1.}
+\item{params}{numeric. Parameters: c(mean_value).
+\itemize{
+\item mean_value: Constant property value (0-1 range, where 0 = minimal, 1 = maximal expression).
+}}
 
 \item{ascending}{logical. If FALSE, inverts the constant value (1 - mean_value).}
 }
 \value{
-numeric vector in the range 0 to 1 representing the shape.
+numeric vector with constant value in the range 0 to 1 representing uniform property distribution.
 }
 \description{
 Models a constant value at all depths. Useful for undeveloped or mixed soils.
 }
+\details{
+The uniform shape represents soils with minimal pedogenic differentiation or consistent
+properties throughout the profile. Common applications include:
+
+\strong{Soil Science Context:}
+\itemize{
+\item \strong{Undeveloped soils:} Young soils with minimal horizon differentiation (Entisols)
+\item \strong{Mixed profiles:} Anthropogenically mixed soils (Anthrosols)
+\item \strong{Homogeneous parent materials:} Uniform bedrock or sediment
+\item \strong{Reference profiles:} Baseline for comparison with differentiated soils
+}
+
+\strong{Parameter Interpretation:}
+\itemize{
+\item High values (near 1) indicate strong expression of the property throughout
+\item Low values (near 0) indicate minimal expression of the property
+\item The uniform shape serves as a null model for pedogenic processes
+}
+
+\strong{Valid Ranges:} mean_value should be in the range 0 to 1. Use ascending=FALSE to invert the interpretation.
+}
 \examples{
-plot(sm_shape_uniform(0:100, c(0.5)), 0:100, ylim = c(100, 0))
+# Well-mixed anthropogenic soil (constant properties)
+depths <- 1:100
+mixed_soil <- sm_shape_uniform(depths, 0.7)  # 70\% clay throughout
+plot(mixed_soil, depths, ylim = c(100, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Anthropogenic Mixing")
+
+# Minimal clay content throughout (sandy soil)
+sandy_soil <- sm_shape_uniform(depths, 0.1)  # 10\% clay throughout
+plot(sandy_soil, depths, ylim = c(100, 0), type = "l",
+     xlab = "Clay Content", ylab = "Depth (cm)",
+     main = "Sandy Entisol")
+}
+\seealso{
+\code{\link{sm_motif}}, \code{\link{sm_optim}}
 }

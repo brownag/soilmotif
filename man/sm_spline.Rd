@@ -26,3 +26,6 @@ x <- data.frame(id=1,
 plot(sm_spline(x, var_name="prop")[[1]]$est_1cm, 1:200, ylim=c(60,0))
 
 }
+\seealso{
+\code{\link{sm_prepare}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
+}

@@ -17,4 +17,7 @@ data.frame with profile_id, params (as list column), and optionally rmse
 \description{
 Extract successful results from batch result
 }
+\seealso{
+\code{\link{batch_optimize_profiles}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
+}
 \keyword{internal}

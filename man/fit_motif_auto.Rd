@@ -55,3 +55,6 @@ result <- fit_motif_auto(x, criterion = "AIC")
 print(result)
 plot(result)
 }
+\seealso{
+\code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{sm_shape_uniform}}, \code{\link{sm_shape_gradational}}, \code{\link{sm_shape_exponential}}, \code{\link{sm_shape_sigmoid}}, \code{\link{sm_shape_abrupt}}, \code{\link{sm_shape_peak}}, \code{\link{sm_shape_minimax}}
+}
