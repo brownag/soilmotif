@@ -12,7 +12,7 @@ test_that("batch_optimize_profiles requires Rust backend", {
     shape_type = "wetting_front"
   )
   
-  expect_is(result, "batch_result")
+  expect_s3_class(result, "batch_result")
 })
 
 test_that("batch_optimize_profiles rejects empty profiles", {
@@ -90,7 +90,7 @@ test_that("batch_optimize_profiles uses default parameters when NULL", {
     shape_type = "wetting_front"
   )
   
-  expect_is(result, "batch_result")
+  expect_s3_class(result, "batch_result")
   expect_equal(result$failed_count, 0)
 })
 
@@ -117,7 +117,7 @@ test_that("batch_get_successful extracts only successful profiles", {
   )
   
   successful <- batch_get_successful(result)
-  expect_is(successful, "data.frame")
+  expect_s3_class(successful, "data.frame")
   expect_equal(nrow(successful), 3)  # All should succeed for uniform
   expect_true("profile_id" %in% names(successful))
   expect_true("params" %in% names(successful))

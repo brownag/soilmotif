@@ -109,18 +109,18 @@ test_that("Rust uniform shape matches R", {
   expect_equal(rust_result, r_result, tolerance = 1e-10)
 })
 
-test_that("Rust gradational shape matches R", {
+test_that("R gradational shape matches Rust", {
   skip_if(!rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(50, 150)
   ascending <- TRUE
   
-  r_result <- sm_shape_gradational(x, params, ascending = ascending)
   rust_result <- shape_eval_rust("gradational", x, params, ascending)
+  r_result <- sm_shape_gradational(x, params, ascending = ascending)
   
-  expect_equal(rust_result, r_result, tolerance = 1e-8,
-               label = "Rust gradational shape")
+  expect_equal(r_result, rust_result, tolerance = 1e-8,
+               label = "R gradational shape matches Rust")
 })
 
 test_that("Rust wetting front shape matches R", {
@@ -166,18 +166,18 @@ test_that("Rust peak shape matches R", {
                label = "Rust peak shape")
 })
 
-test_that("Rust minimax shape matches R", {
+test_that("R minimax shape matches Rust", {
   skip_if(!rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(75, 20, 125, 20)
   ascending <- TRUE
   
-  r_result <- sm_shape_minimax(x, params, ascending = ascending)
   rust_result <- shape_eval_rust("minimax", x, params, ascending)
+  r_result <- sm_shape_minimax(x, params, ascending = ascending)
   
-  expect_equal(rust_result, r_result, tolerance = 1e-8,
-               label = "Rust minimax shape")
+  expect_equal(r_result, rust_result, tolerance = 1e-8,
+               label = "R minimax shape matches Rust")
 })
 
 test_that("Rust exponential shape matches R", {

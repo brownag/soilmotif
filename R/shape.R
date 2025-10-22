@@ -58,24 +58,25 @@ sm_shape_uniform <- function(x, xlim, ascending = TRUE) {
 #' Models a linear or smooth change with depth. Useful for steady accumulation processes.
 #'
 #' @param x numeric. Depth vector.
-#' @param xlim numeric. Parameters: c(start_value, end_value). Values in the range 0 to 1.
-#' @param ascending logical. If TRUE, increases from start to end. If FALSE, decreases.
+#' @param xlim numeric. Parameters: c(start_depth, end_depth). Depths defining the transition zone.
+#' @param ascending logical. If TRUE, increases from 0 to 1 between start_depth and end_depth. If FALSE, decreases.
 #' @param type character. "linear" (default) or "smooth" (polynomial).
 #'
 #' @return numeric vector in the range 0 to 1 representing the shape.
 #' @export
 #' @examples
-#' plot(sm_shape_gradational(0:100, c(0.2, 0.8)), 0:100, ylim = c(100, 0))
+#' plot(sm_shape_gradational(0:100, c(20, 80)), 0:100, ylim = c(100, 0))
 sm_shape_gradational <- function(x, xlim, ascending = TRUE, type = "linear") {
-  if (type == "linear") {
-    x_norm <- (x - min(x)) / (max(x) - min(x))
-    shape <- xlim[1] + x_norm * (xlim[2] - xlim[1])
-  } else {
-    # For smooth, could use polynomial, but for now linear
-    shape <- xlim[1] + (x - min(x)) / (max(x) - min(x)) * (xlim[2] - xlim[1])
-  }
+  start_depth <- xlim[1]
+  end_depth <- xlim[2]
+  range <- end_depth - start_depth
+  if (abs(range) < 1e-10) range <- 1.0
+  
+  val <- (x - start_depth) / range
+  shape <- pmax(0, pmin(1, val))
+  
   if (!ascending) {
-    shape <- xlim[2] - (shape - xlim[1])  # invert
+    shape <- 1 - shape
   }
   shape
 }
@@ -210,16 +211,21 @@ sm_shape_minimax <- function(x, xlim, ascending = TRUE) {
   width_min <- max(1e-6, width_min)
   width_max <- max(1e-6, width_max)
   
-  # Create valley and peak
-  valley <- 1 - dnorm(x, mean = depth_min, sd = width_min)
-  valley <- valley / max(valley)
+  # Create valley and peak distributions (raw densities)
+  valley_density <- dnorm(x, mean = depth_min, sd = width_min)
+  peak_density <- dnorm(x, mean = depth_max, sd = width_max)
   
-  peak <- dnorm(x, mean = depth_max, sd = width_max)
-  peak <- peak / max(peak)
+  # Combine: valley is inverted, then average
+  valley <- 1.0 - valley_density
+  combined <- (valley + peak_density) / 2.0
   
-  # Combine
-  shape <- (valley + peak) / 2
-  shape <- shape / max(shape)
+  # Normalize to [0, 1] after combining
+  max_combined <- max(combined)
+  if (max_combined > 1e-10) {
+    shape <- combined / max_combined
+  } else {
+    shape <- combined
+  }
   
   if (!ascending) {
     shape <- 1 - shape
