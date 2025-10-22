@@ -11,10 +11,10 @@ sm_recommend_optimizer(n_params, n_obs = NULL, objective_type = "rmse")
 
 \item{n_obs}{integer. Number of observations.}
 
-\item{objective_type}{character. Type of objective function ("rmse", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").}
+\item{objective_type}{character. Type of objective function ("rmse", "sse", "mae", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").}
 }
 \value{
-character. Recommended algorithm name ("nelder_mead" or "simulated_annealing").
+character. Recommended algorithm name ("nelder_mead", "lbfgs", or "simulated_annealing").
 }
 \description{
 Recommends the best optimization algorithm based on problem characteristics.
@@ -22,14 +22,19 @@ Recommends the best optimization algorithm based on problem characteristics.
 \details{
 Selection logic:
 \itemize{
-\item Small problems (≤3 params): Nelder-Mead (fast, robust)
-\item Large problems with complex objectives: Simulated Annealing (escapes local minima)
-\item Large problems with smooth objectives: Nelder-Mead
+\item 1 param: Nelder-Mead (simple, grid search fallback)
+\item 2-3 params, smooth objective: L-BFGS (fast gradient-based)
+\item 2-3 params, complex objective: Nelder-Mead (robust gradient-free)
+\item 4+ params, smooth objective: L-BFGS (scales well with gradients)
+\item 4+ params, complex objective: Simulated Annealing (escapes local minima)
 }
 }
 \examples{
-# Small problem - recommends Nelder-Mead
+# Small problem, smooth - recommends L-BFGS
 sm_recommend_optimizer(n_params = 2, n_obs = 100, objective_type = "rmse")
+
+# Large problem with smooth objective - recommends L-BFGS
+sm_recommend_optimizer(n_params = 4, n_obs = 100, objective_type = "rmse")
 
 # Large problem with complex objective - recommends Simulated Annealing
 sm_recommend_optimizer(n_params = 5, n_obs = 100, objective_type = "huber")

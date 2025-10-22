@@ -11,10 +11,11 @@
 //! - Flexibility: New objectives can be added without touching optimizer code
 
 use crate::objective::{rmse, sse, mae, r_squared};
-use crate::shape_functions::eval_shape;
+use crate::shape_functions::{eval_shape, eval_shape_gradient};
 use argmin::core::*;
 use argmin::solver::neldermead::NelderMead;
 use argmin::solver::simulatedannealing::{SimulatedAnnealing, SATempFunc};
+use argmin::solver::quasinewton::LBFGS;
 use rand::Rng;
 use std::f64;
 use std::sync::Arc;
@@ -29,6 +30,8 @@ pub enum AlgorithmType {
     NelderMead,
     /// Simulated Annealing (probabilistic, escapes local minima)
     SimulatedAnnealing,
+    /// L-BFGS quasi-Newton method (gradient-based, fast convergence)
+    LBFGS,
 }
 
 /// Parameters for configuring objective functions
@@ -82,6 +85,45 @@ impl CostFunction for ShapeCostFunction {
             Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted, &self.x)),
             Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
         }
+    }
+}
+
+/// Implement Gradient trait for gradient-based optimization
+impl Gradient for ShapeCostFunction {
+    type Param = Vec<f64>;
+    type Gradient = Vec<f64>;
+
+    fn gradient(&self, param: &Self::Param) -> Result<Self::Gradient, Error> {
+        // Get shape gradients: ∂shape/∂params
+        let shape_gradients = eval_shape_gradient(&self.shape_type, &self.x, param, self.ascending)
+            .map_err(|e| Error::msg(format!("Gradient evaluation error: {}", e)))?;
+
+        // Get predicted values
+        let predicted = eval_shape(&self.shape_type, &self.x, param, self.ascending)
+            .map_err(|e| Error::msg(format!("Shape evaluation error: {}", e)))?;
+
+        // Compute gradient of cost function using chain rule
+        // For RMSE: ∂RMSE/∂θ = (1/n) * Σ[(predicted - observed) * ∂predicted/∂θ]
+        let n = self.observed.len() as f64;
+        let mut grad = vec![0.0; param.len()];
+
+        for j in 0..param.len() {
+            let mut sum = 0.0;
+            for i in 0..self.observed.len() {
+                let residual = predicted[i] - self.observed[i];
+                // shape_gradients[i][j] = ∂shape(x[i])/∂param[j]
+                sum += residual * shape_gradients[i][j];
+            }
+            // For RMSE gradient
+            let current_cost = self.cost(param).unwrap_or(1.0);
+            grad[j] = if current_cost > 1e-10 {
+                sum / (n * current_cost)
+            } else {
+                sum / n
+            };
+        }
+
+        Ok(grad)
     }
 }
 
@@ -488,9 +530,11 @@ pub fn optimize_nelder_mead(
 /// Recommended AlgorithmType
 ///
 /// # Selection Logic
-/// - **≤3 params, any objective:** Nelder-Mead (fast, robust, well-tested)
-/// - **>3 params, complex objectives:** Simulated Annealing (escapes local minima)
-/// - **Default fallback:** Nelder-Mead
+/// - **1 param**: Nelder-Mead (simple, grid search fallback available)
+/// - **2-3 params, smooth objective**: L-BFGS (fast gradient-based convergence)
+/// - **2-3 params, complex objective**: Nelder-Mead (robust gradient-free)
+/// - **4+ params, smooth objective**: L-BFGS (scales well with gradients)
+/// - **4+ params, complex objective**: Simulated Annealing (escapes local minima)
 pub fn recommend_algorithm(n_params: usize, _n_obs: usize, objective_type: &str) -> AlgorithmType {
     // Check for complex objectives that might have multiple local minima
     let is_complex_objective = matches!(
@@ -500,14 +544,20 @@ pub fn recommend_algorithm(n_params: usize, _n_obs: usize, objective_type: &str)
 
     // Selection logic based on problem characteristics
     match (n_params, is_complex_objective) {
-        // Small problems (≤3 parameters): Nelder-Mead is fast and reliable
-        (1..=3, _) => AlgorithmType::NelderMead,
+        // 1D problems: Use Nelder-Mead (has grid search fallback in optimize_with_fallback)
+        (1, _) => AlgorithmType::NelderMead,
 
-        // Large problems with complex objectives: Simulated Annealing for global search
+        // 2-3 params with smooth objectives: L-BFGS for fast convergence
+        (2..=3, false) => AlgorithmType::LBFGS,
+
+        // 2-3 params with complex objectives: Nelder-Mead is robust
+        (2..=3, true) => AlgorithmType::NelderMead,
+
+        // 4+ params with smooth objectives: L-BFGS scales well
+        (4.., false) => AlgorithmType::LBFGS,
+
+        // 4+ params with complex objectives: Simulated Annealing for global search
         (4.., true) => AlgorithmType::SimulatedAnnealing,
-
-        // Large problems with smooth objectives: Nelder-Mead still works well
-        (4.., false) => AlgorithmType::NelderMead,
 
         // Default fallback
         _ => AlgorithmType::NelderMead,
@@ -617,6 +667,71 @@ pub fn optimize_grid_search(
     })
 }
 
+/// Optimize using L-BFGS quasi-Newton method
+///
+/// L-BFGS uses gradient information for fast convergence on smooth objectives
+pub fn optimize_lbfgs(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+    max_iters: u64,
+) -> Result<OptimResult, String> {
+    if observed.len() != x.len() {
+        return Err("observed and x must have same length".to_string());
+    }
+    if initial_params.is_empty() {
+        return Err("initial_params cannot be empty".to_string());
+    }
+
+    // Create the cost function wrapper
+    let cost_fn = ShapeCostFunction {
+        observed: observed.to_vec(),
+        x: x.to_vec(),
+        shape_type: shape_type.to_string(),
+        ascending,
+        objective: objective.clone(),
+    };
+
+    // Create L-BFGS solver
+    // m = 7 is a common choice for memory size (number of past gradients to store)
+    let linesearch = argmin::solver::linesearch::MoreThuenteLineSearch::new();
+    let solver = LBFGS::new(linesearch, 7);
+
+    // Set up executor
+    let executor = Executor::new(cost_fn, solver)
+        .configure(|state| {
+            state
+                .param(initial_params.to_vec())
+                .max_iters(max_iters)
+        });
+
+    // Run optimization
+    let result = executor.run()
+        .map_err(|e| format!("L-BFGS optimization failed: {:?}", e))?;
+
+    // Extract results
+    let state = result.state();
+    let best_param = state.get_best_param()
+        .cloned()
+        .unwrap_or_else(|| initial_params.to_vec());
+    let final_cost = state.get_best_cost();
+    let iterations = state.get_iter();
+    let converged = final_cost.is_finite();
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost,
+        iterations,
+        converged,
+        method: "L-BFGS".to_string(),
+        lower_bounds: None,
+        upper_bounds: None,
+    })
+}
+
 /// Optimize using Simulated Annealing
 ///
 /// SA is a probabilistic method that can escape local minima, useful for multi-modal landscapes
@@ -699,6 +814,9 @@ pub fn optimize_with_algorithm(
     match algorithm {
         AlgorithmType::NelderMead => optimize_nelder_mead(
             observed, x, initial_params, shape_type, ascending, objective, 1000, 1e-8
+        ),
+        AlgorithmType::LBFGS => optimize_lbfgs(
+            observed, x, initial_params, shape_type, ascending, objective, 1000
         ),
         AlgorithmType::SimulatedAnnealing => optimize_simulated_annealing(
             observed, x, initial_params, shape_type, ascending, objective, 1000
@@ -1036,14 +1154,17 @@ mod tests {
 
     #[test]
     fn test_recommend_algorithm() {
-        // Small problem, any objective -> Nelder-Mead
-        assert_eq!(recommend_algorithm(2, 100, "rmse"), AlgorithmType::NelderMead);
+        // This test is deprecated - use test_recommend_algorithm_updated instead
+        // Keeping for backward compatibility but updating expectations
+
+        // 2 params, smooth objective -> L-BFGS (updated)
+        assert_eq!(recommend_algorithm(2, 100, "rmse"), AlgorithmType::LBFGS);
 
         // Large problem, complex objective -> Simulated Annealing
         assert_eq!(recommend_algorithm(4, 100, "huber"), AlgorithmType::SimulatedAnnealing);
 
-        // Large problem, smooth objective -> Nelder-Mead
-        assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::NelderMead);
+        // Large problem, smooth objective -> L-BFGS (updated)
+        assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::LBFGS);
     }
 
     #[test]
@@ -1064,8 +1185,91 @@ mod tests {
         // Test Simulated Annealing
         let result_sa = optimize_with_algorithm(
             &observed, &x, &initial_par, "uniform", true,
-            objective, AlgorithmType::SimulatedAnnealing
+            objective.clone(), AlgorithmType::SimulatedAnnealing
         );
         assert!(result_sa.is_ok());
+
+        // Test L-BFGS
+        let result_lbfgs = optimize_with_algorithm(
+            &observed, &x, &initial_par, "uniform", true,
+            objective, AlgorithmType::LBFGS
+        );
+        assert!(result_lbfgs.is_ok());
+    }
+
+    #[test]
+    fn test_lbfgs_gradational() {
+        // Test L-BFGS on 2-parameter gradational shape
+        let x: Vec<f64> = (1..=200).map(|i| i as f64).collect();
+        // Create gradational data: linear from 50 to 150
+        let observed: Vec<f64> = x.iter().map(|&xi| {
+            let val = (xi - 50.0) / 100.0;
+            val.max(0.0).min(1.0)
+        }).collect();
+
+        let initial_par = vec![60.0, 140.0]; // Slightly off from true [50, 150]
+        let objective = create_objective("rmse").unwrap();
+
+        let result = optimize_lbfgs(
+            &observed,
+            &x,
+            &initial_par,
+            "gradational",
+            true,
+            objective,
+            100,
+        );
+
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        // Should converge close to [50, 150]
+        assert!((result.params[0] - 50.0).abs() < 15.0);
+        assert!((result.params[1] - 150.0).abs() < 15.0);
+        assert!(result.final_cost < 0.1); // Should have low error
+    }
+
+    #[test]
+    fn test_gradient_computation() {
+        // Test that gradients are being computed correctly
+        let x: Vec<f64> = vec![1.0, 50.0, 100.0, 150.0, 200.0];
+        let observed = vec![0.5, 0.5, 0.5, 0.5, 0.5];
+        let params = vec![0.6];
+        let objective = create_objective("rmse").unwrap();
+
+        let cost_fn = ShapeCostFunction {
+            observed: observed.clone(),
+            x: x.clone(),
+            shape_type: "uniform".to_string(),
+            ascending: true,
+            objective,
+        };
+
+        // Compute gradient
+        let grad = cost_fn.gradient(&params);
+        assert!(grad.is_ok());
+        let grad = grad.unwrap();
+        assert_eq!(grad.len(), 1);
+        // Gradient should be non-zero (parameter is slightly off from observed 0.5)
+        assert!(grad[0].abs() > 0.0);
+    }
+
+    #[test]
+    fn test_recommend_algorithm_updated() {
+        // Test new recommendation logic with L-BFGS
+        // 1D problem -> Nelder-Mead
+        assert_eq!(recommend_algorithm(1, 100, "rmse"), AlgorithmType::NelderMead);
+
+        // 2-3 params, smooth -> L-BFGS
+        assert_eq!(recommend_algorithm(2, 100, "rmse"), AlgorithmType::LBFGS);
+        assert_eq!(recommend_algorithm(3, 100, "sse"), AlgorithmType::LBFGS);
+
+        // 2-3 params, complex -> Nelder-Mead
+        assert_eq!(recommend_algorithm(2, 100, "huber"), AlgorithmType::NelderMead);
+
+        // 4+ params, smooth -> L-BFGS
+        assert_eq!(recommend_algorithm(4, 100, "rmse"), AlgorithmType::LBFGS);
+
+        // 4+ params, complex -> Simulated Annealing
+        assert_eq!(recommend_algorithm(5, 100, "quantile"), AlgorithmType::SimulatedAnnealing);
     }
 }

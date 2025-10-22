@@ -294,12 +294,133 @@ pub fn minimax(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
         .collect()
 }
 
+/// Compute analytical gradient of uniform shape
+///
+/// f(x, level) = level
+/// ∂f/∂level = 1
+pub fn uniform_gradient(x: &[f64], _params: &[f64]) -> Vec<Vec<f64>> {
+    // Gradient is constant 1.0 for all depths (single parameter)
+    vec![vec![1.0]; x.len()]
+}
+
+/// Compute analytical gradient of gradational shape
+///
+/// f(x, start, end) = (x - start) / (end - start)
+/// ∂f/∂start = -(x - end) / (end - start)²
+/// ∂f/∂end = (x - start) / (end - start)²
+pub fn gradational_gradient(x: &[f64], params: &[f64], ascending: bool) -> Vec<Vec<f64>> {
+    let start = params[0];
+    let end = params[1];
+    let range = end - start;
+    let range_sq = range * range;
+
+    if range.abs() < 1e-10 {
+        // Degenerate case: start == end, gradients are zero
+        return vec![vec![0.0, 0.0]; x.len()];
+    }
+
+    x.iter()
+        .map(|&xi| {
+            // Check if we're in the clamped region
+            let val = (xi - start) / range;
+
+            let (grad_start, grad_end) = if val < 0.0 {
+                // Clamped to 0: gradients are 0
+                (0.0, 0.0)
+            } else if val > 1.0 {
+                // Clamped to 1: gradients are 0
+                (0.0, 0.0)
+            } else {
+                // Active region: compute analytical gradients
+                let grad_start = -(xi - end) / range_sq;
+                let grad_end = (xi - start) / range_sq;
+                (grad_start, grad_end)
+            };
+
+            if ascending {
+                vec![grad_start, grad_end]
+            } else {
+                vec![-grad_start, -grad_end]
+            }
+        })
+        .collect()
+}
+
+/// Compute analytical gradient of wetting front shape (simplified)
+///
+/// For the piecewise quadratic wetting front, gradients are more complex.
+/// We use finite differences as a robust approximation.
+pub fn wetting_front_gradient(x: &[f64], params: &[f64], ascending: bool) -> Vec<Vec<f64>> {
+    // Use finite differences for now (can implement analytical later)
+    finite_difference_gradient(x, params, ascending, wetting_front)
+}
+
+/// Compute gradient via finite differences
+///
+/// Generic helper for shapes without simple analytical gradients
+fn finite_difference_gradient<F>(
+    x: &[f64],
+    params: &[f64],
+    ascending: bool,
+    shape_fn: F,
+) -> Vec<Vec<f64>>
+where
+    F: Fn(&[f64], &[f64], bool) -> Vec<f64>,
+{
+    let epsilon = 1e-6;
+    let f0 = shape_fn(x, params, ascending);
+
+    let mut gradients = vec![vec![0.0; params.len()]; x.len()];
+
+    for j in 0..params.len() {
+        let mut params_plus = params.to_vec();
+        params_plus[j] += epsilon;
+        let f_plus = shape_fn(x, &params_plus, ascending);
+
+        for i in 0..x.len() {
+            gradients[i][j] = (f_plus[i] - f0[i]) / epsilon;
+        }
+    }
+
+    gradients
+}
+
+/// Dispatch to shape gradient by name
+///
+/// Computes analytical gradients (or finite difference approximation) for shape functions.
+///
+/// # Arguments
+/// * `shape_type` - String name of shape function
+/// * `x` - Depth vector
+/// * `params` - Shape-specific parameters
+/// * `ascending` - Direction flag
+///
+/// # Returns
+/// Result with gradient matrix [depth][param] or error string
+pub fn eval_shape_gradient(
+    shape_type: &str,
+    x: &[f64],
+    params: &[f64],
+    ascending: bool,
+) -> Result<Vec<Vec<f64>>, String> {
+    match shape_type {
+        "uniform" => Ok(uniform_gradient(x, params)),
+        "gradational" => Ok(gradational_gradient(x, params, ascending)),
+        "wetting_front" => Ok(wetting_front_gradient(x, params, ascending)),
+        "exponential" => Ok(finite_difference_gradient(x, params, ascending, exponential)),
+        "abrupt" => Ok(finite_difference_gradient(x, params, ascending, abrupt)),
+        "peak" => Ok(finite_difference_gradient(x, params, ascending, peak)),
+        "minimax" => Ok(finite_difference_gradient(x, params, ascending, minimax)),
+        _ => Err(format!("Unknown shape type: {}", shape_type)),
+    }
+}
+
 /// Dispatch to shape function by name
 ///
 /// Convenient way to call shape functions by string name with unified interface.
 ///
 /// # Arguments
-/// * `shape_type` - String name: "uniform", "gradational", "exponential", 
+/// * `shape_type` - String name: "uniform", "gradational", "exponential",
 ///                  "wetting_front", "abrupt", "peak", "minimax"
 /// * `x` - Depth vector
 /// * `params` - Shape-specific parameters
@@ -466,5 +587,50 @@ mod tests {
         assert_eq!(result.len(), 3);
         // Exponential decay should be descending initially then level off
         assert!(result.iter().all(|&v| v >= 0.0 && v <= 1.0));
+    }
+
+    #[test]
+    fn test_uniform_gradient() {
+        let x = vec![1.0, 50.0, 100.0];
+        let params = vec![0.5];
+        let grad = uniform_gradient(&x, &params);
+        assert_eq!(grad.len(), 3);
+        assert!(grad.iter().all(|g| g.len() == 1 && (g[0] - 1.0).abs() < 1e-10));
+    }
+
+    #[test]
+    fn test_gradational_gradient() {
+        let x = vec![50.0, 100.0, 150.0];
+        let params = vec![50.0, 150.0];
+        let grad = gradational_gradient(&x, &params, true);
+        assert_eq!(grad.len(), 3);
+        // Each gradient should have 2 components (∂/∂start, ∂/∂end)
+        assert!(grad.iter().all(|g| g.len() == 2));
+        // Gradients should be finite
+        assert!(grad.iter().all(|g| g.iter().all(|&gi| gi.is_finite())));
+    }
+
+    #[test]
+    fn test_eval_shape_gradient() {
+        let x = vec![1.0, 50.0, 100.0];
+        let params = vec![0.5];
+        let result = eval_shape_gradient("uniform", &x, &params, true);
+        assert!(result.is_ok());
+        let grad = result.unwrap();
+        assert_eq!(grad.len(), 3);
+    }
+
+    #[test]
+    fn test_finite_difference_gradient() {
+        // Test that finite differences work for complex shapes
+        let x = vec![50.0, 100.0, 150.0];
+        let params = vec![100.0, 30.0];
+        let result = eval_shape_gradient("peak", &x, &params, true);
+        assert!(result.is_ok());
+        let grad = result.unwrap();
+        assert_eq!(grad.len(), 3);
+        assert!(grad.iter().all(|g| g.len() == 2));
+        // Gradients should be finite
+        assert!(grad.iter().all(|g| g.iter().all(|&gi| gi.is_finite())));
     }
 }
