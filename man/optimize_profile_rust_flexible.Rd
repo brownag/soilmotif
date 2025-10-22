@@ -36,6 +36,16 @@ optimize_profile_rust_flexible(
 \item{ascending}{logical. Direction flag (TRUE = increasing, FALSE = decreasing)}
 
 \item{objective_type}{character. Objective function ("rmse", "sse", "mae", "r2")}
+
+\item{algorithm}{character. Optimization algorithm to use. Options:
+\itemize{
+\item \code{"auto"} (default): Automatically select based on problem characteristics
+\item \code{"nelder_mead"}: Nelder-Mead simplex (gradient-free, robust)
+\item \code{"lbfgs"}: L-BFGS quasi-Newton (gradient-based, fast for smooth problems)
+\item \code{"particle_swarm"} or \code{"pso"}: Particle Swarm Optimization (population-based global search)
+\item \code{"simulated_annealing"} or \code{"sa"}: Simulated Annealing (probabilistic, escapes local minima)
+\item \code{"newton_cg"}: Newton-CG (uses gradient + Hessian, very fast for smooth problems)
+}}
 }
 \value{
 numeric vector of optimized parameters

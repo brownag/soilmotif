@@ -190,6 +190,15 @@ shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
 #' @param shape_type character. Name of shape function ("uniform", "gradational", etc.)
 #' @param ascending logical. Direction flag (TRUE = increasing, FALSE = decreasing)
 #' @param objective_type character. Objective function ("rmse", "sse", "mae", "r2")
+#' @param algorithm character. Optimization algorithm to use. Options:
+#'   \itemize{
+#'     \item \code{"auto"} (default): Automatically select based on problem characteristics
+#'     \item \code{"nelder_mead"}: Nelder-Mead simplex (gradient-free, robust)
+#'     \item \code{"lbfgs"}: L-BFGS quasi-Newton (gradient-based, fast for smooth problems)
+#'     \item \code{"particle_swarm"} or \code{"pso"}: Particle Swarm Optimization (population-based global search)
+#'     \item \code{"simulated_annealing"} or \code{"sa"}: Simulated Annealing (probabilistic, escapes local minima)
+#'     \item \code{"newton_cg"}: Newton-CG (uses gradient + Hessian, very fast for smooth problems)
+#'   }
 #'
 #' @return numeric vector of optimized parameters
 #' @keywords internal

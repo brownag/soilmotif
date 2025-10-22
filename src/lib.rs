@@ -51,6 +51,7 @@ fn recommend_optimizer_rust(n_params: i32, n_obs: i32, objective_type: &str) -> 
         optimizer::AlgorithmType::LBFGS => "lbfgs".to_string(),
         optimizer::AlgorithmType::ParticleSwarm => "particle_swarm".to_string(),
         optimizer::AlgorithmType::SimulatedAnnealing => "simulated_annealing".to_string(),
+        optimizer::AlgorithmType::NewtonCG => "newton_cg".to_string(),
     }
 }
 
@@ -239,6 +240,7 @@ fn optimize_profile_rust_flexible(
         "lbfgs" | "l-bfgs" => optimizer::AlgorithmType::LBFGS,
         "particle_swarm" | "pso" => optimizer::AlgorithmType::ParticleSwarm,
         "simulated_annealing" | "sa" => optimizer::AlgorithmType::SimulatedAnnealing,
+        "newton_cg" | "newton-cg" | "newtoncg" => optimizer::AlgorithmType::NewtonCG,
         "auto" => {
             // Auto-select based on problem characteristics
             let n_params = initial_params.len();
