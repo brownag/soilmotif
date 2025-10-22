@@ -14,7 +14,7 @@ sm_recommend_optimizer(n_params, n_obs = NULL, objective_type = "rmse")
 \item{objective_type}{character. Type of objective function ("rmse", "sse", "mae", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").}
 }
 \value{
-character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", or "simulated_annealing").
+character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", or "newton_cg").
 }
 \description{
 Recommends the best optimization algorithm based on problem characteristics.

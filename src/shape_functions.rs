@@ -129,7 +129,7 @@ pub fn exponential(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// # Arguments
 /// * `x` - Depth vector
 /// * `params` - [start_depth, end_depth] - transition zone boundaries
-/// * `ascending` - If true, S-curve (0→1); else reverse S (1→0)
+/// * `ascending` - If true, S-curve (0->1); else reverse S (1->0)
 ///
 /// # Returns
 /// Vector of [0, 1] values
@@ -174,7 +174,7 @@ pub fn wetting_front(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// # Arguments
 /// * `x` - Depth vector
 /// * `params` - [depth_transition, width] - transition depth and smoothness
-/// * `ascending` - If true, 0→1 at transition; else 1→0
+/// * `ascending` - If true, 0->1 at transition; else 1->0
 ///
 /// # Returns
 /// Vector of 0 or 1 values (or smooth transition if width > 0)
@@ -294,10 +294,464 @@ pub fn minimax(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
         .collect()
 }
 
+/// Monotone Cubic Spline (Fritsch-Carlson method)
+///
+/// Ensures strictly monotonic interpolation through control points.
+/// Useful for properties like compaction where non-monotonic behavior is physically impossible.
+///
+/// # Arguments
+/// * `x` - Evaluation depths (typically 1..200)
+/// * `control_points` - Flattened vector [depth1, val1, depth2, val2, ...]
+///   Must be even length and depths must be sorted
+///
+/// # Returns
+/// Interpolated values at depths x, maintaining strict monotonicity
+pub fn monotone_cubic_spline(x: &[f64], control_points: &[f64]) -> Result<Vec<f64>, String> {
+    if control_points.is_empty() {
+        return Err("control_points cannot be empty".to_string());
+    }
+    if control_points.len() % 2 != 0 {
+        return Err(format!("control_points length must be even, got {}", control_points.len()));
+    }
+
+    // Extract depths and values from flattened vector
+    let n = control_points.len() / 2;
+    let mut depths = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    
+    for i in 0..n {
+        depths.push(control_points[2 * i]);
+        values.push(control_points[2 * i + 1]);
+    }
+
+    // Validate that depths are sorted
+    for i in 1..n {
+        if depths[i] <= depths[i - 1] {
+            return Err(format!(
+                "control point depths must be strictly sorted (depth[{}]={} <= depth[{}]={})",
+                i - 1, depths[i - 1], i, depths[i]
+            ));
+        }
+    }
+
+    if x.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Compute slopes between consecutive points
+    let mut slopes = Vec::with_capacity(n - 1);
+    for i in 0..(n - 1) {
+        let slope = (values[i + 1] - values[i]) / (depths[i + 1] - depths[i]);
+        slopes.push(slope);
+    }
+
+    // Compute tangents using Fritsch-Carlson method
+    let mut tangents = vec![0.0; n];
+    
+    // At endpoints, use one-sided derivatives
+    tangents[0] = slopes[0];
+    tangents[n - 1] = slopes[n - 2];
+
+    // At interior points, use weighted average of neighboring slopes
+    for i in 1..(n - 1) {
+        let h_prev = depths[i] - depths[i - 1];
+        let h_next = depths[i + 1] - depths[i];
+        let w_prev = 2.0 * h_next + h_prev;
+        let w_next = h_next + 2.0 * h_prev;
+
+        if slopes[i - 1] * slopes[i] > 0.0 {
+            // Same sign: use weighted harmonic mean
+            tangents[i] = (w_prev + w_next) / (w_prev / slopes[i - 1] + w_next / slopes[i]);
+        } else {
+            // Different sign: use zero (monotonicity requires it)
+            tangents[i] = 0.0;
+        }
+    }
+
+    // Interpolate at each evaluation point
+    let mut result = Vec::with_capacity(x.len());
+    
+    for &xi in x {
+        // Find interval containing xi
+        let val = if xi <= depths[0] {
+            values[0]
+        } else if xi >= depths[n - 1] {
+            values[n - 1]
+        } else {
+            // Binary search for interval
+            let mut idx = 0;
+            for (i, &d) in depths.iter().enumerate() {
+                if d <= xi {
+                    idx = i;
+                } else {
+                    break;
+                }
+            }
+
+            if idx >= n - 1 {
+                idx = n - 2;
+            }
+
+            // Hermite interpolation in interval [depths[idx], depths[idx+1]]
+            let h = depths[idx + 1] - depths[idx];
+            let t = (xi - depths[idx]) / h;
+            let t2 = t * t;
+            let t3 = t2 * t;
+
+            let y0 = values[idx];
+            let y1 = values[idx + 1];
+            let m0 = tangents[idx];
+            let m1 = tangents[idx + 1];
+
+            // Hermite basis functions
+            let h00 = 2.0 * t3 - 3.0 * t2 + 1.0;
+            let h10 = t3 - 2.0 * t2 + t;
+            let h01 = -2.0 * t3 + 3.0 * t2;
+            let h11 = t3 - t2;
+
+            h00 * y0 + h10 * h * m0 + h01 * y1 + h11 * h * m1
+        };
+
+        result.push(val);
+    }
+
+    Ok(result)
+}
+
+/// Restricted Cubic Spline (RCS)
+///
+/// Provides flexible non-monotonic interpolation while preventing erratic extrapolation.
+/// Natural cubic spline with linear extrapolation beyond endpoints.
+/// Suitable for properties like pH or organic carbon that may have non-monotonic behavior.
+///
+/// # Arguments
+/// * `x` - Evaluation depths
+/// * `control_points` - Flattened vector [depth1, val1, depth2, val2, ...]
+///   Must be even length and depths must be sorted
+///
+/// # Returns
+/// Interpolated values using natural cubic spline
+pub fn restricted_cubic_spline(x: &[f64], control_points: &[f64]) -> Result<Vec<f64>, String> {
+    if control_points.is_empty() {
+        return Err("control_points cannot be empty".to_string());
+    }
+    if control_points.len() % 2 != 0 {
+        return Err(format!("control_points length must be even, got {}", control_points.len()));
+    }
+
+    // Extract depths and values from flattened vector
+    let n = control_points.len() / 2;
+    let mut depths = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    
+    for i in 0..n {
+        depths.push(control_points[2 * i]);
+        values.push(control_points[2 * i + 1]);
+    }
+
+    // Validate that depths are sorted
+    for i in 1..n {
+        if depths[i] <= depths[i - 1] {
+            return Err(format!(
+                "control point depths must be strictly sorted (depth[{}]={} <= depth[{}]={})",
+                i - 1, depths[i - 1], i, depths[i]
+            ));
+        }
+    }
+
+    if x.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // For 2 points or fewer, use linear interpolation
+    if n <= 2 {
+        return Ok(x.iter().map(|&xi| {
+            if xi <= depths[0] {
+                values[0]
+            } else if xi >= depths[n - 1] {
+                values[n - 1]
+            } else {
+                // Linear interpolation
+                let slope = (values[1] - values[0]) / (depths[1] - depths[0]);
+                values[0] + slope * (xi - depths[0])
+            }
+        }).collect());
+    }
+
+    // Compute differences and prepare for tridiagonal system
+    let mut h = Vec::with_capacity(n - 1);
+    
+    for i in 0..(n - 1) {
+        h.push(depths[i + 1] - depths[i]);
+    }
+
+    // Set up tridiagonal system for natural cubic spline
+    // Natural boundary conditions: M[0] = M[n-1] = 0
+    let mut l = vec![1.0; n];
+    let mut mu = vec![0.0; n - 1];
+    let mut z = vec![0.0; n];
+
+    for i in 1..(n - 1) {
+        l[i] = 2.0 * (h[i - 1] + h[i]) - h[i - 1] * mu[i - 1];
+        if l[i].abs() < 1e-15 {
+            l[i] = 1e-15; // Avoid division by zero
+        }
+        mu[i] = h[i] / l[i];
+        z[i] = (6.0 * ((values[i + 1] - values[i]) / h[i] - (values[i] - values[i - 1]) / h[i - 1]) - h[i - 1] * z[i - 1]) / l[i];
+    }
+
+    // Back substitution to find second derivatives (M values)
+    let mut m = vec![0.0; n];
+    for i in (0..(n - 1)).rev() {
+        m[i] = z[i] - mu[i] * m[i + 1];
+    }
+
+    // Interpolate at each evaluation point
+    let mut result = Vec::with_capacity(x.len());
+    
+    for &xi in x {
+        let val = if xi <= depths[0] {
+            // Linear extrapolation to left
+            let slope = (values[1] - values[0]) / (depths[1] - depths[0]);
+            values[0] + slope * (xi - depths[0])
+        } else if xi >= depths[n - 1] {
+            // Linear extrapolation to right
+            let slope = (values[n - 1] - values[n - 2]) / (depths[n - 1] - depths[n - 2]);
+            values[n - 1] + slope * (xi - depths[n - 1])
+        } else {
+            // Find interval
+            let mut idx = 0;
+            for (i, &d) in depths.iter().enumerate() {
+                if d <= xi {
+                    idx = i;
+                } else {
+                    break;
+                }
+            }
+            if idx >= n - 1 {
+                idx = n - 2;
+            }
+
+            // Cubic Hermite interpolation using second derivatives
+            let dx = xi - depths[idx];
+            let h_i = h[idx];
+            let a = (depths[idx + 1] - xi) / h_i;
+            let b = dx / h_i;
+
+            a * values[idx] + b * values[idx + 1] +
+                (a.powi(3) - a) / 6.0 * m[idx] * h_i * h_i +
+                (b.powi(3) - b) / 6.0 * m[idx + 1] * h_i * h_i
+        };
+
+        result.push(val);
+    }
+
+    Ok(result)
+}
+
+/// Compute analytical gradient of monotone cubic spline
+///
+/// Returns the derivative at each evaluation point
+pub fn monotone_cubic_spline_gradient(
+    x: &[f64],
+    control_points: &[f64],
+) -> Result<Vec<Vec<f64>>, String> {
+    if control_points.is_empty() {
+        return Err("control_points cannot be empty".to_string());
+    }
+    if control_points.len() % 2 != 0 {
+        return Err(format!("control_points length must be even, got {}", control_points.len()));
+    }
+
+    let n = control_points.len() / 2;
+    let mut depths = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    
+    for i in 0..n {
+        depths.push(control_points[2 * i]);
+        values.push(control_points[2 * i + 1]);
+    }
+
+    if x.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Compute slopes
+    let mut slopes = Vec::with_capacity(n - 1);
+    for i in 0..(n - 1) {
+        let slope = (values[i + 1] - values[i]) / (depths[i + 1] - depths[i]);
+        slopes.push(slope);
+    }
+
+    // Compute tangents (same as in monotone_cubic_spline)
+    let mut tangents = vec![0.0; n];
+    tangents[0] = slopes[0];
+    tangents[n - 1] = slopes[n - 2];
+
+    for i in 1..(n - 1) {
+        let h_prev = depths[i] - depths[i - 1];
+        let h_next = depths[i + 1] - depths[i];
+        let w_prev = 2.0 * h_next + h_prev;
+        let w_next = h_next + 2.0 * h_prev;
+
+        if slopes[i - 1] * slopes[i] > 0.0 {
+            tangents[i] = (w_prev + w_next) / (w_prev / slopes[i - 1] + w_next / slopes[i]);
+        } else {
+            tangents[i] = 0.0;
+        }
+    }
+
+    // Compute derivatives at each point
+    let mut result = Vec::with_capacity(x.len());
+    
+    for &xi in x {
+        let deriv = if xi <= depths[0] || xi >= depths[n - 1] {
+            0.0 // Derivative at endpoints is constant
+        } else {
+            // Find interval
+            let mut idx = 0;
+            for (i, &d) in depths.iter().enumerate() {
+                if d <= xi {
+                    idx = i;
+                } else {
+                    break;
+                }
+            }
+            if idx >= n - 1 {
+                idx = n - 2;
+            }
+
+            // Derivative of Hermite interpolation
+            let h = depths[idx + 1] - depths[idx];
+            let t = (xi - depths[idx]) / h;
+            
+            let y0 = values[idx];
+            let y1 = values[idx + 1];
+            let m0 = tangents[idx];
+            let m1 = tangents[idx + 1];
+
+            // Derivatives of basis functions w.r.t. t
+            let dh00_dt = 6.0 * t * (t - 1.0);
+            let dh10_dt = 3.0 * t * t - 4.0 * t + 1.0;
+            let dh01_dt = 6.0 * t * (1.0 - t);
+            let dh11_dt = 3.0 * t * t - 2.0 * t;
+
+            // Chain rule: df/dx = df/dt * dt/dx = df/dt * (1/h)
+            (dh00_dt * y0 + dh10_dt * h * m0 + dh01_dt * y1 + dh11_dt * h * m1) / h
+        };
+
+        result.push(vec![deriv]);
+    }
+
+    Ok(result)
+}
+
+/// Compute analytical gradient of restricted cubic spline
+///
+/// Returns the derivative at each evaluation point
+pub fn restricted_cubic_spline_gradient(
+    x: &[f64],
+    control_points: &[f64],
+) -> Result<Vec<Vec<f64>>, String> {
+    if control_points.is_empty() {
+        return Err("control_points cannot be empty".to_string());
+    }
+    if control_points.len() % 2 != 0 {
+        return Err(format!("control_points length must be even, got {}", control_points.len()));
+    }
+
+    let n = control_points.len() / 2;
+    let mut depths = Vec::with_capacity(n);
+    let mut values = Vec::with_capacity(n);
+    
+    for i in 0..n {
+        depths.push(control_points[2 * i]);
+        values.push(control_points[2 * i + 1]);
+    }
+
+    if x.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // For 2 points, derivatives are constant slopes
+    if n <= 2 {
+        let slope = (values[1] - values[0]) / (depths[1] - depths[0]);
+        return Ok(vec![vec![slope]; x.len()]);
+    }
+
+    // Compute h values and setup system (same as in RCS)
+    let mut h = Vec::with_capacity(n - 1);
+    for i in 0..(n - 1) {
+        h.push(depths[i + 1] - depths[i]);
+    }
+
+    // Solve tridiagonal system for m (second derivatives)
+    let mut l = vec![1.0; n];
+    let mut mu = vec![0.0; n - 1];
+    let mut z = vec![0.0; n];
+
+    for i in 1..(n - 1) {
+        l[i] = 2.0 * (h[i - 1] + h[i]) - h[i - 1] * mu[i - 1];
+        if l[i].abs() < 1e-15 {
+            l[i] = 1e-15;
+        }
+        mu[i] = h[i] / l[i];
+        z[i] = (6.0 * ((values[i + 1] - values[i]) / h[i] - (values[i] - values[i - 1]) / h[i - 1]) - h[i - 1] * z[i - 1]) / l[i];
+    }
+
+    let mut m = vec![0.0; n];
+    for i in (0..(n - 1)).rev() {
+        m[i] = z[i] - mu[i] * m[i + 1];
+    }
+
+    // Compute derivatives at each point
+    let mut result = Vec::with_capacity(x.len());
+    
+    for &xi in x {
+        let deriv = if xi <= depths[0] {
+            // Linear extrapolation slope to left
+            (values[1] - values[0]) / (depths[1] - depths[0])
+        } else if xi >= depths[n - 1] {
+            // Linear extrapolation slope to right
+            (values[n - 1] - values[n - 2]) / (depths[n - 1] - depths[n - 2])
+        } else {
+            // Find interval
+            let mut idx = 0;
+            for (i, &d) in depths.iter().enumerate() {
+                if d <= xi {
+                    idx = i;
+                } else {
+                    break;
+                }
+            }
+            if idx >= n - 1 {
+                idx = n - 2;
+            }
+
+            // Derivative of cubic Hermite
+            let dx = xi - depths[idx];
+            let h_i = h[idx];
+            let a = (depths[idx + 1] - xi) / h_i;
+            let b = dx / h_i;
+
+            let da_dx = -1.0 / h_i;
+            let db_dx = 1.0 / h_i;
+
+            let slope = (values[idx + 1] - values[idx]) / h_i;
+            slope + (3.0 * a * a - 1.0) / 6.0 * da_dx * m[idx] * h_i * h_i +
+                (3.0 * b * b - 1.0) / 6.0 * db_dx * m[idx + 1] * h_i * h_i
+        };
+
+        result.push(vec![deriv]);
+    }
+
+    Ok(result)
+}
+
 /// Compute analytical gradient of uniform shape
 ///
 /// f(x, level) = level
-/// ∂f/∂level = 1
+/// df/dlevel = 1
 pub fn uniform_gradient(x: &[f64], _params: &[f64]) -> Vec<Vec<f64>> {
     // Gradient is constant 1.0 for all depths (single parameter)
     vec![vec![1.0]; x.len()]
@@ -306,8 +760,8 @@ pub fn uniform_gradient(x: &[f64], _params: &[f64]) -> Vec<Vec<f64>> {
 /// Compute analytical gradient of gradational shape
 ///
 /// f(x, start, end) = (x - start) / (end - start)
-/// ∂f/∂start = -(x - end) / (end - start)²
-/// ∂f/∂end = (x - start) / (end - start)²
+/// df/dstart = -(x - end) / (end - start)^2
+/// df/dend = (x - start) / (end - start)^2
 pub fn gradational_gradient(x: &[f64], params: &[f64], ascending: bool) -> Vec<Vec<f64>> {
     let start = params[0];
     let end = params[1];
@@ -411,6 +865,8 @@ pub fn eval_shape_gradient(
         "abrupt" => Ok(finite_difference_gradient(x, params, ascending, abrupt)),
         "peak" => Ok(finite_difference_gradient(x, params, ascending, peak)),
         "minimax" => Ok(finite_difference_gradient(x, params, ascending, minimax)),
+        "monotone_cubic_spline" => monotone_cubic_spline_gradient(x, params),
+        "restricted_cubic_spline" => restricted_cubic_spline_gradient(x, params),
         _ => Err(format!("Unknown shape type: {}", shape_type)),
     }
 }
@@ -485,6 +941,18 @@ pub fn eval_shape(
             }
             Ok(minimax(x, params, ascending))
         },
+        "monotone_cubic_spline" => {
+            if params.len() < 4 || params.len() % 2 != 0 {
+                return Err(format!("monotone_cubic_spline requires even-length parameter vector (at least 4 for 2 control points), got {}", params.len()));
+            }
+            monotone_cubic_spline(x, params)
+        },
+        "restricted_cubic_spline" => {
+            if params.len() < 4 || params.len() % 2 != 0 {
+                return Err(format!("restricted_cubic_spline requires even-length parameter vector (at least 4 for 2 control points), got {}", params.len()));
+            }
+            restricted_cubic_spline(x, params)
+        },
         _ => Err(format!("Unknown shape type: {}", shape_type)),
     }
 }
@@ -535,7 +1003,7 @@ mod tests {
     #[test]
     fn test_abrupt_hard_step() {
         let x = vec![1.0, 50.0, 100.0];
-        let params = vec![75.0, 0.0]; // width = 0 → hard step
+        let params = vec![75.0, 0.0]; // width = 0 -> hard step
         let result = abrupt(&x, &params, true);
         assert_eq!(result[0], 0.0);
         assert_eq!(result[2], 1.0);
@@ -604,7 +1072,7 @@ mod tests {
         let params = vec![50.0, 150.0];
         let grad = gradational_gradient(&x, &params, true);
         assert_eq!(grad.len(), 3);
-        // Each gradient should have 2 components (∂/∂start, ∂/∂end)
+        // Each gradient should have 2 components (df/dstart, df/dend)
         assert!(grad.iter().all(|g| g.len() == 2));
         // Gradients should be finite
         assert!(grad.iter().all(|g| g.iter().all(|&gi| gi.is_finite())));

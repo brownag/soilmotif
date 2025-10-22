@@ -488,3 +488,122 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
   }
   shape
 }
+
+#' Monotone and Restricted Cubic Splines
+#'
+#' Evaluate spline-based depth functions with guaranteed monotonicity (cubic Hermite)
+#' or natural boundary conditions (cubic spline). Both interpolate smoothly through
+#' control points with analytical gradients for optimization.
+#'
+#' @param x Numeric vector of depths at which to evaluate the spline
+#' @param control_points Named numeric vector or data frame with columns 'depth' and 'value'
+#'        specifying interpolation knots. Must have at least 2 points, sorted by depth.
+#'        Format: c(depth1, value1, depth2, value2, ...) or list(depth=c(...), value=c(...))
+#' @param type Character: "monotone" (Fritsch-Carlson method, forced monotonicity) or
+#'        "rcs" (natural cubic spline, smoother but not monotone). Default: "monotone"
+#' @param ascending Logical: direction of depth trend (TRUE = increasing with depth,
+#'        FALSE = decreasing with depth). Default: TRUE
+#' @param strict Logical (R-only flag): if TRUE, validates control points before evaluation.
+#'        Default: TRUE
+#'
+#' @return Numeric vector of normalized [0, 1] depth function values at positions x
+#'
+#' @details
+#' Monotone cubic splines (type="monotone") use the Fritsch-Carlson method to compute
+#' tangent values that preserve monotonicity while maintaining C1 continuity. Ideal for
+#' pedogenic processes that don't reverse (e.g., clay accumulation in argillic horizons).
+#'
+#' Restricted cubic splines (type="rcs") use natural boundary conditions and solve a
+#' tridiagonal system for second derivatives, creating smoother curves suitable for
+#' complex pedogenic patterns (e.g., iron oxide distributions with subsurface maxima).
+#'
+#' Both implementations handle edge cases: clamping to first/last values when evaluating
+#' outside knot range, linear extrapolation beyond boundaries to avoid erratic behavior.
+#'
+#' Gradient computation uses analytical derivatives: Hermite basis for monotone splines,
+#' cubic Hermite interpolation derivatives for RCS. Suitable for gradient-based optimizers.
+#'
+#' Strict=FALSE is used internally by optimization; set strict=TRUE for direct exploration.
+#'
+#' @examples
+#' # Define control points for clay accumulation in argillic horizon
+#' clay_knots <- c(5, 0.05,    # 5 cm depth: 5% clay
+#'                 30, 0.15,   # 30 cm: 15% clay
+#'                 80, 0.40,   # 80 cm: 40% clay (maximum)
+#'                 150, 0.38)  # 150 cm: 38% clay (slight decrease)
+#'
+#' depths_eval <- 1:200
+#'
+#' # Monotone spline (enforces monotonic increase in clay content)
+#' clay_mono <- sm_shape_spline(depths_eval, clay_knots, type="monotone", ascending=TRUE)
+#' plot(depths_eval, clay_mono, type="l", main="Monotone Spline Clay Profile")
+#'
+#' # RCS spline (allows smoother transitions, captures horizon boundaries)
+#' clay_rcs <- sm_shape_spline(depths_eval, clay_knots, type="rcs", ascending=TRUE)
+#' plot(depths_eval, clay_rcs, type="l", main="RCS Clay Profile")
+#'
+#' @export
+sm_shape_spline <- function(x, control_points, type = "monotone", ascending = TRUE, strict = TRUE) {
+  # Validate and parse control points
+  if (strict) {
+    if (is.null(control_points) || length(control_points) == 0) {
+      stop("control_points must be non-empty")
+    }
+    if (is.data.frame(control_points)) {
+      if (!all(c("depth", "value") %in% names(control_points))) {
+        stop("data frame control_points must have 'depth' and 'value' columns")
+      }
+      depths <- control_points$depth
+      values <- control_points$value
+    } else if (is.list(control_points) && "depth" %in% names(control_points)) {
+      depths <- as.numeric(control_points$depth)
+      values <- as.numeric(control_points$value)
+    } else {
+      # Flat vector: (depth1, value1, depth2, value2, ...)
+      control_points <- as.numeric(control_points)
+      if (length(control_points) < 4 || length(control_points) %% 2 != 0) {
+        stop("control_points must have even length (at least 4 for 2 knots)")
+      }
+      depths <- control_points[seq(1, length(control_points), by = 2)]
+      values <- control_points[seq(2, length(control_points), by = 2)]
+    }
+    
+    # Ensure depths are sorted
+    if (is.unsorted(depths)) {
+      stop("control point depths must be sorted in ascending order")
+    }
+    # Ensure monotonic property if monotone type requested
+    if (type == "monotone" && ascending) {
+      if (is.unsorted(values)) {
+        stop("for monotone spline with ascending=TRUE, values must be non-decreasing")
+      }
+    } else if (type == "monotone" && !ascending) {
+      if (!is.unsorted(rev(values))) {  # Reverse and check unsorted
+        stop("for monotone spline with ascending=FALSE, values must be non-increasing")
+      }
+    }
+  } else {
+    # Loose parsing: assume flat vector format
+    control_points <- as.numeric(control_points)
+    depths <- control_points[seq(1, length(control_points), by = 2)]
+    values <- control_points[seq(2, length(control_points), by = 2)]
+  }
+  
+  # Flatten for Rust dispatch
+  flat_params <- as.numeric(rbind(depths, values))
+  
+  # Route to appropriate shape type
+  shape_type <- switch(type, monotone = "monotone_cubic_spline", rcs = "restricted_cubic_spline",
+                       stop("type must be 'monotone' or 'rcs'"))
+  
+  # Call Rust evaluation
+  result <- shape_eval_rust(shape_type, as.numeric(x), flat_params, ascending)
+  
+  # Normalize to [0, 1]
+  if (min(result, na.rm = TRUE) < 0 || max(result, na.rm = TRUE) > 1) {
+    # Clamp to [0, 1] if needed
+    result <- pmax(0, pmin(1, result))
+  }
+  
+  result
+}

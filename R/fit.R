@@ -204,7 +204,7 @@ create_soil_objective <- function(type, ...) {
 #' @rdname sm_motif
 #' @param use_rust logical. If TRUE, attempt to use high-performance Rust backend (if available). Defaults to FALSE.
 #' @param compare logical. If TRUE, run both R and Rust implementations and return comparison results. Defaults to FALSE.
-#' @param algorithm character. Optimization algorithm for Rust backend ("nelder_mead", "auto"). Defaults to "nelder_mead".
+#' @param algorithm character. Optimization algorithm for Rust backend. Options: "nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", "newton_cg", or "auto" (automatically selects best algorithm). Defaults to "nelder_mead".
 #' @details
 #' sm_optim uses numerical optimization to find the best-fitting parameters for a given
 #' shape function. It employs Brent's method for single parameters and Nelder-Mead
@@ -297,7 +297,7 @@ sm_optim <- function(x, X, ...,
 #' @param n_params integer. Number of parameters to optimize.
 #' @param n_obs integer. Number of observations.
 #' @param objective_type character. Type of objective function ("rmse", "sse", "mae", "weighted_rmse", "huber", "quantile", "ordinal", "bounded").
-#' @return character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", or "simulated_annealing").
+#' @return character. Recommended algorithm name ("nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", or "newton_cg").
 #' @export
 #' @examples
 #' # Small problem, smooth - recommends L-BFGS
@@ -339,7 +339,9 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
   #   "auto" - auto-select based on problem characteristics (default)
   #   "nelder_mead" - Nelder-Mead simplex method (gradient-free)
   #   "lbfgs" or "l-bfgs" - L-BFGS quasi-Newton method (gradient-based, fast)
+  #   "particle_swarm" or "pso" - Particle Swarm Optimization (population-based)
   #   "simulated_annealing" or "sa" - Simulated Annealing (global optimization)
+  #   "newton_cg" - Newton-CG method (gradient + Hessian, very fast for smooth problems)
   # If comparison mode requested, run both R and Rust and return comparison
   if (compare) {
     return(compare_r_vs_rust(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))

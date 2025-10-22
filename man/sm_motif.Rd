@@ -44,7 +44,7 @@ sm_optim(
 
 \item{compare}{logical. If TRUE, run both R and Rust implementations and return comparison results. Defaults to FALSE.}
 
-\item{algorithm}{character. Optimization algorithm for Rust backend ("nelder_mead", "auto"). Defaults to "nelder_mead".}
+\item{algorithm}{character. Optimization algorithm for Rust backend. Options: "nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", "newton_cg", or "auto" (automatically selects best algorithm). Defaults to "nelder_mead".}
 }
 \value{
 numeric vector or function when \code{as_function=TRUE}
