@@ -9,7 +9,7 @@
 help:
 	@echo "Available targets:"
 	@echo "  all          - Full development cycle (docs + test + check)"
-	@echo "  install      - Install package dependencies"
+	@echo "  install      - Install package"
 	@echo "  test         - Run test suite"
 	@echo "  check        - Run R CMD check"
 	@echo "  build        - Run R CMD build"
@@ -23,9 +23,8 @@ all: clean docs test check
 
 # Install dependencies
 install:
-	@echo "Installing package dependencies..."
-	R -e "if (!requireNamespace('remotes')) install.packages('remotes'); remotes::install_deps(dependencies = TRUE)"
-	R -e "if (!requireNamespace('devtools')) install.packages('devtools'); devtools::install()"
+	@echo "Installing package and dependencies..."
+	R -e "if (!requireNamespace('remotes')) install.packages('remotes'); remotes::install_local()"
 
 # Run tests
 test:
