@@ -17,6 +17,7 @@ pub mod shape_functions;
 pub mod optimizer;
 pub mod batch;
 pub mod uncertainty;
+pub mod horizons;
 
 // Test function to check if Robj return type works
 #[extendr]
@@ -598,6 +599,128 @@ fn batch_optimize_profiles_rust(
 }
 
 
+/// Mahalanobis distance boundary detection (Rust implementation)
+///
+/// # Arguments
+/// * `element_matrix` - Matrix of element concentrations (n_depths x n_elements)
+/// * `depths` - Vector of depth values
+/// * `window_size` - Window size in depth units
+///
+/// # Returns
+/// Vector of Mahalanobis distances at each depth
+#[extendr]
+fn mahalanobis_boundary_detection_rust(
+    element_matrix: RMatrix<f64>,
+    depths: Vec<f64>,
+    window_size: f64,
+) -> Vec<f64> {
+    // Convert RMatrix to Array2
+    let nrows = element_matrix.nrows();
+    let ncols = element_matrix.ncols();
+
+    let mut data = Vec::with_capacity(nrows * ncols);
+    for i in 0..nrows {
+        for j in 0..ncols {
+            data.push(element_matrix[[i, j]]);
+        }
+    }
+
+    let arr = ndarray::Array2::from_shape_vec((nrows, ncols), data)
+        .expect("Failed to create Array2");
+
+    let depths_arr = ndarray::Array1::from_vec(depths);
+
+    // Call Rust implementation
+    let distances = horizons::mahalanobis_boundary_detection(&arr, &depths_arr, window_size);
+
+    // Convert back to Vec
+    distances.to_vec()
+}
+
+/// Fuzzy k-means clustering (Rust implementation)
+///
+/// # Arguments
+/// * `data` - Data matrix (n_samples x n_features)
+/// * `k` - Number of clusters
+/// * `m` - Fuzziness exponent
+/// * `max_iter` - Maximum iterations
+/// * `tol` - Convergence tolerance
+/// * `centers_init` - Initial cluster centers
+///
+/// # Returns
+/// List with centers, memberships, entropy, converged, iterations
+#[extendr]
+fn fuzzy_kmeans_rust(
+    data: RMatrix<f64>,
+    k: i32,
+    m: f64,
+    max_iter: i32,
+    tol: f64,
+    centers_init: RMatrix<f64>,
+) -> List {
+    let k_usize = k as usize;
+    let max_iter_usize = max_iter as usize;
+
+    // Convert data to Array2
+    let nrows = data.nrows();
+    let ncols = data.ncols();
+
+    let mut data_vec = Vec::with_capacity(nrows * ncols);
+    for i in 0..nrows {
+        for j in 0..ncols {
+            data_vec.push(data[[i, j]]);
+        }
+    }
+
+    let data_arr = ndarray::Array2::from_shape_vec((nrows, ncols), data_vec)
+        .expect("Failed to create data Array2");
+
+    // Convert centers_init to Array2
+    let k_rows = centers_init.nrows();
+    let p_cols = centers_init.ncols();
+
+    let mut centers_vec = Vec::with_capacity(k_rows * p_cols);
+    for i in 0..k_rows {
+        for j in 0..p_cols {
+            centers_vec.push(centers_init[[i, j]]);
+        }
+    }
+
+    let centers_init_arr = ndarray::Array2::from_shape_vec((k_rows, p_cols), centers_vec)
+        .expect("Failed to create centers Array2");
+
+    // Call Rust implementation
+    let (centers, memberships, converged, iterations) = horizons::fuzzy_kmeans(
+        &data_arr,
+        k_usize,
+        m,
+        max_iter_usize,
+        tol,
+        &centers_init_arr,
+    );
+
+    // Compute entropy
+    let entropy = horizons::compute_entropy(&memberships);
+
+    // Convert results to R types
+    let centers_flat: Vec<f64> = centers.iter().copied().collect();
+    let memberships_flat: Vec<f64> = memberships.iter().copied().collect();
+    let entropy_vec: Vec<f64> = entropy.to_vec();
+
+    // Create RMatrix from flat vectors
+    let centers_rmatrix = RMatrix::new_matrix(k_usize, ncols, |i, j| centers_flat[i * ncols + j]);
+    let memberships_rmatrix = RMatrix::new_matrix(nrows, k_usize, |i, j| memberships_flat[i * k_usize + j]);
+
+    // Build result list
+    list!(
+        centers = centers_rmatrix,
+        memberships = memberships_rmatrix,
+        entropy = entropy_vec,
+        converged = converged,
+        iterations = iterations as f64
+    )
+}
+
 extendr_module! {
     mod soilmotif;
     fn check_rust_backend;
@@ -617,4 +740,6 @@ extendr_module! {
     fn optimize_profile_rust_flexible;
     fn batch_optimize_profiles_rust;
     fn bootstrap_engine_rust;
+    fn mahalanobis_boundary_detection_rust;
+    fn fuzzy_kmeans_rust;
 }

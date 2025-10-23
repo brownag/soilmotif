@@ -2,6 +2,7 @@
 
 # Configure script for soilmotif
 # Builds the Rust backend using cargo and prepares the shared object
+# This script is called by R CMD INSTALL and ensures .so/.a files are always fresh
 
 set -e
 
@@ -16,22 +17,48 @@ fi
 PACKAGE_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$PACKAGE_ROOT"
 
-# Build Rust code in release mode
+# Force clean of src artifacts to ensure fresh build
+# This prevents stale .so and .a files from being used
+echo "Cleaning previous build artifacts..."
+rm -f src/libsoilmotif_rust.a src/libsoilmotif_rust.a.bak
+
+# Clean cargo build to force full rebuild on first install or if source changed
+# Only clean if explicitly requested or if this is a fresh build
+if [ ! -d target/release ]; then
+    echo "Fresh build detected, cleaning cargo cache..."
+    cargo clean 2>/dev/null || true
+fi
+
+# Build Rust code in release mode with verbose output
 echo "Building Rust backend..."
-cargo build --release --target-dir target
+cargo build --release --target-dir target 2>&1
 
 # Ensure the compiled library exists
 if [ ! -f target/release/libsoilmotif.a ]; then
-    echo "Warning: Rust library not found at target/release/libsoilmotif.a"
+    echo "Error: Rust library not found at target/release/libsoilmotif.a"
+    echo "Build may have failed. Check cargo output above."
     exit 1
 fi
 
 # Copy the library directly to src so it gets included in the package
 # Use a different name to avoid conflict with output soilmotif.so
 mkdir -p src
-cp target/release/libsoilmotif.a src/libsoilmotif_rust.a
+echo "Copying Rust library to src/libsoilmotif_rust.a..."
+cp -f target/release/libsoilmotif.a src/libsoilmotif_rust.a
 
-echo "Rust backend built successfully"
+# Verify the copy was successful and is recent
+if [ ! -f src/libsoilmotif_rust.a ]; then
+    echo "Error: Failed to copy Rust library to src/"
+    exit 1
+fi
+
+# Check that the copied file is newer than 1 minute old (recent build)
+LIB_AGE=$(find src/libsoilmotif_rust.a -mmin -1 2>/dev/null | wc -l)
+if [ "$LIB_AGE" -eq 0 ]; then
+    echo "Warning: Copied library may be stale. Verify build succeeded."
+fi
+
+echo "Rust backend built successfully at: src/libsoilmotif_rust.a"
 exit 0
 
 
