@@ -1,9 +1,11 @@
-#' Parametric Bootstrap for Soil Profile Optimization
+#' Adaptive Bootstrap for Soil Profile Optimization
 #'
-#' Performs parametric bootstrap resampling to quantify uncertainty in soil
+#' Performs adaptive bootstrap resampling to quantify uncertainty in soil
 #' profile parameter estimates. This function fits the specified shape function
-#' to the observed data, then generates bootstrap samples by resampling residuals
-#' and re-optimizing to obtain confidence intervals and uncertainty estimates.
+#' to the observed data, then generates bootstrap samples. The resampling method
+#' adapts based on data resolution: parametric bootstrap for sparse data
+#' (n <= sieve_threshold) and sieve bootstrap with AR(1) models for dense data
+#' (n > sieve_threshold).
 #'
 #' @param observed Numeric vector of observed soil property values (e.g., clay content)
 #' @param depths Numeric vector of corresponding depth values (same length as observed)
@@ -13,27 +15,63 @@
 #' @param objective Character string specifying the objective function ("rmse", "sse", "mae", "r2")
 #' @param optimizer Character string specifying the optimization algorithm ("auto", "nelder_mead", "lbfgs", etc.)
 #' @param n_bootstrap Integer number of bootstrap samples (default: 1000)
+#' @param method Character string specifying bootstrap method: "auto" (default, select based on data size),
+#'   "parametric" (resample residuals independently), or "sieve" (AR(1) model-based resampling)
+#' @param sieve_threshold Integer threshold for automatic method selection (default: 20).
+#'   If method="auto", uses parametric if length(observed) <= sieve_threshold, else sieve
 #' @param seed Integer seed for reproducible results, or NULL for random (default: NULL)
-#' @param fallback_strategy Character string for fallback behavior ("auto", "explicit", "strict")
+#' @param fallback_strategy Character string for fallback behavior ("auto", "explicit", "strict").
+#'   Only applies when method="auto": if "auto", sieve falls back to parametric on AR(1) fit failure
+#' @param strict Logical controlling fallback behavior (deprecated in favor of fallback_strategy).
+#'   If TRUE and method="auto", falls back on AR(1) failure; if FALSE, errors (default: FALSE)
 #' @param max_retries Integer maximum retries per optimization (default: 3)
 #' @param parallel Logical whether to use parallel processing (default: TRUE)
 #'
 #' @return A list with class "bootstrap_result" containing:
-#'   \item{param_samples}{Matrix of parameter samples (n_bootstrap x n_params)}
+#'   \item{param_samples}{Matrix of parameter samples (n_successful x n_params)}
 #'   \item{rmse_samples}{Vector of RMSE values for each bootstrap sample}
 #'   \item{r2_samples}{Vector of R² values for each bootstrap sample}
 #'   \item{aic_samples}{Vector of AIC values for each bootstrap sample}
 #'   \item{failed_indices}{Vector of indices for failed bootstrap samples}
+#'   \item{n_successful}{Number of successful bootstrap samples}
+#'   \item{n_failed}{Number of failed bootstrap samples}
+#'   \item{method_used}{Character string indicating which bootstrap method was actually used}
+#'   \item{ar1_coef}{AR(1) coefficient (if sieve method used), or NA}
 #'   \item{summary}{List with summary statistics (means, sds, cis)}
 #'   \item{original_fit}{List with original optimization results}
 #'   \item{settings}{List with function call settings}
 #'
+#' @details
+#' ## Bootstrap Methods
+#'
+#' **Parametric Bootstrap**: Resamples residuals independently from the fitted model.
+#' Suitable for sparse data where AR(1) estimation is unreliable.
+#'
+#' **Sieve Bootstrap**: Fits an AR(1) model to residuals, then resamples innovations.
+#' Preserves autocorrelation structure in residuals. Suitable for high-resolution data.
+#' Falls back to parametric if AR(1) fitting fails (unless method="sieve" explicitly).
+#'
+#' ## Method Selection
+#'
+#' When method="auto":
+#' - Uses parametric if length(observed) <= sieve_threshold
+#' - Uses sieve if length(observed) > sieve_threshold
+#' - Fallback to parametric on AR(1) failure is controlled by fallback_strategy/strict
+#'
+#' When method="parametric":
+#' - Always uses parametric bootstrap, no AR(1) fitting
+#'
+#' When method="sieve":
+#' - Always attempts sieve bootstrap
+#' - Errors if AR(1) fitting fails (fallback_strategy is ignored)
+#'
 #' @examples
 #' \dontrun{
-#' # Example with sigmoid shape
+#' # Example with sigmoid shape and default auto method selection
 #' depths <- 1:200
 #' observed <- sm_motif(depths, c(100, 20, 0.1, 50)) + rnorm(200, 0, 5)
 #'
+#' # Use automatic method selection (sparse data -> parametric, dense -> sieve)
 #' result <- sm_optim_bootstrap(
 #'   observed = observed,
 #'   depths = depths,
@@ -42,8 +80,19 @@
 #'   n_bootstrap = 100
 #' )
 #'
+#' # Explicitly use sieve bootstrap for AR(1) modeling
+#' result_sieve <- sm_optim_bootstrap(
+#'   observed = observed,
+#'   depths = depths,
+#'   initial_params = c(100, 20, 0.1, 50),
+#'   shape_family = "sigmoid",
+#'   method = "sieve",
+#'   n_bootstrap = 100
+#' )
+#'
 #' # View parameter confidence intervals
-#' print(result$summary$param_ci)
+#' print(result$summary$param_ci_lower)
+#' print(result$summary$param_ci_upper)
 #' }
 #'
 #' @export
@@ -55,17 +104,37 @@ sm_optim_bootstrap <- function(
   objective = "rmse",
   optimizer = "auto",
   n_bootstrap = 1000L,
+  method = c("auto", "parametric", "sieve"),
+  sieve_threshold = 20L,
   seed = NULL,
-  fallback_strategy = "auto",
+  fallback_strategy = c("auto", "explicit", "strict"),
+  strict = FALSE,
   max_retries = 3L,
   parallel = TRUE
 ) {
-  # Input validation
+  # Input validation FIRST (before match.arg)
   .validate_bootstrap_inputs(
     observed, depths, initial_params, shape_family,
     objective, optimizer, n_bootstrap, seed,
-    fallback_strategy, max_retries, parallel
+    fallback_strategy, max_retries, parallel,
+    method, sieve_threshold, strict
   )
+
+  # Then match and validate method parameter
+  method <- match.arg(method)
+  fallback_strategy <- match.arg(fallback_strategy)
+
+  # Determine which bootstrap method to use
+  method_to_use <- if (method == "auto") {
+    # Auto-select based on data size
+    if (length(observed) <= sieve_threshold) {
+      "parametric"
+    } else {
+      "sieve"
+    }
+  } else {
+    method
+  }
 
   # Normalize shape_family aliases to canonical names (e.g., "sigmoid" -> "wetting_front")
   # This matches the behavior in sm_optim_dispatch()
@@ -75,6 +144,24 @@ sm_optim_bootstrap <- function(
     shape_family  # Default: use as-is for other shapes
   )
 
+  # Determine fallback behavior for sieve method
+  # If method="sieve" explicitly, never fall back (error on AR(1) failure)
+  # If method="auto", use strict parameter to control fallback
+  use_fallback <- if (method == "sieve") {
+    FALSE  # Explicit sieve request: no fallback, error on failure
+  } else if (method == "auto" && method_to_use == "sieve") {
+    # Auto-selected sieve: fallback based on strict or fallback_strategy
+    if (!is.na(strict) && strict) {
+      FALSE  # strict=TRUE means don't fall back (error on AR(1) failure)
+    } else if (fallback_strategy == "auto") {
+      TRUE   # fallback_strategy="auto" means do fall back to parametric
+    } else {
+      FALSE  # fallback_strategy="explicit" or "strict" means error on failure
+    }
+  } else {
+    FALSE  # Parametric method: no fallback logic needed
+  }
+
   # Create the configuration list for the Rust FFI function
   config <- list(
     shape_type = shape_family_normalized,
@@ -82,12 +169,14 @@ sm_optim_bootstrap <- function(
     optimizer_name = optimizer,
     n_bootstrap = as.integer(n_bootstrap),
     seed = if (is.null(seed)) -1L else as.integer(seed),
-    fallback = as.integer(fallback_strategy == "auto"),  # Convert boolean to integer (0 or 1)
+    fallback = as.integer(use_fallback),
+    method = method_to_use,  # Pass the method to use: "parametric" or "sieve"
+    sieve_threshold = as.integer(sieve_threshold),
     max_retries = as.integer(max_retries),
     parallel = as.integer(parallel)  # Convert boolean to integer (0 or 1)
   )
 
-  # Call the Rust bootstrap engine with simplified signature (4 parameters instead of 11)
+  # Call the Rust bootstrap engine with simplified signature
   rust_result <- bootstrap_engine_rust(
     observed = as.double(observed),
     depths = as.double(depths),
@@ -107,12 +196,23 @@ sm_optim_bootstrap <- function(
     objective = objective,
     optimizer = optimizer,
     n_bootstrap = n_bootstrap,
+    method = method,
+    method_used = method_to_use,
+    sieve_threshold = sieve_threshold,
     seed = seed,
     fallback_strategy = fallback_strategy,
+    strict = strict,
     max_retries = max_retries,
     parallel = parallel,
     call = match.call()
   )
+
+  # Add AR(1) coefficient if available
+  result_list$ar1_coef <- if (!is.null(rust_result$ar1_coef)) {
+    rust_result$ar1_coef
+  } else {
+    NA_real_
+  }
 
   result_list
 }
@@ -123,7 +223,8 @@ sm_optim_bootstrap <- function(
 .validate_bootstrap_inputs <- function(
   observed, depths, initial_params, shape_family,
   objective, optimizer, n_bootstrap, seed,
-  fallback_strategy, max_retries, parallel
+  fallback_strategy, max_retries, parallel,
+  method = "auto", sieve_threshold = 20L, strict = FALSE
 ) {
   # Basic type checks
   if (!is.numeric(observed) || !is.vector(observed)) {
@@ -153,8 +254,33 @@ sm_optim_bootstrap <- function(
   if (!is.null(seed) && (!is.numeric(seed) || length(seed) != 1)) {
     stop("seed must be NULL or a single integer")
   }
-  if (!is.character(fallback_strategy) || length(fallback_strategy) != 1) {
-    stop("fallback_strategy must be a single character string")
+  if (!is.character(fallback_strategy)) {
+    stop("fallback_strategy must be a character string or vector")
+  }
+  # If fallback_strategy is length > 1, it's the default (from match.arg call later)
+  # Otherwise, it should be a single value
+  if (length(fallback_strategy) == 1) {
+    valid_fallbacks <- c("auto", "explicit", "strict")
+    if (!fallback_strategy %in% valid_fallbacks) {
+      stop("fallback_strategy must be one of: ", paste(valid_fallbacks, collapse = ", "))
+    }
+  }
+  if (!is.character(method)) {
+    stop("method must be a character string or vector")
+  }
+  # If method is length > 1, it's the default (from match.arg call later)
+  # Otherwise, it should be a single value
+  if (length(method) == 1) {
+    valid_methods <- c("auto", "parametric", "sieve")
+    if (!method %in% valid_methods) {
+      stop("method must be one of: ", paste(valid_methods, collapse = ", "))
+    }
+  }
+  if (!is.numeric(sieve_threshold) || length(sieve_threshold) != 1 || sieve_threshold < 1) {
+    stop("sieve_threshold must be a positive integer")
+  }
+  if (!is.logical(strict) || length(strict) != 1) {
+    stop("strict must be a single logical value")
   }
   if (!is.numeric(max_retries) || length(max_retries) != 1 || max_retries < 0) {
     stop("max_retries must be a non-negative integer")
@@ -172,11 +298,6 @@ sm_optim_bootstrap <- function(
   valid_optimizers <- c("auto", "nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", "newton_cg")
   if (!optimizer %in% valid_optimizers) {
     stop("optimizer must be one of: ", paste(valid_optimizers, collapse = ", "))
-  }
-
-  valid_fallbacks <- c("auto", "explicit", "strict")
-  if (!fallback_strategy %in% valid_fallbacks) {
-    stop("fallback_strategy must be one of: ", paste(valid_fallbacks, collapse = ", "))
   }
 
   # Check for valid shape family
@@ -305,19 +426,27 @@ sm_optim_bootstrap <- function(
 #' @return Invisibly returns x (standard print method convention)
 #' @export
 print.bootstrap_result <- function(x, ...) {
-  cat("Parametric Bootstrap Results\n")
-  cat("==========================\n")
+  cat("Bootstrap Results\n")
+  cat("================\n")
+  cat(sprintf("Bootstrap method: %s\n", 
+              if (!is.null(x$settings$method_used)) x$settings$method_used else "parametric"))
   cat(sprintf("Shape family: %s\n", x$settings$shape_family))
   cat(sprintf("Bootstrap samples: %d\n", x$settings$n_bootstrap))
+  
+  n_successful <- if (nrow(x$param_samples) > 0) nrow(x$param_samples) else 0
   cat(sprintf("Successful fits: %d (%.1f%%)\n",
-              length(x$parameter_samples), x$success_rate * 100))
+              n_successful,
+              if (x$settings$n_bootstrap > 0) n_successful / x$settings$n_bootstrap * 100 else 0))
   cat(sprintf("Failed fits: %d\n", length(x$failed_indices)))
 
-  if (length(x$parameter_samples) > 0) {
+  if (!is.na(x$ar1_coef)) {
+    cat(sprintf("AR(1) coefficient: %.4f\n", x$ar1_coef))
+  }
+
+  if (nrow(x$param_samples) > 0) {
     cat("\nParameter Estimates (95% CI):\n")
-    param_matrix <- do.call(rbind, x$parameter_samples)
-    param_ci <- apply(param_matrix, 2, quantile, probs = c(0.025, 0.975), na.rm = TRUE)
-    param_mean <- colMeans(param_matrix, na.rm = TRUE)
+    param_ci <- apply(x$param_samples, 2, quantile, probs = c(0.025, 0.975), na.rm = TRUE)
+    param_mean <- colMeans(x$param_samples, na.rm = TRUE)
     for (i in seq_along(param_mean)) {
       cat(sprintf("  Param %d: %.3f (%.3f, %.3f)\n", i,
                   param_mean[i],
@@ -326,12 +455,12 @@ print.bootstrap_result <- function(x, ...) {
     }
 
     cat(sprintf("\nDiagnostics:\n"))
-    cat(sprintf("  RMSE: %.3f ± %.3f\n", mean(x$rmse_samples, na.rm = TRUE), sd(x$rmse_samples, na.rm = TRUE)))
-    cat(sprintf("  R²: %.3f ± %.3f\n", mean(x$r2_samples, na.rm = TRUE), sd(x$r2_samples, na.rm = TRUE)))
-    cat(sprintf("  AIC: %.3f ± %.3f\n", mean(x$aic_samples, na.rm = TRUE), sd(x$aic_samples, na.rm = TRUE)))
+    cat(sprintf("  RMSE: %.3f +/- %.3f\n", mean(x$rmse_samples, na.rm = TRUE), sd(x$rmse_samples, na.rm = TRUE)))
+    cat(sprintf("  R^2: %.3f +/- %.3f\n", mean(x$r2_samples, na.rm = TRUE), sd(x$r2_samples, na.rm = TRUE)))
+    cat(sprintf("  AIC: %.3f +/- %.3f\n", mean(x$aic_samples, na.rm = TRUE), sd(x$aic_samples, na.rm = TRUE)))
   }
 
-  if (nchar(x$message) > 0) {
+  if (!is.null(x$message) && nchar(x$message) > 0) {
     cat(sprintf("\nMessage: %s\n", x$message))
   }
 }
@@ -340,7 +469,8 @@ print.bootstrap_result <- function(x, ...) {
 #'
 #' Provides detailed statistical summaries of bootstrap results including parameter
 #' statistics (mean, SD, confidence intervals, range) and diagnostic statistics
-#' (RMSE, R², AIC). Displays failed sample indices if any failures occurred.
+#' (RMSE, R^2, AIC). Displays failed sample indices if any failures occurred.
+#' Shows bootstrap method (parametric or sieve) and AR(1) coefficient if applicable.
 #'
 #' @param object A bootstrap_result object (returned from sm_optim_bootstrap)
 #' @param ... Additional arguments passed to summary methods (currently unused)
@@ -348,31 +478,44 @@ print.bootstrap_result <- function(x, ...) {
 #' @return Invisibly returns object$summary (summary statistics list)
 #' @export
 summary.bootstrap_result <- function(object, ...) {
-  cat("Parametric Bootstrap Summary\n")
-  cat("===========================\n")
+  method_used <- if (!is.null(object$settings$method_used)) {
+    object$settings$method_used
+  } else {
+    "parametric"
+  }
+
+  cat("Bootstrap Summary\n")
+  cat("=================\n")
+  cat(sprintf("Bootstrap method: %s\n", method_used))
   cat(sprintf("Shape family: %s\n", object$settings$shape_family))
   cat(sprintf("Bootstrap samples: %d\n", object$settings$n_bootstrap))
+  
+  n_successful <- if (!is.null(object$n_successful)) object$n_successful else nrow(object$param_samples)
   cat(sprintf("Successful fits: %d (%.1f%%)\n",
-              length(object$parameter_samples), object$success_rate * 100))
+              n_successful,
+              if (object$settings$n_bootstrap > 0) n_successful / object$settings$n_bootstrap * 100 else 0))
   cat(sprintf("Failed fits: %d\n", length(object$failed_indices)))
 
-  if (length(object$parameter_samples) > 0) {
+  if (!is.na(object$ar1_coef)) {
+    cat(sprintf("AR(1) coefficient: %.4f\n", object$ar1_coef))
+  }
+
+  if (nrow(object$param_samples) > 0) {
     cat("\nParameter Statistics:\n")
-    param_matrix <- do.call(rbind, object$parameter_samples)
     param_stats <- data.frame(
-      Parameter = paste0("Param_", seq_len(ncol(param_matrix))),
-      Mean = colMeans(param_matrix, na.rm = TRUE),
-      SD = apply(param_matrix, 2, sd, na.rm = TRUE),
-      CI_Lower = apply(param_matrix, 2, quantile, probs = 0.025, na.rm = TRUE),
-      CI_Upper = apply(param_matrix, 2, quantile, probs = 0.975, na.rm = TRUE),
-      Min = apply(param_matrix, 2, min, na.rm = TRUE),
-      Max = apply(param_matrix, 2, max, na.rm = TRUE)
+      Parameter = paste0("Param_", seq_len(ncol(object$param_samples))),
+      Mean = colMeans(object$param_samples, na.rm = TRUE),
+      SD = apply(object$param_samples, 2, sd, na.rm = TRUE),
+      CI_Lower = apply(object$param_samples, 2, quantile, probs = 0.025, na.rm = TRUE),
+      CI_Upper = apply(object$param_samples, 2, quantile, probs = 0.975, na.rm = TRUE),
+      Min = apply(object$param_samples, 2, min, na.rm = TRUE),
+      Max = apply(object$param_samples, 2, max, na.rm = TRUE)
     )
     print(param_stats, row.names = FALSE)
 
     cat("\nDiagnostic Statistics:\n")
     diag_stats <- data.frame(
-      Metric = c("RMSE", "R²", "AIC"),
+      Metric = c("RMSE", "R^2", "AIC"),
       Mean = c(mean(object$rmse_samples, na.rm = TRUE),
                mean(object$r2_samples, na.rm = TRUE),
                mean(object$aic_samples, na.rm = TRUE)),

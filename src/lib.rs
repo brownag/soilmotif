@@ -305,6 +305,8 @@ fn optimize_profile_rust_flexible(
 /// - n_bootstrap: integer
 /// - seed: integer (negative for random)
 /// - fallback: logical
+/// - method: character ("parametric" or "sieve")
+/// - sieve_threshold: integer (for auto method selection)
 /// - max_retries: integer
 /// - parallel: logical
 #[extendr]
@@ -322,6 +324,7 @@ fn bootstrap_engine_rust(
     let mut n_bootstrap = 100usize;
     let mut seed = -1i32;
     let mut fallback = true;
+    let mut method = "parametric".to_string();
     let mut max_retries = 3usize;
     let mut parallel = false;
 
@@ -359,6 +362,11 @@ fn bootstrap_engine_rust(
                     fallback = v != 0;
                 }
             }
+            "method" => {
+                if let Ok(s) = <String>::try_from(value) {
+                    method = s;
+                }
+            }
             "max_retries" => {
                 if let Ok(v) = <i32>::try_from(value) {
                     max_retries = v as usize;
@@ -376,23 +384,50 @@ fn bootstrap_engine_rust(
     // Convert R-friendly seed to Rust-friendly Option<u64>
     let seed_opt = if seed < 0 { None } else { Some(seed as u64) };
 
-    // Call the core bootstrap logic
-    let result_struct = match crate::uncertainty::parametric_bootstrap(
-        &observed, 
-        &depths, 
-        &initial_params, 
-        &shape_type,
-        &objective_name,
-        &optimizer_name,
-        n_bootstrap,
-        seed_opt, 
-        if fallback { "auto" } else { "strict" },
-        max_retries,
-        parallel
-    ) {
-        Ok(res) => res,
-        Err(e) => {
-            return list!(Error::from(e.to_string()));
+    // Call the appropriate bootstrap method
+    let result_struct = match method.as_str() {
+        "sieve" => {
+            // Sieve bootstrap
+            match crate::uncertainty::sieve_bootstrap(
+                &observed,
+                &depths,
+                &initial_params,
+                &shape_type,
+                &objective_name,
+                &optimizer_name,
+                n_bootstrap,
+                seed_opt,
+                if fallback { "auto" } else { "strict" },
+                max_retries,
+                parallel,
+                fallback,  // use_fallback parameter
+            ) {
+                Ok(res) => res,
+                Err(e) => {
+                    return list!(Error::from(e.to_string()));
+                }
+            }
+        }
+        "parametric" | _ => {
+            // Parametric bootstrap (default)
+            match crate::uncertainty::parametric_bootstrap(
+                &observed,
+                &depths,
+                &initial_params,
+                &shape_type,
+                &objective_name,
+                &optimizer_name,
+                n_bootstrap,
+                seed_opt,
+                if fallback { "auto" } else { "strict" },
+                max_retries,
+                parallel,
+            ) {
+                Ok(res) => res,
+                Err(e) => {
+                    return list!(Error::from(e.to_string()));
+                }
+            }
         }
     };
 
@@ -416,7 +451,8 @@ fn bootstrap_engine_rust(
         failed_indices = result_struct.failed_indices,
         n_successful = n_successful,
         n_failed = n_failed,
-        message = result_struct.message
+        message = result_struct.message,
+        ar1_coef = result_struct.ar1_coef
     )
 }
 

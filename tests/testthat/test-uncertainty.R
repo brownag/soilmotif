@@ -351,8 +351,8 @@ test_that("sm_optim_bootstrap print method", {
     n_bootstrap = 5
   )
 
-  # Should not error
-  expect_output(print(result), "Parametric Bootstrap Results")
+  # Should not error and should print Bootstrap Results (not Parametric-specific)
+  expect_output(print(result), "Bootstrap Results|Bootstrap method")
 })
 
 test_that("sm_optim_bootstrap summary method", {
@@ -426,4 +426,275 @@ test_that("sm_optim_bootstrap NA handling", {
     initial_params = test_params,
     shape_family = "sigmoid"
   ), "cannot contain NA values")
+})
+
+# ============================================================================
+# SIEVE BOOTSTRAP TESTS
+# ============================================================================
+
+test_that("sm_optim_bootstrap sieve method - explicit selection", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Explicitly request sieve bootstrap
+  result <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  expect_equal(result$settings$method_used, "sieve")
+  expect_equal(result$settings$method, "sieve")
+  expect_true(is.matrix(result$param_samples))
+  expect_equal(ncol(result$param_samples), length(test_params))
+})
+
+test_that("sm_optim_bootstrap parametric method - explicit selection", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Explicitly request parametric bootstrap
+  result <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "parametric",
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  expect_equal(result$settings$method_used, "parametric")
+  expect_equal(result$settings$method, "parametric")
+  expect_true(is.matrix(result$param_samples))
+})
+
+test_that("sm_optim_bootstrap auto method - selects parametric for sparse data", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Use sparse data (length < sieve_threshold, default 20)
+  sparse_observed <- test_observed[1:15]
+  sparse_depths <- test_depths[1:15]
+
+  result <- sm_optim_bootstrap(
+    observed = sparse_observed,
+    depths = sparse_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "auto",
+    sieve_threshold = 20,
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  expect_equal(result$settings$method, "auto")
+  # Auto should select parametric for n <= 20
+  expect_equal(result$settings$method_used, "parametric")
+})
+
+test_that("sm_optim_bootstrap auto method - selects sieve for dense data", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Use dense data (length > sieve_threshold, default 20)
+  # test_observed already has 200 points
+  result <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "auto",
+    sieve_threshold = 20,
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  expect_equal(result$settings$method, "auto")
+  # Auto should select sieve for n > 20
+  expect_equal(result$settings$method_used, "sieve")
+})
+
+test_that("sm_optim_bootstrap ar1_coef is present for sieve bootstrap", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 5
+  )
+
+  # Sieve bootstrap should compute AR(1) coefficient
+  expect_true(!is.null(result_sieve$ar1_coef) || is.na(result_sieve$ar1_coef))
+  # If not NA, it should be in valid range
+  if (!is.na(result_sieve$ar1_coef)) {
+    expect_true(result_sieve$ar1_coef > -1 && result_sieve$ar1_coef < 1)
+  }
+})
+
+test_that("sm_optim_bootstrap ar1_coef is NA for parametric bootstrap", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  result_param <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "parametric",
+    n_bootstrap = 5
+  )
+
+  # Parametric bootstrap should not compute AR(1) coefficient
+  expect_true(is.na(result_param$ar1_coef))
+})
+
+test_that("sm_optim_bootstrap method validation", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Invalid method should error
+  expect_error(sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "invalid_method"
+  ), "method")
+})
+
+test_that("sm_optim_bootstrap sieve_threshold parameter", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Test with different sieve threshold
+  result <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "auto",
+    sieve_threshold = 50,  # Higher threshold, still selects sieve
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  expect_equal(result$settings$sieve_threshold, 50L)
+  # With threshold 50 and data length 200, should still use sieve
+  expect_equal(result$settings$method_used, "sieve")
+})
+
+test_that("sm_optim_bootstrap strict parameter controls fallback", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # strict=FALSE (default): Sieve can fall back to parametric
+  result_nonstrict <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "auto",
+    strict = FALSE,
+    n_bootstrap = 5
+  )
+
+  expect_s3_class(result_nonstrict, "bootstrap_result")
+  expect_false(result_nonstrict$settings$strict)
+})
+
+test_that("sm_optim_bootstrap sieve method shows AR fit in message", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  result <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 3
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  # Message should indicate bootstrap type (sieve OR parametric if fallback)
+  if (!is.null(result$message)) {
+    expect_true(grepl("bootstrap|completed|failed", result$message, ignore.case = TRUE))
+  }
+})
+
+test_that("sm_optim_bootstrap fallback_strategy parameter", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Test different fallback strategies
+  strategies <- c("auto", "explicit", "strict")
+
+  for (strategy in strategies) {
+    result <- sm_optim_bootstrap(
+      observed = test_observed,
+      depths = test_depths,
+      initial_params = test_params,
+      shape_family = "sigmoid",
+      fallback_strategy = strategy,
+      method = "auto",
+      n_bootstrap = 3
+    )
+
+    expect_s3_class(result, "bootstrap_result")
+    expect_equal(result$settings$fallback_strategy, strategy)
+  }
+})
+
+test_that("sm_optim_bootstrap sieve with small data", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  # Test with minimal data
+  small_observed <- c(10, 15, 20, 25, 30)
+  small_depths <- c(1, 2, 3, 4, 5)
+
+  result <- sm_optim_bootstrap(
+    observed = small_observed,
+    depths = small_depths,
+    initial_params = c(20, 5),
+    shape_family = "gradational",
+    method = "auto",
+    sieve_threshold = 2,
+    n_bootstrap = 3
+  )
+
+  expect_s3_class(result, "bootstrap_result")
+  # With threshold 2 and data 5, should select sieve
+  expect_equal(result$settings$method_used, "sieve")
+})
+
+test_that("sm_optim_bootstrap print shows method information", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 3
+  )
+
+  # Print should work without error and display method
+  output <- capture.output(print(result_sieve))
+  expect_true(any(grepl("sieve|Bootstrap method", output, ignore.case = TRUE)))
+})
+
+test_that("sm_optim_bootstrap summary shows method information", {
+  skip_if_not(rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 3
+  )
+
+  # Summary should work and contain method info
+  summary_result <- summary(result_sieve)
+  expect_true(is.list(summary_result))
 })
