@@ -107,6 +107,64 @@ legend("bottomleft", c("Input", "Initial", "Optimized"),
 
 In this case we find that the optimized parameters result in a steeper gradient of property increase than was initially guessed with parameters `c(25, 100)`, which had the "initial" transition centered around 63 cm. The "optimized" curve is shifted upwards by about 20 cm, with final parameters `r attr(m, "par")` reflecting a smooth spline increase around 45 cm.
 
+## Uncertainty Quantification via Bootstrap
+
+{soilmotif} provides bootstrap methods to estimate confidence intervals for fitted parameters. The framework automatically selects the optimal resampling method based on data characteristics:
+
+- **Parametric Bootstrap**: For sparse data (n <= threshold), residuals are resampled from a normal distribution
+- **Sieve Bootstrap**: For dense data (n > threshold), residuals follow an AR(1) process and are non-parametrically resampled
+
+### Usage
+
+``` r
+library(soilmotif)
+
+# Automatic method selection based on data size
+result <- sm_optim_bootstrap(
+  observed = clay_spline,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  ci = 0.95,
+  method = "auto"
+)
+
+# View results with confidence intervals
+print(result)
+summary(result)
+
+# Access specific intervals
+result$param_ci_lower   # Lower bounds
+result$param_ci_upper   # Upper bounds
+result$method_used      # Which method was applied
+result$ar1_coef         # AR(1) coefficient (sieve only)
+
+# Explicit method selection
+result_sieve <- sm_optim_bootstrap(
+  observed = clay_spline,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "sieve"
+)
+
+result_param <- sm_optim_bootstrap(
+  observed = clay_spline,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "parametric"
+)
+```
+
+### AR(1) Modeling for Dense Data
+
+When the sieve bootstrap is applied, residuals are modeled using an AR(1) process:
+
+**r_t = phi * r_(t-1) + epsilon_t**
+
+The AR(1) coefficient is estimated using Yule-Walker equations and exposed in the results. This approach is more appropriate for spatially correlated residuals commonly found in soil profiles.
+
 ## Rust Backend (High-Performance)
 
 {soilmotif} includes an optional high-performance Rust backend for single-profile and batch optimization. When available, Rust implementations are typically **10-30x faster** than pure R.

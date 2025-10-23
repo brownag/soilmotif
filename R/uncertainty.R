@@ -264,6 +264,12 @@ sm_optim_bootstrap <- function(
     if (!fallback_strategy %in% valid_fallbacks) {
       stop("fallback_strategy must be one of: ", paste(valid_fallbacks, collapse = ", "))
     }
+  } else if (length(fallback_strategy) > 1) {
+    # This is the defaults vector - will be handled by match.arg() later
+    valid_fallbacks <- c("auto", "explicit", "strict")
+    if (!all(fallback_strategy %in% valid_fallbacks)) {
+      stop("fallback_strategy must be one of: ", paste(valid_fallbacks, collapse = ", "))
+    }
   }
   if (!is.character(method)) {
     stop("method must be a character string or vector")

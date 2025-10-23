@@ -79,18 +79,88 @@ The `fit_motif_auto()` function automatically fits all motif types and ranks the
 ```{r auto_selection}
 # Automated model selection
 results <- fit_motif_auto(clay_profile, criterion = "AIC")
-print(results)
-
-# Plot the results
-plot(results)
 ```
 
-The function returns an object with:
+# Uncertainty Quantification via Bootstrap
 
-- `fits`: All fitted motifs
-- `stats`: Fit statistics (RMSE, AIC, BIC, R^2) for each model
-- `ranking`: Models ranked by the chosen criterion
-- `best`: Name of the best model
+The `sm_optim_bootstrap()` function provides uncertainty estimates for fitted model parameters through bootstrap resampling. The method adapts based on data resolution:
+
+- **Parametric Bootstrap**: For sparse data (observations <= threshold), residuals are resampled from a normal distribution
+- **Sieve Bootstrap**: For dense data (observations > threshold), residuals are modeled as an AR(1) process and non-parametrically resampled
+
+```{r bootstrap_basic}
+# Basic bootstrap with automatic method selection
+set.seed(42)
+boot_result <- sm_optim_bootstrap(  
+  observed = clay_profile,
+  depths = depths,
+  initial_params = c(50, 100),
+  shape_family = "sigmoid",
+  optimizer = "lbfgs",
+  n_bootstrap = 100,
+  method = "auto"  # Automatically selects sieve for dense data
+)
+
+# Examine results
+print(boot_result)
+
+# Extract confidence intervals
+summary(boot_result)
+
+# Access individual components (95% CI by default)
+if (!is.null(boot_result$summary)) {
+  cat("Parameter 1 estimate:", boot_result$summary$param_mean[1], "\n")
+  cat("Parameter 1 95% CI: [",
+    boot_result$summary$param_ci_lower[1], ", ",
+    boot_result$summary$param_ci_upper[1], "]\n", sep = "")
+}
+```
+
+## Method Selection and Control
+
+You can explicitly control the bootstrap method:
+
+```{r bootstrap_methods}
+# Explicit parametric bootstrap (always uses normal residual resampling)
+boot_param <- sm_optim_bootstrap(
+  observed = clay_profile,
+  depths = depths,
+  initial_params = c(50, 100),
+  shape_family = "sigmoid",
+  optimizer = "lbfgs",
+  n_bootstrap = 100,
+  method = "parametric"
+)
+
+# Explicit sieve bootstrap (uses AR(1) model for residuals)
+# Fails with error if AR(1) fitting is unsuccessful
+boot_sieve <- sm_optim_bootstrap(
+  observed = clay_profile,
+  depths = depths,
+  initial_params = c(50, 100),
+  shape_family = "sigmoid",
+  optimizer = "lbfgs",
+  n_bootstrap = 100,
+  method = "sieve",
+  sieve_threshold = 20,
+  strict = FALSE  # Allow fallback to parametric if AR(1) fit fails
+)
+
+# Compare methods
+cat("Parametric method used:", boot_param$method_used, "\n")
+cat("Sieve method used:", boot_sieve$method_used, "\n")
+if (!is.na(boot_sieve$ar1_coef)) {
+  cat("Sieve AR(1) coefficient:", boot_sieve$ar1_coef, "\n")
+}
+```
+
+The bootstrap result contains:
+
+- `param_samples`: Matrix of parameter values from each bootstrap sample
+- `method_used`: Which bootstrap method was applied ("parametric" or "sieve")
+- `ar1_coef`: AR(1) coefficient estimate (sieve method only)
+- `n_successful`: Number of successful bootstrap iterations
+- `summary`: Summary statistics including confidence intervals (95% by default)
 
 # Interpreting Results
 
