@@ -739,7 +739,7 @@ summary.horizon_boundaries <- function(object, ...) {
 #'     \item element_cols: Element columns used
 #'     \item centers: Cluster centers matrix (k x p)
 #'     \item memberships: Membership matrix (n x k), rows sum to 1
-#'     \item entropy: Normalized entropy [0, 1] per depth
+#'     \item entropy: Normalized entropy between 0 and 1 per depth
 #'     \item dominant_horizon: Horizon with max membership per depth
 #'     \item n_horizons: Number of clusters (k)
 #'     \item m: Fuzziness exponent used

@@ -2,10 +2,21 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{mahalanobis_boundary_detection_rust}
 \alias{mahalanobis_boundary_detection_rust}
-\title{Mahalanobis Boundary Detection (Rust implementation)}
+\title{Mahalanobis distance boundary detection (Rust implementation)}
 \usage{
 mahalanobis_boundary_detection_rust(element_matrix, depths, window_size)
 }
-\description{
-Called via R: \code{.Call("mahalanobis_boundary_detection_rust", element_matrix, depths, window_size, PACKAGE = "soilmotif")}
+\arguments{
+\item{element_matrix}{Matrix of element concentrations (n_depths x n_elements)}
+
+\item{depths}{Vector of depth values}
+
+\item{window_size}{Window size in depth units}
 }
+\value{
+Vector of Mahalanobis distances at each depth
+}
+\description{
+Mahalanobis distance boundary detection (Rust implementation)
+}
+\keyword{internal}

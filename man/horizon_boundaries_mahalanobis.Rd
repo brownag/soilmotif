@@ -58,18 +58,51 @@ Implements moving-window Mahalanobis distance analysis to objectively
 identify horizon boundaries in multivariate soil data (e.g., pXRF element
 concentrations).
 }
+\details{
+\strong{IMPORTANT: Data Preparation for Field-Described Horizons}
+
+This algorithm requires smooth variation in element composition. Field-described
+horizons typically have constant values within each described layer. To apply
+this function to field data:
+\enumerate{
+\item Start with layer-wise data (top, bottom, element values)
+\item Interpolate using smooth methods such as:
+\itemize{
+\item mpspline2 package (Mass-Preserving Splines)
+\item Spline interpolation with control via boundary distinctness
+\item Linear interpolation at boundaries
+}
+\item Use boundary distinctness classes to control transition sharpness:
+\itemize{
+\item "abrupt": 2 cm transitions (sharp contact)
+\item "clear": 5 cm transitions (typical)
+\item "gradual": 10+ cm transitions (diffuse boundary)
+}
+}
+
+\strong{Why interpolation is needed:}
+Without smooth variation, element values are constant within horizons, creating
+singular covariance matrices. This prevents distance computation. Interpolation
+adds realistic variation consistent with boundary distinctness classes.
+}
 \examples{
 \dontrun{
-# Generate synthetic data
+# Example: Using interpolated field data
+# (Field-described horizons must be interpolated first using mpspline2 or similar)
+set.seed(42)
 data <- data.frame(
-  depth = 1:100,
-  Al = c(rep(10, 30), rep(25, 40), rep(15, 30)),
-  Fe = c(rep(5, 30), rep(15, 40), rep(8, 30)),
-  Si = c(rep(60, 30), rep(45, 40), rep(65, 30))
+  depth = 0:100,
+  Al = c(rnorm(31, 10, 0.5), rnorm(40, 25, 0.5), rnorm(30, 15, 0.5)),
+  Fe = c(rnorm(31, 5, 0.3), rnorm(40, 15, 0.3), rnorm(30, 8, 0.3)),
+  Si = c(rnorm(31, 60, 1), rnorm(40, 45, 1), rnorm(30, 65, 1))
 )
 
-# Detect boundaries
-boundaries <- horizon_boundaries_mahalanobis(data, window_size = 10)
+# Detect boundaries with local maxima method
+boundaries <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 1.0)
 print(boundaries)
+
+# More conservative threshold
+boundaries2 <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 2.0)
+print(boundaries2)
 }
 }

@@ -80,8 +80,15 @@ fn recommend_optimizer_rust(n_params: i32, n_obs: i32, objective_type: &str) -> 
 }
 
 /// Test function to check if extendr generates wrappers for multi-parameter functions
-/// 
-/// Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
+///
+/// @param _a First vector parameter
+/// @param _b Second vector parameter
+/// @param _c Third vector parameter
+/// @param d Numeric scalar parameter (returned)
+///
+/// @return Numeric scalar (value of d)
+///
+/// @keywords internal
 #[extendr]
 fn test_multi_param_rust(_a: Vec<f64>, _b: Vec<f64>, _c: Vec<f64>, d: f64) -> f64 {
     d
@@ -601,13 +608,13 @@ fn batch_optimize_profiles_rust(
 
 /// Mahalanobis distance boundary detection (Rust implementation)
 ///
-/// # Arguments
-/// * `element_matrix` - Matrix of element concentrations (n_depths x n_elements)
-/// * `depths` - Vector of depth values
-/// * `window_size` - Window size in depth units
+/// @param element_matrix Matrix of element concentrations (n_depths x n_elements)
+/// @param depths Vector of depth values
+/// @param window_size Window size in depth units
 ///
-/// # Returns
-/// Vector of Mahalanobis distances at each depth
+/// @return Vector of Mahalanobis distances at each depth
+///
+/// @keywords internal
 #[extendr]
 fn mahalanobis_boundary_detection_rust(
     element_matrix: RMatrix<f64>,
@@ -639,16 +646,16 @@ fn mahalanobis_boundary_detection_rust(
 
 /// Fuzzy k-means clustering (Rust implementation)
 ///
-/// # Arguments
-/// * `data` - Data matrix (n_samples x n_features)
-/// * `k` - Number of clusters
-/// * `m` - Fuzziness exponent
-/// * `max_iter` - Maximum iterations
-/// * `tol` - Convergence tolerance
-/// * `centers_init` - Initial cluster centers
+/// @param data Data matrix (n_samples x n_features)
+/// @param k Number of clusters
+/// @param m Fuzziness exponent
+/// @param max_iter Maximum iterations
+/// @param tol Convergence tolerance
+/// @param centers_init Initial cluster centers
 ///
-/// # Returns
-/// List with centers, memberships, entropy, converged, iterations
+/// @return List with centers, memberships, entropy, converged, iterations
+///
+/// @keywords internal
 #[extendr]
 fn fuzzy_kmeans_rust(
     data: RMatrix<f64>,

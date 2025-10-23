@@ -10,7 +10,25 @@ rust_backend_available()
 logical TRUE if Rust backend is available
 }
 \description{
-Low-level extendr FFI wrappers with error handling and fallbacks for Rust implementations.
+Defensive wrappers around extendr-generated FFI functions.
+}
+\details{
+These wrappers provide:
+\itemize{
+\item Error handling via tryCatch()
+\item R fallback implementations
+\item Type coercion (numeric, character, logical)
+\item Consistent error messaging
+}
+
+Architecture:
+\itemize{
+\item extendr-wrappers.R (auto-generated): Direct .Call() to C symbols
+\item fit-rust-wrappers.R (this file): Error handling + R fallbacks
+\item batch-wrappers.R & horizons.R: User-facing APIs
+}
+
+New FFI functions should have wrappers added here before use.
 Check if Rust backend is available and loaded
 }
 \examples{

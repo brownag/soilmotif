@@ -2,10 +2,27 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{fuzzy_kmeans_rust}
 \alias{fuzzy_kmeans_rust}
-\title{Fuzzy k-means Clustering (Rust implementation)}
+\title{Fuzzy k-means clustering (Rust implementation)}
 \usage{
 fuzzy_kmeans_rust(data, k, m, max_iter, tol, centers_init)
 }
-\description{
-Called via R: \code{.Call("fuzzy_kmeans_rust", data, k, m, max_iter, tol, centers_init, PACKAGE = "soilmotif")}
+\arguments{
+\item{data}{Data matrix (n_samples x n_features)}
+
+\item{k}{Number of clusters}
+
+\item{m}{Fuzziness exponent}
+
+\item{max_iter}{Maximum iterations}
+
+\item{tol}{Convergence tolerance}
+
+\item{centers_init}{Initial cluster centers}
 }
+\value{
+List with centers, memberships, entropy, converged, iterations
+}
+\description{
+Fuzzy k-means clustering (Rust implementation)
+}
+\keyword{internal}

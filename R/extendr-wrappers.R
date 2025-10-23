@@ -20,8 +20,15 @@ NULL
 check_rust_backend <- function() .Call(wrap__check_rust_backend)
 
 #' Test function to check if extendr generates wrappers for multi-parameter functions
-#' 
-#' Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
+#'
+#' @param _a First vector parameter
+#' @param _b Second vector parameter
+#' @param _c Third vector parameter
+#' @param d Numeric scalar parameter (returned)
+#'
+#' @return Numeric scalar (value of d)
+#'
+#' @keywords internal
 test_multi_param_rust <- function(`_a`, `_b`, `_c`, d) .Call(wrap__test_multi_param_rust, `_a`, `_b`, `_c`, d)
 
 #' Compute RMSE between observed and predicted (Rust implementation)
@@ -139,14 +146,30 @@ batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_ty
 #' - parallel: logical
 bootstrap_engine_rust <- function(observed, depths, initial_params, config) .Call(wrap__bootstrap_engine_rust, observed, depths, initial_params, config)
 
-#' Mahalanobis Boundary Detection (Rust implementation)
+#' Mahalanobis distance boundary detection (Rust implementation)
 #'
-#' Called via R: `.Call("mahalanobis_boundary_detection_rust", element_matrix, depths, window_size, PACKAGE = "soilmotif")`
+#' @param element_matrix Matrix of element concentrations (n_depths x n_elements)
+#' @param depths Vector of depth values
+#' @param window_size Window size in depth units
+#'
+#' @return Vector of Mahalanobis distances at each depth
+#'
+#' @keywords internal
 mahalanobis_boundary_detection_rust <- function(element_matrix, depths, window_size) .Call(wrap__mahalanobis_boundary_detection_rust, element_matrix, depths, window_size)
 
-#' Fuzzy k-means Clustering (Rust implementation)
+#' Fuzzy k-means clustering (Rust implementation)
 #'
-#' Called via R: `.Call("fuzzy_kmeans_rust", data, k, m, max_iter, tol, centers_init, PACKAGE = "soilmotif")`
+#' @param data Data matrix (n_samples x n_features)
+#' @param k Number of clusters
+#' @param m Fuzziness exponent
+#' @param max_iter Maximum iterations
+#' @param tol Convergence tolerance
+#' @param centers_init Initial cluster centers
+#'
+#' @return List with centers, memberships, entropy, converged, iterations
+#'
+#' @keywords internal
 fuzzy_kmeans_rust <- function(data, k, m, max_iter, tol, centers_init) .Call(wrap__fuzzy_kmeans_rust, data, k, m, max_iter, tol, centers_init)
+
 
 # nolint end

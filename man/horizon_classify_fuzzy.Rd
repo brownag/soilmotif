@@ -58,7 +58,7 @@ Object of class "fuzzy_horizons" (S3 list) with components:
 \item element_cols: Element columns used
 \item centers: Cluster centers matrix (k x p)
 \item memberships: Membership matrix (n x k), rows sum to 1
-\item entropy: Normalized entropy \link{0, 1} per depth
+\item entropy: Normalized entropy between 0 and 1 per depth
 \item dominant_horizon: Horizon with max membership per depth
 \item n_horizons: Number of clusters (k)
 \item m: Fuzziness exponent used
@@ -75,16 +75,21 @@ boundaries.
 }
 \examples{
 \dontrun{
-# Generate synthetic data
+# Generate synthetic data with 3 distinct horizons
+set.seed(42)
 data <- data.frame(
-  depth = 1:100,
-  Al = c(rep(10, 30), rep(25, 40), rep(15, 30)),
-  Fe = c(rep(5, 30), rep(15, 40), rep(8, 30)),
-  Si = c(rep(60, 30), rep(45, 40), rep(65, 30))
+  depth = 0:100,
+  Al = c(rnorm(31, 10, 0.5), rnorm(40, 25, 0.5), rnorm(30, 15, 0.5)),
+  Fe = c(rnorm(31, 5, 0.3), rnorm(40, 15, 0.3), rnorm(30, 8, 0.3)),
+  Si = c(rnorm(31, 60, 1), rnorm(40, 45, 1), rnorm(30, 65, 1))
 )
 
-# Classify horizons
-fuzzy_result <- horizon_classify_fuzzy(data, n_horizons = 3)
+# Classify into 3 fuzzy horizons
+fuzzy_result <- horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
 print(fuzzy_result)
+
+# Softer boundaries with higher fuzziness
+fuzzy_soft <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
+summary(fuzzy_soft)
 }
 }

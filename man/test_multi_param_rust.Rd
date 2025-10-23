@@ -6,6 +6,19 @@
 \usage{
 test_multi_param_rust(`_a`, `_b`, `_c`, d)
 }
-\description{
-Called via R: \code{.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")}
+\arguments{
+\item{_a}{First vector parameter}
+
+\item{_b}{Second vector parameter}
+
+\item{_c}{Third vector parameter}
+
+\item{d}{Numeric scalar parameter (returned)}
 }
+\value{
+Numeric scalar (value of d)
+}
+\description{
+Test function to check if extendr generates wrappers for multi-parameter functions
+}
+\keyword{internal}
