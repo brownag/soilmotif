@@ -12,7 +12,9 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 7, 
+  fig.height = 7
 )
 library(soilmotif)
 ```
@@ -31,12 +33,12 @@ This vignette demonstrates how to fit multiple soil depth motif types to soil pr
 Soil motif fitting requires continuous depth profiles. The `sm_prepare()` function handles conversion from discrete horizon data to continuous profiles using different interpolation methods.
 
 ```{r data_prep}
-# Example horizon data
+# Example horizon data with realistic pedogenic patterns
 horizon_data <- data.frame(
   id = c("P1", "P1", "P1", "P1"),
   top = c(0, 15, 45, 90),
   bottom = c(15, 45, 90, 120),
-  clay = c(8, 25, 35, 42)
+  clay = c(8, 25, 35, 42)  # Clay accumulates with depth (argillic horizon pattern)
 )
 
 # Convert to continuous profile
@@ -45,9 +47,15 @@ clay_profile <- profiles$clay$P1
 
 # Plot the profile
 depths <- 1:200
-plot(clay_profile, depths, ylim = c(200, 1), type = "l", 
+plot(clay_profile, depths, ylim = c(200, 1), type = "l",
      xlab = "Clay Content (%)", ylab = "Depth (cm)",
-     main = "Prepared Clay Profile")
+     main = "Prepared Clay Profile (Linear Interpolation)",
+     lwd = 2, col = "darkblue")
+
+# Add reference lines for data range
+abline(v = range(clay_profile), lty = 3, col = "gray")
+cat("Profile clay content range:", range(clay_profile), "\n")
+cat("Profile clay content mean:", mean(clay_profile), "\n")
 ```
 
 # Fitting Individual Motifs
@@ -55,10 +63,11 @@ plot(clay_profile, depths, ylim = c(200, 1), type = "l",
 You can fit individual motif types using `sm_optim()`. Each motif type has different parameters:
 
 ```{r individual_fits}
-# Fit different motif types
-sigmoid_fit <- sm_optim(clay_profile, c(50, 100), FUN = sm_shape_wetting_front)
-peak_fit <- sm_optim(clay_profile, c(80, 20), FUN = sm_shape_peak)
-gradational_fit <- sm_optim(clay_profile, c(10, 40), FUN = sm_shape_gradational)
+# Fit different motif types with better-informed starting parameters
+# Initial params should be roughly within the data range [8, 42]
+sigmoid_fit <- sm_optim(clay_profile, c(30, 80), FUN = sm_shape_wetting_front)
+peak_fit <- sm_optim(clay_profile, c(25, 50), FUN = sm_shape_peak)
+gradational_fit <- sm_optim(clay_profile, c(15, 50), FUN = sm_shape_gradational)
 
 # Plot comparisons
 plot(clay_profile, depths, ylim = c(200, 1), type = "l", lwd = 2,
@@ -70,6 +79,11 @@ lines(gradational_fit, depths, col = "green", lty = 4, lwd = 2)
 legend("bottomright", 
        c("Observed", "Wetting Front", "Peak", "Gradational"),
        lty = c(1, 2, 3, 4), col = c("black", "blue", "red", "green"), lwd = 2)
+
+# Show fitted parameters
+cat("Wetting Front (Sigmoid) params:", attr(sigmoid_fit, 'par'), "\n")
+cat("Peak params:", attr(peak_fit, 'par'), "\n")
+cat("Gradational params:", attr(gradational_fit, 'par'), "\n")
 ```
 
 # Automated Model Selection
@@ -83,84 +97,133 @@ results <- fit_motif_auto(clay_profile, criterion = "AIC")
 
 # Uncertainty Quantification via Bootstrap
 
-The `sm_optim_bootstrap()` function provides uncertainty estimates for fitted model parameters through bootstrap resampling. The method adapts based on data resolution:
+The `sm_optim_bootstrap()` function provides uncertainty estimates for fitted model parameter through bootstrap resampling. The method adapts based on data resolution:
 
 - **Parametric Bootstrap**: For sparse data (observations <= threshold), residuals are resampled from a normal distribution
 - **Sieve Bootstrap**: For dense data (observations > threshold), residuals are modeled as an AR(1) process and non-parametrically resampled
 
-```{r bootstrap_basic}
-# Basic bootstrap with automatic method selection
+```{r bootstrap_basic, fig.width=8, fig.height=6}
+# Use parametric bootstrap for illustration
+# (Sieve bootstrap would be automatically selected for n=200)
 set.seed(42)
 boot_result <- sm_optim_bootstrap(  
   observed = clay_profile,
   depths = depths,
-  initial_params = c(50, 100),
+  initial_params = c(20, 60),  # Appropriate starting values for sigmoid
   shape_family = "sigmoid",
   optimizer = "lbfgs",
-  n_bootstrap = 100,
-  method = "auto"  # Automatically selects sieve for dense data
+  n_bootstrap = 1000,  # Sufficient samples for stable CI estimates
+  method = "parametric"  # Explicit method for reproducibility
 )
 
-# Examine results
-print(boot_result)
+# Examine bootstrap results
+cat("Bootstrap samples generated:", boot_result$settings$n_bootstrap, "\n")
+cat("Successful fits:", boot_result$n_successful, "\n")
+cat("Bootstrap method:", boot_result$method_used, "\n\n")
 
-# Extract confidence intervals
-summary(boot_result)
+# Extract parameter estimates and confidence intervals
+param_samples <- boot_result$param_samples
+param_means <- colMeans(param_samples, na.rm = TRUE)
+param_sds <- apply(param_samples, 2, sd, na.rm = TRUE)
+param_ci_lower <- apply(param_samples, 2, quantile, probs = 0.025, na.rm = TRUE)
+param_ci_upper <- apply(param_samples, 2, quantile, probs = 0.975, na.rm = TRUE)
 
-# Access individual components (95% CI by default)
-if (!is.null(boot_result$summary)) {
-  cat("Parameter 1 estimate:", boot_result$summary$param_mean[1], "\n")
-  cat("Parameter 1 95% CI: [",
-    boot_result$summary$param_ci_lower[1], ", ",
-    boot_result$summary$param_ci_upper[1], "]\n", sep = "")
+# Display results
+cat("Parameter Estimates with 95% Confidence Intervals:\n")
+for (i in 1:length(param_means)) {
+  cat(sprintf("  Param %d: %.2f +/- %.2f [%.2f, %.2f]\n",
+              i, param_means[i], param_sds[i], 
+              param_ci_lower[i], param_ci_upper[i]))
 }
+
+# Visualize bootstrap samples as distribution
+par(mfrow = c(1, 2))
+hist(param_samples[, 1], main = "Distribution of Parameter 1", 
+     xlab = "Parameter 1 Value", breaks = 30, col = "skyblue")
+hist(param_samples[, 2], main = "Distribution of Parameter 2",
+     xlab = "Parameter 2 Value", breaks = 30, col = "lightcoral")
+par(mfrow = c(1, 1))
 ```
 
-## Method Selection and Control
+The bootstrap reveals the parameter uncertainty by showing how parameter estimates vary across resampled datasets. **Non-zero confidence interval widths** indicate genuine uncertainty in the fitted parameters, which is valuable for interpreting model results.
 
-You can explicitly control the bootstrap method:
+## Comparing Bootstrap Methods
 
-```{r bootstrap_methods}
-# Explicit parametric bootstrap (always uses normal residual resampling)
+You can explicitly compare parametric and sieve bootstrap to assess how residual autocorrelation affects uncertainty. For this comparison, we'll use synthetic data with known moderate autocorrelation:
+
+```{r bootstrap_comparison}
+# Create synthetic data with controlled noise and moderate autocorrelation
+set.seed(123)
+depths_synthetic <- 1:200
+# Generate AR(1) process with phi = 0.4 (moderate positive autocorrelation)
+phi_true <- 0.4
+eps <- rnorm(200, mean = 0, sd = 5)
+ar_noise <- numeric(200)
+ar_noise[1] <- eps[1]
+for (i in 2:200) {
+  ar_noise[i] <- phi_true * ar_noise[i-1] + eps[i]
+}
+# Add to sigmoid shape
+true_shape <- sm_shape_sigmoid(depths_synthetic, c(40, 100))
+synthetic_obs <- 10 + true_shape * 35 + ar_noise  # 10-45 range with AR noise
+
+# Parametric bootstrap (faster, assumes independent residuals)
+set.seed(42)
 boot_param <- sm_optim_bootstrap(
-  observed = clay_profile,
-  depths = depths,
-  initial_params = c(50, 100),
+  observed = synthetic_obs,
+  depths = depths_synthetic,
+  initial_params = c(40, 100),
   shape_family = "sigmoid",
   optimizer = "lbfgs",
-  n_bootstrap = 100,
+  n_bootstrap = 500,
   method = "parametric"
 )
 
-# Explicit sieve bootstrap (uses AR(1) model for residuals)
-# Fails with error if AR(1) fitting is unsuccessful
+# Sieve bootstrap (accounts for AR(1) autocorrelation)
+set.seed(42)
 boot_sieve <- sm_optim_bootstrap(
-  observed = clay_profile,
-  depths = depths,
-  initial_params = c(50, 100),
+  observed = synthetic_obs,
+  depths = depths_synthetic,
+  initial_params = c(40, 100),
   shape_family = "sigmoid",
   optimizer = "lbfgs",
-  n_bootstrap = 100,
-  method = "sieve",
-  sieve_threshold = 20,
-  strict = FALSE  # Allow fallback to parametric if AR(1) fit fails
+  n_bootstrap = 500,
+  method = "sieve"
 )
 
-# Compare methods
-cat("Parametric method used:", boot_param$method_used, "\n")
-cat("Sieve method used:", boot_sieve$method_used, "\n")
-if (!is.na(boot_sieve$ar1_coef)) {
-  cat("Sieve AR(1) coefficient:", boot_sieve$ar1_coef, "\n")
-}
+# Compare variability
+cat("=== Parameter Uncertainty Comparison (Synthetic Data with AR(1)=0.4) ===\n")
+cat("Method           | Param 1 SD | Param 2 SD | AR(1) coef | Notes\n")
+cat(sprintf("Parametric       |   %.4f   |   %.4f   | N/A        | Assumes independence\n",
+            sd(boot_param$param_samples[, 1], na.rm = TRUE),
+            sd(boot_param$param_samples[, 2], na.rm = TRUE)))
+cat(sprintf("Sieve            |   %.4f   |   %.4f   | %.4f   | Accounts for AR(1)\n",
+            sd(boot_sieve$param_samples[, 1], na.rm = TRUE),
+            sd(boot_sieve$param_samples[, 2], na.rm = TRUE),
+            if (is.na(boot_sieve$ar1_coef)) NA else boot_sieve$ar1_coef))
+
+# Calculate empirical AR(1) from residuals
+fit_syn <- sm_optim(synthetic_obs, c(40, 100), FUN = sm_shape_sigmoid)
+residuals_syn <- synthetic_obs - fit_syn
+mean_res <- mean(residuals_syn)
+centered <- residuals_syn - mean_res
+gamma0 <- sum(centered^2) / length(residuals_syn)
+gamma1 <- sum(centered[-length(centered)] * centered[-1]) / length(residuals_syn)
+ar1_empirical <- gamma1 / gamma0
+
+cat("\nResidual Autocorrelation:\n")
+cat("  True AR(1):", phi_true, "\n")
+cat("  Empirical AR(1) from residuals:", sprintf("%.4f", ar1_empirical), "\n")
+cat("  AR(1) detected by sieve bootstrap:", sprintf("%.4f", boot_sieve$ar1_coef), "\n")
+
+# Show that sieve produces wider confidence intervals when autocorrelation exists
+cat("\nDifference in Parameter 1 SD (Sieve - Parametric):",
+    sd(boot_sieve$param_samples[, 1], na.rm = TRUE) - 
+    sd(boot_param$param_samples[, 1], na.rm = TRUE),
+    "(positive means sieve estimates larger uncertainty)\n")
 ```
 
-The bootstrap result contains:
-
-- `param_samples`: Matrix of parameter values from each bootstrap sample
-- `method_used`: Which bootstrap method was applied ("parametric" or "sieve")
-- `ar1_coef`: AR(1) coefficient estimate (sieve method only)
-- `n_successful`: Number of successful bootstrap iterations
-- `summary`: Summary statistics including confidence intervals (95% by default)
+**Interpretation**: When residual autocorrelation exists (AR(1) ≠ 0), the sieve bootstrap typically produces wider confidence intervals than parametric bootstrap, because it accounts for the dependency structure in the residuals. The parametric bootstrap may underestimate uncertainty when it ignores autocorrelation.
 
 # Interpreting Results
 

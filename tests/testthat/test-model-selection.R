@@ -23,8 +23,10 @@ test_that("fit_motif_auto identifies correct best model", {
 })
 
 test_that("Different criteria produce different rankings", {
-  # Create gradational data
-  x <- sm_motif(1:200, c(10, 50), FUN = sm_shape_gradational)
+  # Create gradational data with proper property values (not depths)
+  # Generate synthetic gradational clay content increasing from 10 to 40
+  raw_shape <- sm_shape_gradational(1:200, c(50, 150), ascending = TRUE)
+  x <- 10 + raw_shape * (40 - 10)  # Scale to [10, 40] range
   
   result_aic <- fit_motif_auto(x, criterion = "AIC")
   result_rmse <- fit_motif_auto(x, criterion = "RMSE")

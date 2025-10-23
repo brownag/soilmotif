@@ -17,5 +17,6 @@ Invisibly returns object$summary (summary statistics list)
 \description{
 Provides detailed statistical summaries of bootstrap results including parameter
 statistics (mean, SD, confidence intervals, range) and diagnostic statistics
-(RMSE, R², AIC). Displays failed sample indices if any failures occurred.
+(RMSE, R^2, AIC). Displays failed sample indices if any failures occurred.
+Shows bootstrap method (parametric or sieve) and AR(1) coefficient if applicable.
 }

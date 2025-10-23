@@ -2,7 +2,7 @@
 % Please edit documentation in R/uncertainty.R
 \name{sm_optim_bootstrap}
 \alias{sm_optim_bootstrap}
-\title{Parametric Bootstrap for Soil Profile Optimization}
+\title{Adaptive Bootstrap for Soil Profile Optimization}
 \usage{
 sm_optim_bootstrap(
   observed,
@@ -12,8 +12,11 @@ sm_optim_bootstrap(
   objective = "rmse",
   optimizer = "auto",
   n_bootstrap = 1000L,
+  method = c("auto", "parametric", "sieve"),
+  sieve_threshold = 20L,
   seed = NULL,
-  fallback_strategy = "auto",
+  fallback_strategy = c("auto", "explicit", "strict"),
+  strict = FALSE,
   max_retries = 3L,
   parallel = TRUE
 )
@@ -34,9 +37,19 @@ sm_optim_bootstrap(
 
 \item{n_bootstrap}{Integer number of bootstrap samples (default: 1000)}
 
+\item{method}{Character string specifying bootstrap method: "auto" (default, select based on data size),
+"parametric" (resample residuals independently), or "sieve" (AR(1) model-based resampling)}
+
+\item{sieve_threshold}{Integer threshold for automatic method selection (default: 20).
+If method="auto", uses parametric if length(observed) <= sieve_threshold, else sieve}
+
 \item{seed}{Integer seed for reproducible results, or NULL for random (default: NULL)}
 
-\item{fallback_strategy}{Character string for fallback behavior ("auto", "explicit", "strict")}
+\item{fallback_strategy}{Character string for fallback behavior ("auto", "explicit", "strict").
+Only applies when method="auto": if "auto", sieve falls back to parametric on AR(1) fit failure}
+
+\item{strict}{Logical controlling fallback behavior (deprecated in favor of fallback_strategy).
+If TRUE and method="auto", falls back on AR(1) failure; if FALSE, errors (default: FALSE)}
 
 \item{max_retries}{Integer maximum retries per optimization (default: 3)}
 
@@ -44,27 +57,66 @@ sm_optim_bootstrap(
 }
 \value{
 A list with class "bootstrap_result" containing:
-\item{param_samples}{Matrix of parameter samples (n_bootstrap x n_params)}
+\item{param_samples}{Matrix of parameter samples (n_successful x n_params)}
 \item{rmse_samples}{Vector of RMSE values for each bootstrap sample}
 \item{r2_samples}{Vector of R² values for each bootstrap sample}
 \item{aic_samples}{Vector of AIC values for each bootstrap sample}
 \item{failed_indices}{Vector of indices for failed bootstrap samples}
+\item{n_successful}{Number of successful bootstrap samples}
+\item{n_failed}{Number of failed bootstrap samples}
+\item{method_used}{Character string indicating which bootstrap method was actually used}
+\item{ar1_coef}{AR(1) coefficient (if sieve method used), or NA}
 \item{summary}{List with summary statistics (means, sds, cis)}
 \item{original_fit}{List with original optimization results}
 \item{settings}{List with function call settings}
 }
 \description{
-Performs parametric bootstrap resampling to quantify uncertainty in soil
+Performs adaptive bootstrap resampling to quantify uncertainty in soil
 profile parameter estimates. This function fits the specified shape function
-to the observed data, then generates bootstrap samples by resampling residuals
-and re-optimizing to obtain confidence intervals and uncertainty estimates.
+to the observed data, then generates bootstrap samples. The resampling method
+adapts based on data resolution: parametric bootstrap for sparse data
+(n <= sieve_threshold) and sieve bootstrap with AR(1) models for dense data
+(n > sieve_threshold).
+}
+\details{
+\subsection{Bootstrap Methods}{
+
+\strong{Parametric Bootstrap}: Resamples residuals independently from the fitted model.
+Suitable for sparse data where AR(1) estimation is unreliable.
+
+\strong{Sieve Bootstrap}: Fits an AR(1) model to residuals, then resamples innovations.
+Preserves autocorrelation structure in residuals. Suitable for high-resolution data.
+Falls back to parametric if AR(1) fitting fails (unless method="sieve" explicitly).
+}
+
+\subsection{Method Selection}{
+
+When method="auto":
+\itemize{
+\item Uses parametric if length(observed) <= sieve_threshold
+\item Uses sieve if length(observed) > sieve_threshold
+\item Fallback to parametric on AR(1) failure is controlled by fallback_strategy/strict
+}
+
+When method="parametric":
+\itemize{
+\item Always uses parametric bootstrap, no AR(1) fitting
+}
+
+When method="sieve":
+\itemize{
+\item Always attempts sieve bootstrap
+\item Errors if AR(1) fitting fails (fallback_strategy is ignored)
+}
+}
 }
 \examples{
 \dontrun{
-# Example with sigmoid shape
+# Example with sigmoid shape and default auto method selection
 depths <- 1:200
 observed <- sm_motif(depths, c(100, 20, 0.1, 50)) + rnorm(200, 0, 5)
 
+# Use automatic method selection (sparse data -> parametric, dense -> sieve)
 result <- sm_optim_bootstrap(
   observed = observed,
   depths = depths,
@@ -73,8 +125,19 @@ result <- sm_optim_bootstrap(
   n_bootstrap = 100
 )
 
+# Explicitly use sieve bootstrap for AR(1) modeling
+result_sieve <- sm_optim_bootstrap(
+  observed = observed,
+  depths = depths,
+  initial_params = c(100, 20, 0.1, 50),
+  shape_family = "sigmoid",
+  method = "sieve",
+  n_bootstrap = 100
+)
+
 # View parameter confidence intervals
-print(result$summary$param_ci)
+print(result$summary$param_ci_lower)
+print(result$summary$param_ci_upper)
 }
 
 }
