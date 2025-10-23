@@ -320,17 +320,22 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' # Generate synthetic data
+#' # Generate synthetic data with 3 distinct horizons
+#' set.seed(42)
 #' data <- data.frame(
-#'   depth = 1:100,
-#'   Al = c(rep(10, 30), rep(25, 40), rep(15, 30)),
-#'   Fe = c(rep(5, 30), rep(15, 40), rep(8, 30)),
-#'   Si = c(rep(60, 30), rep(45, 40), rep(65, 30))
+#'   depth = 0:100,
+#'   Al = c(rnorm(31, 10, 0.5), rnorm(40, 25, 0.5), rnorm(30, 15, 0.5)),
+#'   Fe = c(rnorm(31, 5, 0.3), rnorm(40, 15, 0.3), rnorm(30, 8, 0.3)),
+#'   Si = c(rnorm(31, 60, 1), rnorm(40, 45, 1), rnorm(30, 65, 1))
 #' )
 #'
-#' # Detect boundaries
-#' boundaries <- horizon_boundaries_mahalanobis(data, window_size = 10)
+#' # Detect boundaries with local maxima method
+#' boundaries <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 1.0)
 #' print(boundaries)
+#'
+#' # Try different threshold (more conservative)
+#' boundaries2 <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 2.0)
+#' print(boundaries2)
 #' }
 horizon_boundaries_mahalanobis <- function(data,
                                             depth_col = "depth",
@@ -722,17 +727,22 @@ summary.horizon_boundaries <- function(object, ...) {
 #' @export
 #' @examples
 #' \dontrun{
-#' # Generate synthetic data
+#' # Generate synthetic data with 3 distinct horizons
+#' set.seed(42)
 #' data <- data.frame(
-#'   depth = 1:100,
-#'   Al = c(rep(10, 30), rep(25, 40), rep(15, 30)),
-#'   Fe = c(rep(5, 30), rep(15, 40), rep(8, 30)),
-#'   Si = c(rep(60, 30), rep(45, 40), rep(65, 30))
+#'   depth = 0:100,
+#'   Al = c(rnorm(31, 10, 0.5), rnorm(40, 25, 0.5), rnorm(30, 15, 0.5)),
+#'   Fe = c(rnorm(31, 5, 0.3), rnorm(40, 15, 0.3), rnorm(30, 8, 0.3)),
+#'   Si = c(rnorm(31, 60, 1), rnorm(40, 45, 1), rnorm(30, 65, 1))
 #' )
 #'
-#' # Classify horizons
-#' fuzzy_result <- horizon_classify_fuzzy(data, n_horizons = 3)
+#' # Classify into 3 fuzzy horizons
+#' fuzzy_result <- horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
 #' print(fuzzy_result)
+#'
+#' # Softer boundaries with higher fuzziness
+#' fuzzy_soft <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
+#' summary(fuzzy_soft)
 #' }
 horizon_classify_fuzzy <- function(data,
                                     depth_col = "depth",
