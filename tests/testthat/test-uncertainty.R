@@ -7,8 +7,6 @@ test_depths <- 1:200
 test_params <- c(100, 20, 0.1, 50)
 test_observed <- sm_motif(test_depths, test_params) + rnorm(200, 0, 2)
 
-context("Parametric Bootstrap Uncertainty Quantification")
-
 test_that("sm_optim_bootstrap basic functionality", {
   skip_if_not(rust_backend_available(), "Rust backend not available")
 
