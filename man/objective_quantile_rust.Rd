@@ -6,25 +6,6 @@
 \usage{
 objective_quantile_rust(observed, predicted, depths, quantile)
 }
-\arguments{
-\item{observed}{Numeric vector of observed values}
-
-\item{predicted}{Numeric vector of predicted values (same length as observed)}
-
-\item{depths}{Numeric vector of depth positions (same length as observed)}
-
-\item{quantile}{Numeric: target quantile in (0, 1), default 0.5 (median)}
-}
-\value{
-Numeric: quantile loss value
-}
 \description{
-Calculates asymmetric loss for quantile regression, emphasizing specific quantiles
-of the residual distribution. Useful for uncertainty quantification.
-}
-\details{
 Called via R: \code{.Call("objective_quantile_rust", observed, predicted, depths, quantile, PACKAGE = "soilmotif")}
-Quantile loss uses asymmetric penalties: quantile * residual for residual > 0,
-(1 - quantile) * residual for residual <= 0.
 }
-\keyword{internal}

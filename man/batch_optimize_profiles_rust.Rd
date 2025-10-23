@@ -3,7 +3,6 @@
 \name{batch_optimize_profiles_rust}
 \alias{batch_optimize_profiles_rust}
 \title{Optimizes multiple profiles in batch with error collection and reporting.
-Optimizes multiple profiles in batch with error collection and reporting.
 Returns results as a structured list that R will process into proper format.}
 \usage{
 batch_optimize_profiles_rust(
@@ -15,21 +14,22 @@ batch_optimize_profiles_rust(
   objective_type
 )
 }
-\arguments{
-\item{profiles_list}{List of numeric vectors (each profile's observations)}
-
-\item{params_list}{List of numeric vectors (initial parameters for each profile)}
-
-\item{x}{Numeric vector: depth positions (shared across all profiles)}
-
-\item{shape_type}{Character: shape function family name}
-
-\item{ascending}{Logical: direction flag}
-
-\item{objective_type}{Character: objective function name ("rmse", "sse", "mae", "r2")}
+\description{
+Called via R: \code{.Call("batch_optimize_profiles_rust", profiles_list, params_list,  x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")}
 }
-\value{
-List with components:
+\section{Arguments (from R)}{
+\itemize{
+\item profiles_list: List of numeric vectors (each profile)
+\item params_list: List of numeric vectors (initial parameters for each profile)
+\item x: numeric vector (depth positions, shared across all profiles)
+\item shape_type: character shape function name
+\item ascending: logical direction flag
+\item objective_type: character objective function name ("rmse", "sse", "mae", "r2")
+}
+}
+
+\section{Returns (to R)}{
+List with components (ungrouped, R will reconstruct):
 \itemize{
 \item profile_ids: integer vector of profile indices
 \item params: list of numeric vectors (single NA for failed profiles)
@@ -41,11 +41,4 @@ List with components:
 \item failed_count: integer number of failed profiles
 }
 }
-\description{
-Parallel batch optimization using rayon-based multi-threading. Each profile
-is independently optimized with error recovery.
-}
-\details{
-Called via R: \code{.Call("batch_optimize_profiles_rust", profiles_list, params_list,  x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")}
-}
-\keyword{internal}
+

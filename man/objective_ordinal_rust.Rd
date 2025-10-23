@@ -12,25 +12,6 @@ objective_ordinal_rust(
   overpredict_penalty
 )
 }
-\arguments{
-\item{observed}{Numeric vector of observed values}
-
-\item{predicted}{Numeric vector of predicted values (same length as observed)}
-
-\item{depths}{Numeric vector of depth positions (same length as observed)}
-
-\item{underpredict_penalty}{Numeric: penalty multiplier for underprediction (default 1.0)}
-
-\item{overpredict_penalty}{Numeric: penalty multiplier for overprediction (default 1.0)}
-}
-\value{
-Numeric: ordinal error value
-}
 \description{
-Calculates asymmetric penalties for over- and under-prediction using ordinal regression
-approach. Useful for classification-oriented objectives (e.g., horizon prediction).
-}
-\details{
 Called via R: \code{.Call("objective_ordinal_rust", observed, predicted, depths, under_penalty, over_penalty, PACKAGE = "soilmotif")}
 }
-\keyword{internal}

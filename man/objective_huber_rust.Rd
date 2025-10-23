@@ -6,28 +6,6 @@
 \usage{
 objective_huber_rust(observed, predicted, depths, delta)
 }
-\arguments{
-\item{observed}{Numeric vector of observed values}
-
-\item{predicted}{Numeric vector of predicted values (same length as observed)}
-
-\item{depths}{Numeric vector of depth positions (same length as observed)}
-
-\item{delta}{Numeric: transition threshold between L2 and L1 regimes (default 1.0)}
-}
-\value{
-Numeric: Huber loss value
-}
 \description{
-Calculates robust loss function that transitions between L2 (MSE) and L1 (MAE) error.
-Less sensitive to outliers than pure MSE while maintaining smooth gradients.
-}
-\details{
 Called via R: \code{.Call("objective_huber_rust", observed, predicted, depths, delta, PACKAGE = "soilmotif")}
-Huber loss is defined as:
-\itemize{
-\item L2 (0.5 * residual^2) when |residual| <= delta
-\item L1 (delta * (|residual| - 0.5 * delta)) when |residual| > delta
 }
-}
-\keyword{internal}

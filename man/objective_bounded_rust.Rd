@@ -13,27 +13,6 @@ objective_bounded_rust(
   penalty_factor
 )
 }
-\arguments{
-\item{observed}{Numeric vector of observed values}
-
-\item{predicted}{Numeric vector of predicted values (same length as observed)}
-
-\item{depths}{Numeric vector of depth positions (same length as observed)}
-
-\item{obs_min}{Numeric: lower bound for predictions}
-
-\item{obs_max}{Numeric: upper bound for predictions}
-
-\item{penalty_factor}{Numeric: multiplier for out-of-bounds violations (default 1.0)}
-}
-\value{
-Numeric: bounded error value
-}
 \description{
-Calculates error penalizing predictions outside observed property bounds (e.g., texture 0-100\%).
-Enforces physical constraints during optimization.
-}
-\details{
 Called via R: \code{.Call("objective_bounded_rust", observed, predicted, depths, obs_min, obs_max, penalty_factor, PACKAGE = "soilmotif")}
 }
-\keyword{internal}

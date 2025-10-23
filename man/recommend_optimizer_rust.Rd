@@ -6,22 +6,6 @@
 \usage{
 recommend_optimizer_rust(n_params, n_obs, objective_type)
 }
-\arguments{
-\item{n_params}{Integer: number of parameters to optimize}
-
-\item{n_obs}{Integer: number of observations}
-
-\item{objective_type}{Character: objective function name}
-}
-\value{
-Character: recommended algorithm name
-}
 \description{
-Suggests an appropriate optimization algorithm given problem size and objective type.
-Heuristic recommendations based on Phase 2 benchmark results.
-}
-\details{
 Called via R: \code{.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")}
-Recommendations consider problem dimensionality and objective complexity.
 }
-\keyword{internal}
