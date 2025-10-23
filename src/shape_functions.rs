@@ -1,6 +1,6 @@
 //! Shape function implementations
 //!
-//! Each shape function maps a depth vector to normalized [0, 1] values.
+//! Each shape function maps a depth vector to normalized `[0, 1]` values.
 //! Implementations are Rust equivalents of R functions in R/shape.R
 
 use std::f64::consts::PI;
@@ -25,7 +25,7 @@ fn norm_density(x: f64, mean: f64, sd: f64) -> f64 {
 ///
 /// # Arguments
 /// * `x` - Depth vector (typically 1..200)
-/// * `params` - [level] where level is [0, 1]
+/// * `params` - [level] where level is `[0, 1]`
 ///
 /// # Returns
 /// Vector of constant values
@@ -53,7 +53,7 @@ pub fn uniform(x: &[f64], params: &[f64]) -> Vec<f64> {
 /// * `ascending` - If true, increases from 0 to 1; else decreases
 ///
 /// # Returns
-/// Vector of values ranging [0, 1]
+/// Vector of values ranging `[0, 1]`
 pub fn gradational(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
     assert!(params.len() >= 2, "gradational requires 2 parameters");
     
@@ -85,7 +85,7 @@ pub fn gradational(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// * `ascending` - If true, high at surface, low at depth; else inverted
 ///
 /// # Returns
-/// Vector of [0, 1] values
+/// Vector of `[0, 1]` values
 pub fn exponential(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
     assert!(params.len() >= 2, "exponential requires 2 parameters");
     
@@ -132,7 +132,7 @@ pub fn exponential(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// * `ascending` - If true, S-curve (0->1); else reverse S (1->0)
 ///
 /// # Returns
-/// Vector of [0, 1] values
+/// Vector of `[0, 1]` values
 pub fn wetting_front(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
     assert!(params.len() >= 2, "wetting_front requires 2 parameters");
     
@@ -215,7 +215,7 @@ pub fn abrupt(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// * `ascending` - If true, peak (ignored for shape); if false, valley
 ///
 /// # Returns
-/// Vector of [0, 1] values with maximum at 1.0 (or 0.0 if valley)
+/// Vector of `[0, 1]` values with maximum at 1.0 (or 0.0 if valley)
 pub fn peak(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
     assert!(params.len() >= 2, "peak requires 2 parameters");
     
@@ -256,7 +256,7 @@ pub fn peak(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// * `ascending` - If true, bimodal peaks; if false, inverted
 ///
 /// # Returns
-/// Vector of [0, 1] values with two local maxima
+/// Vector of `[0, 1]` values with two local maxima
 pub fn minimax(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
     assert!(params.len() >= 4, "minimax requires 4 parameters");
     
@@ -297,7 +297,6 @@ pub fn minimax(x: &[f64], params: &[f64], ascending: bool) -> Vec<f64> {
 /// Monotone Cubic Spline (Fritsch-Carlson method)
 ///
 /// Ensures strictly monotonic interpolation through control points.
-/// Useful for properties like compaction where non-monotonic behavior is physically impossible.
 ///
 /// # Arguments
 /// * `x` - Evaluation depths (typically 1..200)
@@ -883,7 +882,7 @@ pub fn eval_shape_gradient(
 /// * `ascending` - Direction flag (ignored for some shapes like peak)
 ///
 /// # Returns
-/// Result with vector of [0, 1] values or error string
+/// Result with vector of `[0, 1]` values or error string
 ///
 /// # Examples
 /// ```

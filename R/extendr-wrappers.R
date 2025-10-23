@@ -69,13 +69,10 @@ objective_huber_rust <- function(observed, predicted, depths, delta) .Call(wrap_
 #' Called via R: `.Call("objective_quantile_rust", observed, predicted, depths, quantile, PACKAGE = "soilmotif")`
 objective_quantile_rust <- function(observed, predicted, depths, quantile) .Call(wrap__objective_quantile_rust, observed, predicted, depths, quantile)
 
-#' Test function
-test_new_function <- function() .Call(wrap__test_new_function)
-
 #' Recommend optimization algorithm based on problem characteristics
-#' 
+#'
 #' Called via R: `.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")`
-recommend_optimizer_rust <- function(`_n_params`, `_n_obs`, `_objective_type`) .Call(wrap__recommend_optimizer_rust, `_n_params`, `_n_obs`, `_objective_type`)
+recommend_optimizer_rust <- function(n_params, n_obs, objective_type) .Call(wrap__recommend_optimizer_rust, n_params, n_obs, objective_type)
 
 #' Evaluate a shape function (Rust implementation)
 #' 
@@ -99,8 +96,6 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 #'                      shape_type, ascending, objective_type, algorithm, PACKAGE = "soilmotif")`
 optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, algorithm) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, algorithm)
 
-#' Batch profile processing (Rust implementation, returns data.frame-like result)
-#' 
 #' Optimizes multiple profiles in batch with error collection and reporting.
 #' Returns results as a structured list that R will process into proper format.
 #' 
@@ -126,6 +121,21 @@ optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_ty
 #' - summary: character summary string
 #' - failed_count: integer number of failed profiles
 batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) .Call(wrap__batch_optimize_profiles_rust, profiles_list, params_list, x, shape_type, ascending, objective_type)
+
+#' Parametric bootstrap engine (Rust implementation)
+#' 
+#' Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
+#' 
+#' The `config` parameter is an R list with fields:
+#' - shape_type: character
+#' - objective_name: character
+#' - optimizer_name: character
+#' - n_bootstrap: integer
+#' - seed: integer (negative for random)
+#' - fallback: logical
+#' - max_retries: integer
+#' - parallel: logical
+bootstrap_engine_rust <- function(observed, depths, initial_params, config) .Call(wrap__bootstrap_engine_rust, observed, depths, initial_params, config)
 
 
 # nolint end

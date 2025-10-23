@@ -102,11 +102,13 @@ sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Sandy Entisol")
 sm_shape_uniform <- function(x, params, ascending = TRUE) {
+  # Return normalized value [0, 1] - param should be in [0, 1] range
   shape <- rep(params[1], length(x))
   if (!ascending) {
     shape <- 1 - shape
   }
-  shape
+  # Clamp to [0, 1] range for consistency with other shape functions
+  pmin(pmax(shape, 0), 1)
 }
 
 #' Gradational Shape Function
@@ -506,7 +508,7 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
 #' @param strict Logical (R-only flag): if TRUE, validates control points before evaluation.
 #'        Default: TRUE
 #'
-#' @return Numeric vector of normalized [0, 1] depth function values at positions x
+#' @return Numeric vector of normalized `[0, 1]` depth function values at positions x
 #'
 #' @details
 #' Monotone cubic splines (type="monotone") use the Fritsch-Carlson method to compute

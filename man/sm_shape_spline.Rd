@@ -29,7 +29,7 @@ FALSE = decreasing with depth). Default: TRUE}
 Default: TRUE}
 }
 \value{
-Numeric vector of normalized \link{0, 1} depth function values at positions x
+Numeric vector of normalized \verb{[0, 1]} depth function values at positions x
 }
 \description{
 Evaluate spline-based depth functions with guaranteed monotonicity (cubic Hermite)

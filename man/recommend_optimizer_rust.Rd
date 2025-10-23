@@ -4,7 +4,7 @@
 \alias{recommend_optimizer_rust}
 \title{Recommend optimization algorithm based on problem characteristics}
 \usage{
-recommend_optimizer_rust(`_n_params`, `_n_obs`, `_objective_type`)
+recommend_optimizer_rust(n_params, n_obs, objective_type)
 }
 \description{
 Called via R: \code{.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")}

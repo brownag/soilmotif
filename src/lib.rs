@@ -16,6 +16,14 @@ pub mod objective;
 pub mod shape_functions;
 pub mod optimizer;
 pub mod batch;
+pub mod uncertainty;
+
+// Test function to check if Robj return type works
+#[extendr]
+fn test_robj_return(x: f64) -> Robj {
+    // list! returns List, convert to Robj by taking ownership
+    Robj::from(list!(result = x * 2.0, message = "test"))
+}
 
 /// Check that Rust backend is available and working
 /// 
@@ -29,10 +37,25 @@ fn check_rust_backend() -> String {
     "Rust backend available".to_string()
 }
 
-/// Test function
+/// Minimal List->List test to validate extendr wrapper generation
 #[extendr]
-fn test_new_function() -> String {
-    "test".to_string()
+fn test_list_roundtrip(input: List) -> List {
+    // Build a new named list by copying existing entries and appending a diagnostic field
+    let mut names: Vec<String> = Vec::new();
+    let mut values: Vec<Robj> = Vec::new();
+
+    for entry in input {
+        let (name, val) = entry;
+        names.push(name.to_string());
+        values.push(val);
+    }
+
+    names.push("_echoed_by_rust".to_string());
+    values.push(Robj::from("test_list_roundtrip"));
+
+    // Pass owned Vec<String> directly to transfer ownership to the List.
+    // This is safe because the List now owns the name data.
+    List::from_names_and_values(names, values).unwrap()
 }
 
 /// Recommend optimization algorithm based on problem characteristics
@@ -271,8 +294,132 @@ fn optimize_profile_rust_flexible(
     }
 }
 
-/// Batch profile processing (Rust implementation, returns data.frame-like result)
+/// Parametric bootstrap engine (Rust implementation)
 /// 
+/// Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
+/// 
+/// The `config` parameter is an R list with fields:
+/// - shape_type: character
+/// - objective_name: character
+/// - optimizer_name: character
+/// - n_bootstrap: integer
+/// - seed: integer (negative for random)
+/// - fallback: logical
+/// - max_retries: integer
+/// - parallel: logical
+#[extendr]
+fn bootstrap_engine_rust(
+    observed: Vec<f64>,
+    depths: Vec<f64>,
+    initial_params: Vec<f64>,
+    config: List
+) -> List {
+    
+    // Extract configuration from the R list with sensible defaults
+    let mut shape_type = "sigmoid".to_string();
+    let mut objective_name = "rmse".to_string();
+    let mut optimizer_name = "auto".to_string();
+    let mut n_bootstrap = 100usize;
+    let mut seed = -1i32;
+    let mut fallback = true;
+    let mut max_retries = 3usize;
+    let mut parallel = false;
+
+    // Iterate over the list entries to extract by name
+    for (name, value) in config {
+        match name {
+            "shape_type" => {
+                // Extract string from Robj
+                if let Ok(s) = <String>::try_from(value) {
+                    shape_type = s;
+                }
+            }
+            "objective_name" => {
+                if let Ok(s) = <String>::try_from(value) {
+                    objective_name = s;
+                }
+            }
+            "optimizer_name" => {
+                if let Ok(s) = <String>::try_from(value) {
+                    optimizer_name = s;
+                }
+            }
+            "n_bootstrap" => {
+                if let Ok(v) = <i32>::try_from(value) {
+                    n_bootstrap = v as usize;
+                }
+            }
+            "seed" => {
+                if let Ok(v) = <i32>::try_from(value) {
+                    seed = v;
+                }
+            }
+            "fallback" => {
+                if let Ok(v) = <i32>::try_from(value) {
+                    fallback = v != 0;
+                }
+            }
+            "max_retries" => {
+                if let Ok(v) = <i32>::try_from(value) {
+                    max_retries = v as usize;
+                }
+            }
+            "parallel" => {
+                if let Ok(v) = <i32>::try_from(value) {
+                    parallel = v != 0;
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    // Convert R-friendly seed to Rust-friendly Option<u64>
+    let seed_opt = if seed < 0 { None } else { Some(seed as u64) };
+
+    // Call the core bootstrap logic
+    let result_struct = match crate::uncertainty::parametric_bootstrap(
+        &observed, 
+        &depths, 
+        &initial_params, 
+        &shape_type,
+        &objective_name,
+        &optimizer_name,
+        n_bootstrap,
+        seed_opt, 
+        if fallback { "auto" } else { "strict" },
+        max_retries,
+        parallel
+    ) {
+        Ok(res) => res,
+        Err(e) => {
+            return list!(Error::from(e.to_string()));
+        }
+    };
+
+    // Compute n_successful and n_failed from the results (before moving parameter_samples)
+    let n_successful = result_struct.parameter_samples.len() as i32;
+    let n_failed = result_struct.failed_indices.len() as i32;
+
+    // Convert parameter samples to R list format
+    let parameter_samples_robj: Vec<Robj> = result_struct.parameter_samples
+        .into_iter()
+        .map(|v| v.into_robj())
+        .collect();
+
+    // Build and return the result list
+    list!(
+        success_rate = result_struct.success_rate,
+        parameter_samples = parameter_samples_robj,
+        rmse_samples = result_struct.rmse_samples,
+        r2_samples = result_struct.r2_samples,
+        aic_samples = result_struct.aic_samples,
+        failed_indices = result_struct.failed_indices,
+        n_successful = n_successful,
+        n_failed = n_failed,
+        message = result_struct.message
+    )
+}
+
 /// Optimizes multiple profiles in batch with error collection and reporting.
 /// Returns results as a structured list that R will process into proper format.
 /// 
@@ -422,10 +569,10 @@ extendr_module! {
     fn objective_bounded_rust;
     fn objective_huber_rust;
     fn objective_quantile_rust;
-    fn test_new_function;
     fn recommend_optimizer_rust;
     fn shape_eval_rust;
     fn optimize_profile_rust;
     fn optimize_profile_rust_flexible;
     fn batch_optimize_profiles_rust;
+    fn bootstrap_engine_rust;
 }

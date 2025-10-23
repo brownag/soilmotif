@@ -2,7 +2,8 @@
 % Please edit documentation in R/extendr-wrappers.R
 \name{batch_optimize_profiles_rust}
 \alias{batch_optimize_profiles_rust}
-\title{Batch profile processing (Rust implementation, returns data.frame-like result)}
+\title{Optimizes multiple profiles in batch with error collection and reporting.
+Returns results as a structured list that R will process into proper format.}
 \usage{
 batch_optimize_profiles_rust(
   profiles_list,
@@ -14,10 +15,6 @@ batch_optimize_profiles_rust(
 )
 }
 \description{
-Optimizes multiple profiles in batch with error collection and reporting.
-Returns results as a structured list that R will process into proper format.
-}
-\details{
 Called via R: \code{.Call("batch_optimize_profiles_rust", profiles_list, params_list,  x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")}
 }
 \section{Arguments (from R)}{
