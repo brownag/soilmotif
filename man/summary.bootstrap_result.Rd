@@ -6,6 +6,16 @@
 \usage{
 \method{summary}{bootstrap_result}(object, ...)
 }
+\arguments{
+\item{object}{A bootstrap_result object (returned from sm_optim_bootstrap)}
+
+\item{...}{Additional arguments passed to summary methods (currently unused)}
+}
+\value{
+Invisibly returns object$summary (summary statistics list)
+}
 \description{
-Summary method for bootstrap_result objects
+Provides detailed statistical summaries of bootstrap results including parameter
+statistics (mean, SD, confidence intervals, range) and diagnostic statistics
+(RMSE, R², AIC). Displays failed sample indices if any failures occurred.
 }

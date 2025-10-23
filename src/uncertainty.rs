@@ -39,11 +39,9 @@ pub fn parametric_bootstrap(
         message: String::new(),
     };
 
-    // Set up RNG
-    let mut rng = match seed {
-        Some(s) => Pcg64::seed_from_u64(s),
-        None => Pcg64::from_entropy(),
-    };
+    // Note: seed parameter reserved for future use (per-iteration randomization)
+    // Currently using independent random generation per bootstrap iteration
+    let _ = seed;
 
     // Step 1: Initial optimization
     let initial_fit = match perform_initial_optimization(

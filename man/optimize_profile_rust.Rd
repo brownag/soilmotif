@@ -6,7 +6,26 @@
 \usage{
 optimize_profile_rust(observed, x, initial_params, shape_type, ascending)
 }
+\arguments{
+\item{observed}{Numeric vector of observed property values}
+
+\item{x}{Numeric vector of depth positions (same length as observed)}
+
+\item{initial_params}{Numeric vector of initial shape function parameters}
+
+\item{shape_type}{Character: shape function family name (e.g., "sigmoid", "exponential")}
+
+\item{ascending}{Logical: direction flag (TRUE = increasing with depth)}
+}
+\value{
+Numeric vector of optimized parameters
+}
 \description{
+Core optimization routine for fitting shape functions to a single soil profile.
+Uses default Nelder-Mead algorithm with RMSE objective.
+}
+\details{
 Called via R: \code{.Call("optimize_profile_rust", observed, x, initial_params,  shape_type, ascending, PACKAGE = "soilmotif")}
 Returns Vec\if{html}{\out{<f64>}} on success, or stops with an error message on failure
 }
+\keyword{internal}

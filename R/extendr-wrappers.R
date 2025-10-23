@@ -21,7 +21,16 @@ check_rust_backend <- function() .Call(wrap__check_rust_backend)
 
 #' Test function to check if extendr generates wrappers for multi-parameter functions
 #' 
-#' Called via R: `.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")`
+#' Internal test function for verifying FFI argument passing correctness.
+#' Echoes input parameters to validate extendr wrapper generation.
+#' 
+#' @param _a Numeric: first parameter
+#' @param _b Numeric: second parameter
+#' @param _c Numeric: third parameter
+#' @param d Numeric: fourth parameter
+#' 
+#' @return Numeric vector containing input parameters in order
+#' @keywords internal
 test_multi_param_rust <- function(`_a`, `_b`, `_c`, d) .Call(wrap__test_multi_param_rust, `_a`, `_b`, `_c`, d)
 
 #' Compute RMSE between observed and predicted (Rust implementation)
@@ -46,32 +55,113 @@ objective_r2_rust <- function(x, y) .Call(wrap__objective_r2_rust, x, y)
 
 #' Compute weighted RMSE (Rust implementation)
 #' 
+#' Calculates Root Mean Squared Error with depth-dependent weighting to emphasize 
+#' specific horizons or features.
+#' 
+#' @param observed Numeric vector of observed values
+#' @param predicted Numeric vector of predicted values (same length as observed)
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param target_depth Numeric: depth to emphasize (cm)
+#' @param weight_factor Numeric: weighting magnitude for target depth (default 1.0)
+#' 
+#' @return Numeric: weighted RMSE value
+#' 
+#' @details
 #' Called via R: `.Call("objective_weighted_rmse_rust", observed, predicted, depths, target_depth, weight_factor, PACKAGE = "soilmotif")`
+#' @keywords internal
 objective_weighted_rmse_rust <- function(observed, predicted, depths, target_depth, weight_factor) .Call(wrap__objective_weighted_rmse_rust, observed, predicted, depths, target_depth, weight_factor)
 
 #' Compute ordinal error (Rust implementation)
 #' 
+#' Calculates asymmetric penalties for over- and under-prediction using ordinal regression
+#' approach. Useful for classification-oriented objectives (e.g., horizon prediction).
+#' 
+#' @param observed Numeric vector of observed values
+#' @param predicted Numeric vector of predicted values (same length as observed)
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param underpredict_penalty Numeric: penalty multiplier for underprediction (default 1.0)
+#' @param overpredict_penalty Numeric: penalty multiplier for overprediction (default 1.0)
+#' 
+#' @return Numeric: ordinal error value
+#' 
+#' @details
 #' Called via R: `.Call("objective_ordinal_rust", observed, predicted, depths, under_penalty, over_penalty, PACKAGE = "soilmotif")`
+#' @keywords internal
 objective_ordinal_rust <- function(observed, predicted, depths, underpredict_penalty, overpredict_penalty) .Call(wrap__objective_ordinal_rust, observed, predicted, depths, underpredict_penalty, overpredict_penalty)
 
 #' Compute bounded error (Rust implementation)
 #' 
+#' Calculates error penalizing predictions outside observed property bounds (e.g., texture 0-100%).
+#' Enforces physical constraints during optimization.
+#' 
+#' @param observed Numeric vector of observed values
+#' @param predicted Numeric vector of predicted values (same length as observed)
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param obs_min Numeric: lower bound for predictions
+#' @param obs_max Numeric: upper bound for predictions
+#' @param penalty_factor Numeric: multiplier for out-of-bounds violations (default 1.0)
+#' 
+#' @return Numeric: bounded error value
+#' 
+#' @details
 #' Called via R: `.Call("objective_bounded_rust", observed, predicted, depths, obs_min, obs_max, penalty_factor, PACKAGE = "soilmotif")`
+#' @keywords internal
 objective_bounded_rust <- function(observed, predicted, depths, obs_min, obs_max, penalty_factor) .Call(wrap__objective_bounded_rust, observed, predicted, depths, obs_min, obs_max, penalty_factor)
 
 #' Compute Huber loss (Rust implementation)
 #' 
+#' Calculates robust loss function that transitions between L2 (MSE) and L1 (MAE) error.
+#' Less sensitive to outliers than pure MSE while maintaining smooth gradients.
+#' 
+#' @param observed Numeric vector of observed values
+#' @param predicted Numeric vector of predicted values (same length as observed)
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param delta Numeric: transition threshold between L2 and L1 regimes (default 1.0)
+#' 
+#' @return Numeric: Huber loss value
+#' 
+#' @details
 #' Called via R: `.Call("objective_huber_rust", observed, predicted, depths, delta, PACKAGE = "soilmotif")`
+#' Huber loss is defined as:
+#' - L2 (0.5 * residual^2) when |residual| <= delta
+#' - L1 (delta * (|residual| - 0.5 * delta)) when |residual| > delta
+#' @keywords internal
 objective_huber_rust <- function(observed, predicted, depths, delta) .Call(wrap__objective_huber_rust, observed, predicted, depths, delta)
 
 #' Compute quantile loss (Rust implementation)
 #' 
+#' Calculates asymmetric loss for quantile regression, emphasizing specific quantiles
+#' of the residual distribution. Useful for uncertainty quantification.
+#' 
+#' @param observed Numeric vector of observed values
+#' @param predicted Numeric vector of predicted values (same length as observed)
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param quantile Numeric: target quantile in (0, 1), default 0.5 (median)
+#' 
+#' @return Numeric: quantile loss value
+#' 
+#' @details
 #' Called via R: `.Call("objective_quantile_rust", observed, predicted, depths, quantile, PACKAGE = "soilmotif")`
+#' Quantile loss uses asymmetric penalties: quantile * residual for residual > 0,
+#' (1 - quantile) * residual for residual <= 0.
+#' @keywords internal
 objective_quantile_rust <- function(observed, predicted, depths, quantile) .Call(wrap__objective_quantile_rust, observed, predicted, depths, quantile)
 
 #' Recommend optimization algorithm based on problem characteristics
 #'
+#' Suggests an appropriate optimization algorithm given problem size and objective type.
+#' Heuristic recommendations based on Phase 2 benchmark results.
+#'
+#' @param n_params Integer: number of parameters to optimize
+#' @param n_obs Integer: number of observations
+#' @param objective_type Character: objective function name
+#'
+#' @return Character: recommended algorithm name
+#'
+#' @details
 #' Called via R: `.Call("recommend_optimizer_rust", n_params, n_obs, objective_type, PACKAGE = "soilmotif")`
+#' Recommendations consider problem dimensionality and objective complexity.
+#' @keywords internal
 recommend_optimizer_rust <- function(n_params, n_obs, objective_type) .Call(wrap__recommend_optimizer_rust, n_params, n_obs, objective_type)
 
 #' Evaluate a shape function (Rust implementation)
@@ -82,9 +172,22 @@ shape_eval_rust <- function(shape_type, x, params, ascending) .Call(wrap__shape_
 
 #' Optimize single profile (legacy interface)
 #' 
+#' Core optimization routine for fitting shape functions to a single soil profile.
+#' Uses default Nelder-Mead algorithm with RMSE objective.
+#' 
+#' @param observed Numeric vector of observed property values
+#' @param x Numeric vector of depth positions (same length as observed)
+#' @param initial_params Numeric vector of initial shape function parameters
+#' @param shape_type Character: shape function family name (e.g., "sigmoid", "exponential")
+#' @param ascending Logical: direction flag (TRUE = increasing with depth)
+#' 
+#' @return Numeric vector of optimized parameters
+#' 
+#' @details
 #' Called via R: `.Call("optimize_profile_rust", observed, x, initial_params, 
 #'                      shape_type, ascending, PACKAGE = "soilmotif")`
 #' Returns Vec<f64> on success, or stops with an error message on failure
+#' @keywords internal
 optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending) .Call(wrap__optimize_profile_rust, observed, x, initial_params, shape_type, ascending)
 
 #' Optimize single profile with flexible algorithm selection
@@ -97,21 +200,20 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, algorithm) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, algorithm)
 
 #' Optimizes multiple profiles in batch with error collection and reporting.
+#' Optimizes multiple profiles in batch with error collection and reporting.
 #' Returns results as a structured list that R will process into proper format.
 #' 
-#' Called via R: `.Call("batch_optimize_profiles_rust", profiles_list, params_list, 
-#'                      x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
+#' Parallel batch optimization using rayon-based multi-threading. Each profile
+#' is independently optimized with error recovery.
 #' 
-#' # Arguments (from R)
-#' - profiles_list: List of numeric vectors (each profile)
-#' - params_list: List of numeric vectors (initial parameters for each profile)
-#' - x: numeric vector (depth positions, shared across all profiles)
-#' - shape_type: character shape function name
-#' - ascending: logical direction flag
-#' - objective_type: character objective function name ("rmse", "sse", "mae", "r2")
+#' @param profiles_list List of numeric vectors (each profile's observations)
+#' @param params_list List of numeric vectors (initial parameters for each profile)
+#' @param x Numeric vector: depth positions (shared across all profiles)
+#' @param shape_type Character: shape function family name
+#' @param ascending Logical: direction flag
+#' @param objective_type Character: objective function name ("rmse", "sse", "mae", "r2")
 #' 
-#' # Returns (to R)
-#' List with components (ungrouped, R will reconstruct):
+#' @return List with components:
 #' - profile_ids: integer vector of profile indices
 #' - params: list of numeric vectors (single NA for failed profiles)
 #' - rmse_values: numeric vector of final objective values
@@ -120,21 +222,37 @@ optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_ty
 #' - method: character indicating optimization method used
 #' - summary: character summary string
 #' - failed_count: integer number of failed profiles
+#' 
+#' @details
+#' Called via R: `.Call("batch_optimize_profiles_rust", profiles_list, params_list, 
+#'                      x, shape_type, ascending, objective_type, PACKAGE = "soilmotif")`
+#' @keywords internal
 batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) .Call(wrap__batch_optimize_profiles_rust, profiles_list, params_list, x, shape_type, ascending, objective_type)
 
 #' Parametric bootstrap engine (Rust implementation)
 #' 
-#' Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
+#' Core bootstrap resampling routine for uncertainty quantification.
+#' Performs parallel parametric bootstrap with error recovery and diagnostics.
 #' 
-#' The `config` parameter is an R list with fields:
-#' - shape_type: character
-#' - objective_name: character
-#' - optimizer_name: character
-#' - n_bootstrap: integer
-#' - seed: integer (negative for random)
-#' - fallback: logical
-#' - max_retries: integer
-#' - parallel: logical
+#' @param observed Numeric vector of observed property values at depth positions
+#' @param depths Numeric vector of depth positions (same length as observed)
+#' @param initial_params Numeric vector of initial shape function parameters
+#' @param config List with configuration fields:
+#'   - shape_type: character (shape family name)
+#'   - objective_name: character (objective function name)
+#'   - optimizer_name: character (optimization algorithm)
+#'   - n_bootstrap: integer (number of bootstrap replicates)
+#'   - seed: integer (random seed, negative for auto-seed)
+#'   - fallback: logical (enable fallback strategies)
+#'   - max_retries: integer (maximum retry attempts for failed iterations)
+#'   - parallel: logical (enable parallel execution via rayon)
+#' 
+#' @return List with bootstrap results including parameter samples, diagnostics, and convergence info
+#' 
+#' @details
+#' Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
+#' Uses parametric resampling by fitting initial shape, then re-sampling residuals and refitting.
+#' @keywords internal
 bootstrap_engine_rust <- function(observed, depths, initial_params, config) .Call(wrap__bootstrap_engine_rust, observed, depths, initial_params, config)
 
 

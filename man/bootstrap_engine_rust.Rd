@@ -6,19 +6,34 @@
 \usage{
 bootstrap_engine_rust(observed, depths, initial_params, config)
 }
+\arguments{
+\item{observed}{Numeric vector of observed property values at depth positions}
+
+\item{depths}{Numeric vector of depth positions (same length as observed)}
+
+\item{initial_params}{Numeric vector of initial shape function parameters}
+
+\item{config}{List with configuration fields:
+\itemize{
+\item shape_type: character (shape family name)
+\item objective_name: character (objective function name)
+\item optimizer_name: character (optimization algorithm)
+\item n_bootstrap: integer (number of bootstrap replicates)
+\item seed: integer (random seed, negative for auto-seed)
+\item fallback: logical (enable fallback strategies)
+\item max_retries: integer (maximum retry attempts for failed iterations)
+\item parallel: logical (enable parallel execution via rayon)
+}}
+}
+\value{
+List with bootstrap results including parameter samples, diagnostics, and convergence info
+}
 \description{
-Called via R: \code{.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")}
+Core bootstrap resampling routine for uncertainty quantification.
+Performs parallel parametric bootstrap with error recovery and diagnostics.
 }
 \details{
-The \code{config} parameter is an R list with fields:
-\itemize{
-\item shape_type: character
-\item objective_name: character
-\item optimizer_name: character
-\item n_bootstrap: integer
-\item seed: integer (negative for random)
-\item fallback: logical
-\item max_retries: integer
-\item parallel: logical
+Called via R: \code{.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")}
+Uses parametric resampling by fitting initial shape, then re-sampling residuals and refitting.
 }
-}
+\keyword{internal}

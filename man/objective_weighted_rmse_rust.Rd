@@ -12,6 +12,25 @@ objective_weighted_rmse_rust(
   weight_factor
 )
 }
+\arguments{
+\item{observed}{Numeric vector of observed values}
+
+\item{predicted}{Numeric vector of predicted values (same length as observed)}
+
+\item{depths}{Numeric vector of depth positions (same length as observed)}
+
+\item{target_depth}{Numeric: depth to emphasize (cm)}
+
+\item{weight_factor}{Numeric: weighting magnitude for target depth (default 1.0)}
+}
+\value{
+Numeric: weighted RMSE value
+}
 \description{
+Calculates Root Mean Squared Error with depth-dependent weighting to emphasize
+specific horizons or features.
+}
+\details{
 Called via R: \code{.Call("objective_weighted_rmse_rust", observed, predicted, depths, target_depth, weight_factor, PACKAGE = "soilmotif")}
 }
+\keyword{internal}

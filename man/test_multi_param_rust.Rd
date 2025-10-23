@@ -6,6 +6,20 @@
 \usage{
 test_multi_param_rust(`_a`, `_b`, `_c`, d)
 }
-\description{
-Called via R: \code{.Call("test_multi_param_rust", a, b, c, d, PACKAGE = "soilmotif")}
+\arguments{
+\item{_a}{Numeric: first parameter}
+
+\item{_b}{Numeric: second parameter}
+
+\item{_c}{Numeric: third parameter}
+
+\item{d}{Numeric: fourth parameter}
 }
+\value{
+Numeric vector containing input parameters in order
+}
+\description{
+Internal test function for verifying FFI argument passing correctness.
+Echoes input parameters to validate extendr wrapper generation.
+}
+\keyword{internal}

@@ -6,6 +6,15 @@
 \usage{
 \method{print}{bootstrap_result}(x, ...)
 }
+\arguments{
+\item{x}{A bootstrap_result object (returned from sm_optim_bootstrap)}
+
+\item{...}{Additional arguments passed to print methods (currently unused)}
+}
+\value{
+Invisibly returns x (standard print method convention)
+}
 \description{
-Print method for bootstrap_result objects
+Displays a summary of bootstrap results including shape family, number of samples,
+success rate, parameter confidence intervals, and diagnostic statistics.
 }

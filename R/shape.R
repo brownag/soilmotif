@@ -531,8 +531,8 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
 #' # Define control points for clay accumulation in argillic horizon
 #' clay_knots <- c(5, 0.05,    # 5 cm depth: 5% clay
 #'                 30, 0.15,   # 30 cm: 15% clay
-#'                 80, 0.40,   # 80 cm: 40% clay (maximum)
-#'                 150, 0.38)  # 150 cm: 38% clay (slight decrease)
+#'                 80, 0.40,   # 80 cm: 40% clay
+#'                 150, 0.42)  # 150 cm: 42% clay (continued increase)
 #'
 #' depths_eval <- 1:200
 #'

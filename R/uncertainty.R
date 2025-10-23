@@ -295,6 +295,14 @@ sm_optim_bootstrap <- function(
 }
 
 #' Print method for bootstrap_result objects
+#'
+#' Displays a summary of bootstrap results including shape family, number of samples,
+#' success rate, parameter confidence intervals, and diagnostic statistics.
+#'
+#' @param x A bootstrap_result object (returned from sm_optim_bootstrap)
+#' @param ... Additional arguments passed to print methods (currently unused)
+#'
+#' @return Invisibly returns x (standard print method convention)
 #' @export
 print.bootstrap_result <- function(x, ...) {
   cat("Parametric Bootstrap Results\n")
@@ -329,6 +337,15 @@ print.bootstrap_result <- function(x, ...) {
 }
 
 #' Summary method for bootstrap_result objects
+#'
+#' Provides detailed statistical summaries of bootstrap results including parameter
+#' statistics (mean, SD, confidence intervals, range) and diagnostic statistics
+#' (RMSE, R², AIC). Displays failed sample indices if any failures occurred.
+#'
+#' @param object A bootstrap_result object (returned from sm_optim_bootstrap)
+#' @param ... Additional arguments passed to summary methods (currently unused)
+#'
+#' @return Invisibly returns object$summary (summary statistics list)
 #' @export
 summary.bootstrap_result <- function(object, ...) {
   cat("Parametric Bootstrap Summary\n")
