@@ -37,3 +37,4 @@ Cargo.lock
 
 # Documentation
 .github/prompts
+.github/archived/

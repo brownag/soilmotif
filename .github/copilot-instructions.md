@@ -401,6 +401,66 @@ Common Pitfalls
 5. Assuming Rust modules exist before Phase 3 (only batch.rs, optimizer.rs, objective.rs, shape_functions.rs exist now)
 6. Forgetting that sm_prepare() must be called before optimization for data validation
 
+FFI Type Conversions (CRITICAL for Phase 3-03e)
+----------------------------------------------
+When returning `Option<T>` types from Rust via extendr FFI:
+
+**WRONG** (data loss):
+```rust
+list!(
+    ar1_coef = result_struct.ar1_coef,  // Option<f64> NOT auto-converted
+    // ...
+)
+```
+
+**RIGHT** (explicit conversion):
+```rust
+let ar1_coef_robj = match result_struct.ar1_coef {
+    Some(val) => Robj::from(val),
+    None => Robj::from(f64::NAN),       // Becomes NA in R
+};
+list!(
+    ar1_coef = ar1_coef_robj,
+    // ...
+)
+```
+
+**Why this matters**: Naively passing `Option<T>` results in the value disappearing (becoming NULL/NA) in R, even though computation succeeded in Rust. 
+
+**Apply to all Option types** returned via FFI. See `.github/PHASE-3E-FFI-DEBUGGING-GUIDE.md` for patterns.
+
+Sieve Bootstrap (Phase 3-03e Complete)
+--------------------------------------
+**Status**: Fully implemented and tested. AR(1) fitting works correctly after FFI fix.
+
+**What it does**:
+1. Fits AR(1) model to residuals from initial shape fit
+2. Resamples innovations non-parametrically while preserving autocorrelation
+3. Re-optimizes parameters for each bootstrap sample
+4. Returns confidence intervals + AR(1) coefficient (φ)
+
+**Auto-selection** (method="auto"):
+- n <= 20 observations: Use parametric bootstrap (assumes independence)
+- n > 20 observations: Use sieve bootstrap (accounts for AR(1))
+
+**Key exposed parameter** in R layer:
+- `result$ar1_coef`: The fitted AR(1) coefficient (±0 to ±1)
+  - Must be properly converted via FFI (see above)
+  - May be NA if AR(1) fitting failed and fallback used
+  - Used in vignettes to validate method assumptions
+
+**Fallback behavior**:
+- If AR(1) fitting fails and `strict=FALSE`: Fall back to parametric
+- If AR(1) fitting fails and `strict=TRUE`: Return error
+- Log: Check `result$message` to see which method was used
+
+**Validation checklist**:
+- [ ] Vignettes render without errors (critical: AR(1) values must display)
+- [ ] `ar1_coef` is numeric (not NULL, not inappropriately NA)
+- [ ] Manual R calculations match Rust results
+- [ ] All tests pass (especially test-uncertainty.R)
+- [ ] Examples in roxygen comments work correctly
+
 When You're Uncertain
 --------------------
 If a request is ambiguous or unclear, DO NOT GUESS. Instead:
