@@ -111,16 +111,16 @@ batch_optimize_profiles <- function(profiles,
   profiles <- lapply(profiles, as.numeric)
   initial_params_list <- lapply(initial_params_list, as.numeric)
 
-  # Call Rust batch optimizer
+  # Call Rust batch optimizer via defensive wrapper
+  # The wrapper provides error handling and proper type coercion
   tryCatch({
-    result <- .Call("wrap__batch_optimize_profiles_rust",
-      profiles,
-      initial_params_list,
-      as.numeric(x),
-      as.character(shape_type),
-      as.logical(ascending),
-      as.character(objective_type),
-      PACKAGE = "soilmotif"
+    result <- batch_optimize_profiles_rust(
+      profiles_list = profiles,
+      params_list = initial_params_list,
+      x = x,
+      shape_type = shape_type,
+      ascending = ascending,
+      objective_type = objective_type
     )
 
     # Validate result

@@ -1,6 +1,19 @@
 #' Rust Backend FFI Layer
 #'
-#' Low-level extendr FFI wrappers with error handling and fallbacks for Rust implementations.
+#' Defensive wrappers around extendr-generated FFI functions.
+#'
+#' These wrappers provide:
+#' - Error handling via tryCatch()
+#' - R fallback implementations
+#' - Type coercion (numeric, character, logical)
+#' - Consistent error messaging
+#'
+#' Architecture:
+#' - extendr-wrappers.R (auto-generated): Direct .Call() to C symbols
+#' - fit-rust-wrappers.R (this file): Error handling + R fallbacks
+#' - batch-wrappers.R & horizons.R: User-facing APIs
+#'
+#' New FFI functions should have wrappers added here before use.
 
 #' Check if Rust backend is available and loaded
 #'
@@ -400,5 +413,344 @@ compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
       r_time = as.numeric(r_time),
       rust_time = NA
     )
+  })
+}
+
+# ============================================================================
+# DEFENSIVE WRAPPERS FOR ADDITIONAL OBJECTIVE FUNCTIONS
+# ============================================================================
+# These functions were missing defensive wrappers and are now added
+
+#' Compute weighted RMSE via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param predicted numeric vector of predicted values
+#' @param depths numeric vector of depths (for weighting)
+#' @param target_depth numeric target depth for weighting
+#' @param weight_factor numeric weighting factor
+#'
+#' @return numeric weighted RMSE value
+#' @keywords internal
+objective_weighted_rmse_rust <- function(observed, predicted, depths, target_depth, weight_factor) {
+  if (!rust_backend_available()) {
+    # Simple R fallback: weight by proximity to target depth
+    weights <- exp(-weight_factor * abs(depths - target_depth))
+    sqrt(sum(weights * (observed - predicted)^2) / sum(weights))
+  }
+
+  tryCatch({
+    .Call("wrap__objective_weighted_rmse_rust",
+          as.numeric(observed),
+          as.numeric(predicted),
+          as.numeric(depths),
+          as.numeric(target_depth),
+          as.numeric(weight_factor),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust weighted RMSE failed: ", e$message, "; falling back to R")
+    weights <- exp(-weight_factor * abs(depths - target_depth))
+    sqrt(sum(weights * (observed - predicted)^2) / sum(weights))
+  })
+}
+
+#' Compute ordinal error via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param predicted numeric vector of predicted values
+#' @param depths numeric vector of depths
+#' @param underpredict_penalty numeric penalty for underprediction
+#' @param overpredict_penalty numeric penalty for overprediction
+#'
+#' @return numeric ordinal error value
+#' @keywords internal
+objective_ordinal_rust <- function(observed, predicted, depths, underpredict_penalty, overpredict_penalty) {
+  if (!rust_backend_available()) {
+    # Simple R fallback: asymmetric error
+    errors <- observed - predicted
+    sum(ifelse(errors < 0, abs(errors) * underpredict_penalty, abs(errors) * overpredict_penalty))
+  }
+
+  tryCatch({
+    .Call("wrap__objective_ordinal_rust",
+          as.numeric(observed),
+          as.numeric(predicted),
+          as.numeric(depths),
+          as.numeric(underpredict_penalty),
+          as.numeric(overpredict_penalty),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust ordinal error failed: ", e$message, "; falling back to R")
+    errors <- observed - predicted
+    sum(ifelse(errors < 0, abs(errors) * underpredict_penalty, abs(errors) * overpredict_penalty))
+  })
+}
+
+#' Compute bounded error via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param predicted numeric vector of predicted values
+#' @param depths numeric vector of depths
+#' @param obs_min numeric minimum observed value
+#' @param obs_max numeric maximum observed value
+#' @param penalty_factor numeric penalty for violations
+#'
+#' @return numeric bounded error value
+#' @keywords internal
+objective_bounded_rust <- function(observed, predicted, depths, obs_min, obs_max, penalty_factor) {
+  if (!rust_backend_available()) {
+    # Simple R fallback: penalize out-of-bounds
+    out_of_bounds <- (predicted < obs_min) | (predicted > obs_max)
+    base_error <- sum((observed - predicted)^2)
+    base_error + sum(out_of_bounds) * penalty_factor
+  }
+
+  tryCatch({
+    .Call("wrap__objective_bounded_rust",
+          as.numeric(observed),
+          as.numeric(predicted),
+          as.numeric(depths),
+          as.numeric(obs_min),
+          as.numeric(obs_max),
+          as.numeric(penalty_factor),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust bounded error failed: ", e$message, "; falling back to R")
+    out_of_bounds <- (predicted < obs_min) | (predicted > obs_max)
+    base_error <- sum((observed - predicted)^2)
+    base_error + sum(out_of_bounds) * penalty_factor
+  })
+}
+
+#' Compute Huber loss via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param predicted numeric vector of predicted values
+#' @param depths numeric vector of depths
+#' @param delta numeric Huber loss threshold
+#'
+#' @return numeric Huber loss value
+#' @keywords internal
+objective_huber_rust <- function(observed, predicted, depths, delta) {
+  if (!rust_backend_available()) {
+    # R fallback: Huber loss
+    errors <- observed - predicted
+    sum(ifelse(abs(errors) <= delta,
+               0.5 * errors^2,
+               delta * (abs(errors) - 0.5 * delta)))
+  }
+
+  tryCatch({
+    .Call("wrap__objective_huber_rust",
+          as.numeric(observed),
+          as.numeric(predicted),
+          as.numeric(depths),
+          as.numeric(delta),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust Huber loss failed: ", e$message, "; falling back to R")
+    errors <- observed - predicted
+    sum(ifelse(abs(errors) <= delta,
+               0.5 * errors^2,
+               delta * (abs(errors) - 0.5 * delta)))
+  })
+}
+
+#' Compute quantile loss via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param predicted numeric vector of predicted values
+#' @param depths numeric vector of depths
+#' @param quantile numeric quantile level (0-1)
+#'
+#' @return numeric quantile loss value
+#' @keywords internal
+objective_quantile_rust <- function(observed, predicted, depths, quantile) {
+  if (!rust_backend_available()) {
+    # R fallback: quantile loss
+    errors <- observed - predicted
+    sum(ifelse(errors >= 0,
+               quantile * errors,
+               (quantile - 1) * errors))
+  }
+
+  tryCatch({
+    .Call("wrap__objective_quantile_rust",
+          as.numeric(observed),
+          as.numeric(predicted),
+          as.numeric(depths),
+          as.numeric(quantile),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust quantile loss failed: ", e$message, "; falling back to R")
+    errors <- observed - predicted
+    sum(ifelse(errors >= 0,
+               quantile * errors,
+               (quantile - 1) * errors))
+  })
+}
+
+#' Recommend optimization algorithm via Rust backend
+#'
+#' @param n_params integer number of parameters
+#' @param n_obs integer number of observations
+#' @param objective_type character objective function type
+#'
+#' @return character recommended algorithm name
+#' @keywords internal
+recommend_optimizer_rust <- function(n_params, n_obs, objective_type) {
+  if (!rust_backend_available()) {
+    # Simple heuristic for R fallback
+    if (n_params <= 3) "nelder_mead" else "particle_swarm"
+  }
+
+  tryCatch({
+    .Call("wrap__recommend_optimizer_rust",
+          as.integer(n_params),
+          as.integer(n_obs),
+          as.character(objective_type),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust algorithm recommendation failed: ", e$message)
+    if (n_params <= 3) "nelder_mead" else "particle_swarm"
+  })
+}
+
+#' Optimize single profile via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param x numeric vector of depths
+#' @param initial_params numeric vector of initial parameters
+#' @param shape_type character name of shape function
+#' @param ascending logical direction flag
+#'
+#' @return numeric vector of optimized parameters
+#' @keywords internal
+optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending) {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available for optimize_profile_rust")
+  }
+
+  tryCatch({
+    .Call("wrap__optimize_profile_rust",
+          as.numeric(observed),
+          as.numeric(x),
+          as.numeric(initial_params),
+          as.character(shape_type),
+          as.logical(ascending),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    warning("Rust single profile optimization failed: ", e$message,
+            "; returning initial parameters")
+    initial_params
+  })
+}
+
+#' Batch optimize profiles via Rust backend
+#'
+#' @param profiles_list list of numeric vectors (profiles)
+#' @param params_list list of numeric vectors (initial parameters)
+#' @param x numeric vector of depths
+#' @param shape_type character name of shape function
+#' @param ascending logical direction flag
+#' @param objective_type character objective function name
+#'
+#' @return list with results (handled by batch_optimize_profiles user wrapper)
+#' @keywords internal
+batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available for batch_optimize_profiles_rust")
+  }
+
+  tryCatch({
+    .Call("wrap__batch_optimize_profiles_rust",
+          profiles_list,
+          params_list,
+          as.numeric(x),
+          as.character(shape_type),
+          as.logical(ascending),
+          as.character(objective_type),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    stop("Rust batch optimization failed: ", e$message)
+  })
+}
+
+#' Bootstrap engine via Rust backend
+#'
+#' @param observed numeric vector of observed values
+#' @param depths numeric vector of depths
+#' @param initial_params numeric vector of initial parameters
+#' @param config list with bootstrap configuration
+#'
+#' @return list with bootstrap results
+#' @keywords internal
+bootstrap_engine_rust <- function(observed, depths, initial_params, config) {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available for bootstrap_engine_rust")
+  }
+
+  tryCatch({
+    .Call("wrap__bootstrap_engine_rust",
+          as.numeric(observed),
+          as.numeric(depths),
+          as.numeric(initial_params),
+          config,
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    stop("Rust bootstrap failed: ", e$message)
+  })
+}
+
+#' Mahalanobis boundary detection via Rust backend
+#'
+#' @param element_matrix numeric matrix of element concentrations
+#' @param depths numeric vector of depths
+#' @param window_size integer size of sliding window
+#'
+#' @return list with boundary detection results
+#' @keywords internal
+mahalanobis_boundary_detection_rust <- function(element_matrix, depths, window_size) {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available for mahalanobis_boundary_detection_rust")
+  }
+
+  tryCatch({
+    .Call("wrap__mahalanobis_boundary_detection_rust",
+          as.matrix(element_matrix),
+          as.numeric(depths),
+          as.integer(window_size),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    stop("Rust Mahalanobis boundary detection failed: ", e$message)
+  })
+}
+
+#' Fuzzy k-means clustering via Rust backend
+#'
+#' @param data numeric matrix of data to cluster
+#' @param k integer number of clusters
+#' @param m numeric fuzziness parameter
+#' @param max_iter integer maximum iterations
+#' @param tol numeric convergence tolerance
+#' @param centers_init numeric matrix of initial centers
+#'
+#' @return list with clustering results (centers, memberships, entropy, etc.)
+#' @keywords internal
+fuzzy_kmeans_rust <- function(data, k, m, max_iter, tol, centers_init) {
+  if (!rust_backend_available()) {
+    stop("Rust backend not available for fuzzy_kmeans_rust")
+  }
+
+  tryCatch({
+    .Call("wrap__fuzzy_kmeans_rust",
+          as.matrix(data),
+          as.integer(k),
+          as.numeric(m),
+          as.integer(max_iter),
+          as.numeric(tol),
+          as.matrix(centers_init),
+          PACKAGE = "soilmotif")
+  }, error = function(e) {
+    stop("Rust fuzzy k-means failed: ", e$message)
   })
 }
