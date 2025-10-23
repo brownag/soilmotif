@@ -288,6 +288,29 @@
 #' identify horizon boundaries in multivariate soil data (e.g., pXRF element
 #' concentrations).
 #'
+#' @details
+#' **IMPORTANT: Data Preparation for Field-Described Horizons**
+#'
+#' This algorithm requires smooth variation in element composition. Field-described
+#' horizons typically have constant values within each described layer. To apply
+#' this function to field data:
+#'
+#' 1. Start with layer-wise data (top, bottom, element values)
+#' 2. Interpolate using smooth methods such as:
+#'    - mpspline2 package (Mass-Preserving Splines)
+#'    - Spline interpolation with control via boundary distinctness
+#'    - Linear interpolation at boundaries
+#'
+#' 3. Use boundary distinctness classes to control transition sharpness:
+#'    - "abrupt": 2 cm transitions (sharp contact)
+#'    - "clear": 5 cm transitions (typical)
+#'    - "gradual": 10+ cm transitions (diffuse boundary)
+#'
+#' **Why interpolation is needed:**
+#' Without smooth variation, element values are constant within horizons, creating
+#' singular covariance matrices. This prevents distance computation. Interpolation
+#' adds realistic variation consistent with boundary distinctness classes.
+#'
 #' @param data data.frame with depth and element concentration columns
 #' @param depth_col character. Name of depth column. Default: "depth"
 #' @param element_cols character vector. Element column names. If NULL, uses all
@@ -320,7 +343,8 @@
 #' @export
 #' @examples
 #' \dontrun{
-#' # Generate synthetic data with 3 distinct horizons
+#' # Example: Using interpolated field data
+#' # (Field-described horizons must be interpolated first using mpspline2 or similar)
 #' set.seed(42)
 #' data <- data.frame(
 #'   depth = 0:100,
@@ -333,7 +357,7 @@
 #' boundaries <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 1.0)
 #' print(boundaries)
 #'
-#' # Try different threshold (more conservative)
+#' # More conservative threshold
 #' boundaries2 <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 2.0)
 #' print(boundaries2)
 #' }
