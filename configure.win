@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Configure script for soilmotif on Windows
+# Builds the Rust backend using cargo and prepares the shared object
+# This script is called by R CMD INSTALL on Windows systems
+
+set -e
+
+# Check if cargo is available
+if ! command -v cargo &> /dev/null; then
+    echo "Warning: cargo not found. Rust functionality will not be compiled."
+    echo "Please install Rust from https://rustup.rs/"
+    echo "On Windows, the Rust installer (rustup-init.exe) will guide you through setup."
+    exit 0
+fi
+
+# Get the package root (same directory as this script)
+PACKAGE_ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$PACKAGE_ROOT"
+
+# Determine OpenBLAS build type
+# On Windows, static linking is typically preferred
+USE_STATIC_OPENBLAS=1
+
+# Check for explicit override
+if [ "${SOILMOTIF_OPENBLAS_STATIC:-}" = "1" ] || [ "${SOILMOTIF_OPENBLAS_STATIC:-}" = "true" ]; then
+    echo "Using static OpenBLAS (forced by SOILMOTIF_OPENBLAS_STATIC)"
+    USE_STATIC_OPENBLAS=1
+else
+    # Check if system OpenBLAS is available
+    # On Windows, system OpenBLAS is less common, so default to static
+    if command -v pkg-config &> /dev/null && pkg-config --exists openblas; then
+        echo "System OpenBLAS detected, using system libraries"
+        USE_STATIC_OPENBLAS=0
+    else
+        echo "System OpenBLAS not found, using static build (default for Windows)"
+        USE_STATIC_OPENBLAS=1
+    fi
+fi
+
+# Set environment variables for OpenBLAS build
+if [ "$USE_STATIC_OPENBLAS" -eq 1 ]; then
+    export RUSTFLAGS="--cfg openblas_static $RUSTFLAGS"
+    echo "Building with static OpenBLAS (more portable on Windows)"
+else
+    export RUSTFLAGS="--cfg openblas_system $RUSTFLAGS"
+    echo "Building with system OpenBLAS"
+fi
+
+# Force clean of src artifacts to ensure fresh build
+echo "Cleaning previous build artifacts..."
+rm -f src/libsoilmotif.a src/libsoilmotif.a.bak
+
+# Clean cargo build if this is a fresh build
+if [ ! -d target/release ]; then
+    echo "Fresh build detected, cleaning cargo cache..."
+    cargo clean 2>/dev/null || true
+fi
+
+# Build Rust code in release mode
+echo "Building Rust backend..."
+cargo build --release --target-dir target 2>&1
+
+# Ensure the compiled library exists
+if [ ! -f target/release/libsoilmotif.a ]; then
+    echo "Error: Rust library not found at target/release/libsoilmotif.a"
+    echo "Build may have failed. Check cargo output above."
+    exit 1
+fi
+
+# Copy the library to src so it gets included in the package
+mkdir -p src
+echo "Copying Rust library to src/libsoilmotif.a..."
+cp -f target/release/libsoilmotif.a src/libsoilmotif.a
+
+# Verify the copy was successful
+if [ ! -f src/libsoilmotif.a ]; then
+    echo "Error: Failed to copy Rust library to src/"
+    exit 1
+fi
+
+echo "Rust backend built successfully at: src/libsoilmotif.a"
+
+# Generate Makevars from Makevars.in
+echo "Generating Makevars from Makevars.win.in..."
+if [ -f src/Makevars.win.in ]; then
+    cp src/Makevars.win.in src/Makevars.win
+fi
+
+exit 0

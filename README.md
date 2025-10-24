@@ -21,60 +21,15 @@ You can install the development version of {soilmotif} like so:
 remotes::install_github("brownag/soilmotif")
 ```
 
-## Development
+### Building from Source
 
-The package includes a `Makefile` with common development workflows. This file is ignored by `.Rbuildignore` and should not be included in releases.
+{soilmotif} includes a high-performance Rust backend. For detailed
+installation instructions, platform-specific troubleshooting, and Rust
+compiler setup, see [inst/INSTALL.md](inst/INSTALL.md).
 
-### Quick Setup
-
-Install development dependencies:
-
-``` bash
-make install
-```
-
-### Common Development Tasks
-
-``` bash
-# Run the full test suite
-make test
-
-# Run fast tests (skip integration tests)
-make test-fast
-
-# Run R CMD check (fast version without vignettes)
-make check-fast
-
-# Generate documentation with roxygen2
-make document
-
-# Full development cycle: document, test, check
-make dev-cycle
-
-# Clean build artifacts and Rust target directory
-make clean
-
-# Rebuild and reinstall package
-make rebuild
-```
-
-### Available Makefile Targets
-
-- `make install` - Install package dependencies
-- `make build` - Build package tarball
-- `make install-pkg` - Install package from source
-- `make test` - Run full test suite
-- `make test-fast` - Run tests without integration
-- `make check` - Run R CMD check
-- `make check-fast` - Run fast R CMD check (no vignettes, no manual)
-- `make document` - Generate documentation with roxygen2
-- `make clean` - Clean build artifacts
-- `make benchmark` - Run performance benchmarks
-- `make validate` - Run comprehensive validation
-- `make dev-cycle` - Quick development cycle (document, test-fast, check-fast)
-- `make release-prep` - Full release preparation (document, test, check)
-- `make install-test` - Install and test in one go
-- `make rebuild` - Clean build and reinstall
+**Quick Requirements:** - C compiler (included with Rtools, Xcode, or
+build-essential) - Rust toolchain (optional but recommended):
+<https://www.rust-lang.org/tools/install>
 
 ## Example
 
@@ -126,7 +81,7 @@ lines(sm_motif(depl_step, c(40, 60)), 1:200, col = "red", lty = 2)
 m <- sm_optim(depl_step, c(40, 60))
 lines(m, 1:200, col = "blue")
 attr(m, "par")
-#> [1] 156.6496 156.7814
+#> [1] 157.0151 156.2017
 
 legend("topright", c("Input", "Initial", "Optimized"),
        pch = c("+", NA, NA),
@@ -167,7 +122,7 @@ lines(sm_motif(clay_spline, c(25, 100)), 1:200, col = "red", lty = 2)
 m <- sm_optim(clay_spline, c(25, 100))
 lines(m, 1:200, col = "blue")
 attr(m, "par")
-#> [1] 15.42749 73.44347
+#> [1] -76.41114 163.62210
 
 legend("bottomleft", c("Input", "Initial", "Optimized"),
        pch = c("+", NA, NA),
@@ -181,82 +136,73 @@ In this case we find that the optimized parameters result in a steeper
 gradient of property increase than was initially guessed with parameters
 `c(25, 100)`, which had the “initial” transition centered around 63 cm.
 The “optimized” curve is shifted upwards by about 20 cm, with final
-parameters 15.4274881, 73.4434748 reflecting a smooth spline increase
+parameters -76.4111413, 163.6220971 reflecting a smooth spline increase
 around 45 cm.
 
-## R Ecosystem Integration
+## Uncertainty Quantification via Bootstrap
 
-{soilmotif} provides seamless integration with popular R packages for enhanced workflows:
+{soilmotif} provides bootstrap methods to estimate confidence intervals
+for fitted parameters. The framework automatically selects the optimal
+resampling method based on data characteristics:
 
-### Broom Integration
+- **Parametric Bootstrap**: For sparse data (n \<= threshold), residuals
+  are resampled from a normal distribution
+- **Sieve Bootstrap**: For dense data (n \> threshold), residuals follow
+  an AR(1) process and are non-parametrically resampled
 
-Extract model summaries, diagnostics, and predictions in tidy format:
+### Usage
 
 ``` r
 library(soilmotif)
-library(broom)
 
-# Fit a model
-fit <- sm_optim(clay_spline, c(25, 100))
-
-# Tidy parameter estimates
-tidy(fit)
-
-# Model diagnostics
-glance(fit)
-
-# Predictions and residuals
-augment(fit)
-```
-
-### Bootstrap Uncertainty Quantification
-
-``` r
-# Bootstrap uncertainty
-boot <- sm_optim_bootstrap(
-  clay_spline, depths = 1:200,
+# Automatic method selection based on data size
+result <- sm_optim_bootstrap(
+  observed = clay_spline,
   initial_params = c(25, 100),
-  n_bootstrap = 100
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  ci = 0.95,
+  method = "auto"
 )
 
-# Parameter estimates with confidence intervals
-tidy(boot)
+# View results with confidence intervals
+print(result)
+summary(result)
 
-# Bootstrap diagnostics
-glance(boot)
+# Access specific intervals
+result$param_ci_lower   # Lower bounds
+result$param_ci_upper   # Upper bounds
+result$method_used      # Which method was applied
+result$ar1_coef         # AR(1) coefficient (sieve only)
 
-# Predictions with uncertainty bands
-augment(boot)
+# Explicit method selection
+result_sieve <- sm_optim_bootstrap(
+  observed = clay_spline,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "sieve"
+)
+
+result_param <- sm_optim_bootstrap(
+  observed = clay_spline,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "parametric"
+)
 ```
 
-### Visualization
+### AR(1) Modeling for Dense Data
 
-{soilmotif} provides both base R and ggplot2-compatible plotting:
+When the sieve bootstrap is applied, residuals are modeled using an
+AR(1) process:
 
-``` r
-# Base R plotting
-plot(fit)      # Profile plot
-plot(boot)     # With uncertainty bands
+**r_t = phi \* r\_(t-1) + epsilon_t**
 
-# ggplot2 integration
-library(ggplot2)
-plot_data <- extract_plot_data(fit)
-ggplot(plot_data, aes(x = .fitted, y = .depth)) +
-  geom_line() +
-  geom_ribbon(data = augment(boot), 
-              aes(xmin = .lower, xmax = .upper), alpha = 0.3) +
-  scale_y_reverse()
-```
-
-### Bayesian Integration
-
-Convert optimization results to informative priors for Bayesian modeling:
-
-``` r
-# Generate priors for brms/rstan
-priors <- sm_to_brms_priors(fit, shape_family = "sigmoid")
-priors <- sm_to_stan_priors(fit, shape_family = "sigmoid")
-```
+The AR(1) coefficient is estimated using Yule-Walker equations and
+exposed in the results. This approach is more appropriate for spatially
+correlated residuals commonly found in soil profiles.
 
 ## Rust Backend (High-Performance)
 

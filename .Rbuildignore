@@ -9,6 +9,12 @@
 ^rust-toolchain\.toml$
 ^target/
 ^Makefile$
+^scripts$
+^\.github$
+^cleanup$
 ^src/.*\.o$
 ^src/.*\.a$
 ^src/.*\.so$
+^src/Makefile$
+^src/Makevars$
+^src/Makevars\.win$

@@ -1,0 +1,13 @@
+citHeader("To cite soilmotif in publications use:")
+
+citEntry(
+  entry = "Software",
+  author = personList(person(given = "Andrew", family = "Brown")),
+  title = "soilmotif: Analyze, Fit, and Generalize Soil Depth Functions",
+  year = "2025",
+  note = "R package version 0.1.0",
+  url = "https://github.com/brownag/soilmotif",
+  textVersion = "Brown, A. (2025) soilmotif: Analyze, Fit, and Generalize Soil Depth Functions. R package version 0.1.0."
+)
+
+citFooter("As soilmotif is still in active development, citation information may change. Minor version changes may contain breaking changes up until 1.x.x. Please check the package documentation for the latest citation guidelines.")

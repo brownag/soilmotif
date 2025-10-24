@@ -11,6 +11,7 @@ Rplots.pdf
 src/*.o
 src/*.so
 src/*.a
+src/symbols.rds
 src/Makefile
 src/Makevars
 src/Makevars.win
@@ -38,3 +39,4 @@ Cargo.lock
 
 # Temporary AI agent workspace (should NOT be committed)
 .github/working/
+CLAUDE.md

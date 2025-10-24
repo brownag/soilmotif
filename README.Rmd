@@ -28,6 +28,14 @@ You can install the development version of {soilmotif} like so:
 remotes::install_github("brownag/soilmotif")
 ```
 
+### Building from Source
+
+{soilmotif} includes a high-performance Rust backend. For detailed installation instructions, platform-specific troubleshooting, and Rust compiler setup, see [inst/INSTALL.md](inst/INSTALL.md).
+
+**Quick Requirements:**
+- C compiler (included with Rtools, Xcode, or build-essential)
+- Rust toolchain (optional but recommended): https://www.rust-lang.org/tools/install
+
 ## Example
 
 This is a basic example which shows you how to fit a sigmoidal depth distribution model to a step and spline representations of some soil property data as a function of depth.
