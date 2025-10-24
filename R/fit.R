@@ -223,9 +223,9 @@ sm_optim <- function(x, X, ...,
   method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
   lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
   upper <- if (length(X) == 1) 1 else Inf
-  
-  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
-                      method = method, lower = lower, upper = upper)
+
+  fit <- suppressWarnings(stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
+                      method = method, lower = lower, upper = upper))
   
   # Only sort for specific motif types where it makes sense
   final_par <- fit$par
@@ -347,9 +347,9 @@ sm_optim_r_impl <- function(x, X, ...,
   method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
   lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
   upper <- if (length(X) == 1) 1 else Inf
-  
-  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
-                      method = method, lower = lower, upper = upper)
+
+  fit <- suppressWarnings(stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
+                      method = method, lower = lower, upper = upper))
   
   # Only sort for specific motif types where it makes sense
   final_par <- fit$par

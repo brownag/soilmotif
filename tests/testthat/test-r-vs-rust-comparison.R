@@ -94,17 +94,17 @@ test_that("Mahalanobis R vs Rust: distances match within tolerance", {
     window_size = 10,
     method = "local_maxima"
   )
-  # Use raw_distances if available, fallback to distances
+  # Use raw_distances (keep full length with NAs)
   distances_r <- if (!is.null(result_r$raw_distances)) {
-    na.omit(result_r$raw_distances)
+    result_r$raw_distances
   } else if (!is.null(result_r$distances)) {
-    na.omit(result_r$distances)
+    result_r$distances
   } else {
     numeric(0)
   }
 
   # Skip if R implementation didn't produce distances
-  if (length(distances_r) == 0) {
+  if (length(distances_r) == 0 || all(is.na(distances_r))) {
     skip("R implementation did not produce distances for this test data")
   }
 
@@ -143,8 +143,7 @@ test_that("Mahalanobis R vs Rust: distances match within tolerance", {
     expect_lt(rmse / mean(distances_r_clean), 0.1,
               label = "Relative RMSE")
   }, error = function(e) {
-    # Rust FFI not available - that's ok, it's still in development
-    skip("Rust FFI not yet registered")
+    warning(e)
   })
 })
 
@@ -273,7 +272,7 @@ test_that("Fuzzy k-means Rust FFI: function callable and returns correct structu
     )
 
     # Check structure
-    expect_is(result_rust, "list")
+    expect_type(result_rust, "list")
     expect_named(result_rust, c("centers", "memberships", "entropy", "converged", "iterations"))
 
     # Check dimensions

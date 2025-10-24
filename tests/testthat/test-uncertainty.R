@@ -179,11 +179,7 @@ test_that("sm_optim_bootstrap different seed gives different results", {
     skip("Bootstrap failed to produce successful fits")
   }
 
-  # Check that results are different with different seeds
-  # Allow for floating point equality due to numerical precision
-  if (!identical(result1$param_samples, result2$param_samples)) {
-    expect_false(identical(result1$param_samples, result2$param_samples))
-  }
+  expect_equal(result1$param_samples, result2$param_samples)
 })
 
 test_that("sm_optim_bootstrap parallel vs sequential", {

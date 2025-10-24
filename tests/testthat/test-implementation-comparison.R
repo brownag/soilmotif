@@ -185,8 +185,11 @@ test_that("Fuzzy k-means: convergence behavior is correct", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Run with different max_iter
-  result_short <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 10)
-  result_long <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 200)
+
+    result_short <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 10)
+
+
+    result_long <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 200)
 
   cat("\n  Iterations (max=10):", result_short$iterations)
   cat("\n  Iterations (max=200):", result_long$iterations)
@@ -209,9 +212,14 @@ test_that("Fuzzy k-means: different k values produce different results", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Test different k values
-  result_k2 <- horizon_classify_fuzzy(data, n_horizons = 2)
-  result_k3 <- horizon_classify_fuzzy(data, n_horizons = 3)
-  result_k4 <- horizon_classify_fuzzy(data, n_horizons = 4)
+
+    result_k2 <- horizon_classify_fuzzy(data, n_horizons = 2)
+
+
+    result_k3 <- horizon_classify_fuzzy(data, n_horizons = 3)
+
+
+    result_k4 <- horizon_classify_fuzzy(data, n_horizons = 4)
 
   # Check that memberships are different
   expect_false(identical(result_k2$memberships, result_k3$memberships))
@@ -235,9 +243,14 @@ test_that("Fuzzy k-means: entropy increases with fuzziness", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Different m (fuzziness) values
-  result_crisp <- horizon_classify_fuzzy(data, n_horizons = 3, m = 1.1)
-  result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
-  result_very_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
+
+    result_crisp <- horizon_classify_fuzzy(data, n_horizons = 3, m = 1.1)
+
+
+    result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
+
+
+    result_very_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
 
   entropy_crisp <- mean(result_crisp$entropy)
   entropy_fuzzy <- mean(result_fuzzy$entropy)
@@ -263,10 +276,12 @@ test_that("Fuzzy k-means: reproducible with same seed", {
   }
 
   data1 <- create_test_data()
-  result1 <- horizon_classify_fuzzy(data1, n_horizons = 3)
+
+    result1 <- horizon_classify_fuzzy(data1, n_horizons = 3)
 
   data2 <- create_test_data()
-  result2 <- horizon_classify_fuzzy(data2, n_horizons = 3)
+
+    result2 <- horizon_classify_fuzzy(data2, n_horizons = 3)
 
   # Results should be identical
   expect_equal(result1$memberships, result2$memberships)
@@ -291,7 +306,8 @@ test_that("Both methods work on same dataset", {
 
   # Run both analyses
   result_mahal <- horizon_boundaries_mahalanobis(data, window_size = 10)
-  result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3)
+
+    result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3)
 
   # Both should succeed
   expect_s3_class(result_mahal, "horizon_boundaries")

@@ -361,6 +361,88 @@
 #' boundaries2 <- horizon_boundaries_mahalanobis(data, window_size = 15, threshold = 2.0)
 #' print(boundaries2)
 #' }
+#' Internal: Compute Mahalanobis distances using R implementation
+#'
+#' @param element_matrix Numeric matrix of element concentrations (n_depths x n_elements)
+#' @param depths Numeric vector of depth values
+#' @param window_size Numeric. Window size in depth units
+#'
+#' @return Numeric vector of Mahalanobis distances
+#' @noRd
+._mahalanobis_distances_r <- function(element_matrix, depths, window_size) {
+  n_depths <- length(depths)
+  distances <- rep(NA_real_, n_depths)
+
+  for (i in seq_along(depths)) {
+    center_depth <- depths[i]
+
+    # Define windows before and after this depth
+    before_window <- depths >= (center_depth - window_size) & depths < center_depth
+    after_window <- depths > center_depth & depths <= (center_depth + window_size)
+
+    if (sum(before_window) >= 2 && sum(after_window) >= 2) {
+      # Get data for each window
+      before_data <- element_matrix[before_window, , drop = FALSE]
+      after_data <- element_matrix[after_window, , drop = FALSE]
+
+      # Compute centers
+      before_center <- colMeans(before_data, na.rm = TRUE)
+      after_center <- colMeans(after_data, na.rm = TRUE)
+
+      # Pooled covariance
+      before_cov <- stats::cov(before_data, use = "complete.obs")
+      after_cov <- stats::cov(after_data, use = "complete.obs")
+      pooled_cov <- (before_cov + after_cov) / 2
+
+      # Check for singular covariance
+      cov_det <- try(det(pooled_cov), silent = TRUE)
+      if (!inherits(cov_det, "try-error") && abs(cov_det) >= 1e-10) {
+        # Mahalanobis distance between window centers
+        diff <- after_center - before_center
+        cov_inv <- try(solve(pooled_cov), silent = TRUE)
+
+        if (!inherits(cov_inv, "try-error")) {
+          mahal_dist <- sqrt(as.numeric(t(diff) %*% cov_inv %*% diff))
+          distances[i] <- mahal_dist
+        }
+      }
+    }
+  }
+
+  distances
+}
+
+
+#' Internal: Compute Mahalanobis distances (dispatch wrapper)
+#'
+#' Tries Rust implementation first, falls back to R
+#'
+#' @param element_matrix Numeric matrix of element concentrations
+#' @param depths Numeric vector of depth values
+#' @param window_size Numeric. Window size in depth units
+#'
+#' @return Numeric vector of Mahalanobis distances
+#' @noRd
+._mahalanobis_distances <- function(element_matrix, depths, window_size) {
+  # Try Rust implementation first if available
+  if (rust_backend_available()) {
+    tryCatch({
+      return(.Call(
+        "wrap__mahalanobis_boundary_detection_rust",
+        element_matrix, depths, as.integer(window_size),
+        PACKAGE = "soilmotif"
+      ))
+    }, error = function(e) {
+      # Fall back to R implementation
+      NULL
+    })
+  }
+
+  # Use R implementation
+  ._mahalanobis_distances_r(element_matrix, depths, window_size)
+}
+
+
 horizon_boundaries_mahalanobis <- function(data,
                                             depth_col = "depth",
                                             element_cols = NULL,
@@ -411,47 +493,8 @@ horizon_boundaries_mahalanobis <- function(data,
     stop("Not enough valid windows. Try reducing window_size or checking data quality.")
   }
 
-  # Compute Mahalanobis distances using split-window approach
-  # For each depth, compare window before vs window after
-  n_depths <- length(depths)
-  distances <- rep(NA_real_, n_depths)
-  half_window <- window_size / 2
-
-  for (i in seq_along(depths)) {
-    center_depth <- depths[i]
-
-    # Define windows before and after this depth
-    before_window <- depths >= (center_depth - window_size) & depths < center_depth
-    after_window <- depths > center_depth & depths <= (center_depth + window_size)
-
-    if (sum(before_window) >= 2 && sum(after_window) >= 2) {
-      # Get data for each window
-      before_data <- element_matrix[before_window, , drop = FALSE]
-      after_data <- element_matrix[after_window, , drop = FALSE]
-
-      # Compute centers
-      before_center <- colMeans(before_data, na.rm = TRUE)
-      after_center <- colMeans(after_data, na.rm = TRUE)
-
-      # Pooled covariance
-      before_cov <- stats::cov(before_data, use = "complete.obs")
-      after_cov <- stats::cov(after_data, use = "complete.obs")
-      pooled_cov <- (before_cov + after_cov) / 2
-
-      # Check for singular covariance
-      cov_det <- try(det(pooled_cov), silent = TRUE)
-      if (!inherits(cov_det, "try-error") && abs(cov_det) >= 1e-10) {
-        # Mahalanobis distance between window centers
-        diff <- after_center - before_center
-        cov_inv <- try(solve(pooled_cov), silent = TRUE)
-
-        if (!inherits(cov_inv, "try-error")) {
-          mahal_dist <- sqrt(as.numeric(t(diff) %*% cov_inv %*% diff))
-          distances[i] <- mahal_dist
-        }
-      }
-    }
-  }
+  # Compute Mahalanobis distances
+  distances <- ._mahalanobis_distances(element_matrix, depths, window_size)
 
   # Detect boundaries
   boundary_indices <- .detect_boundaries(distances, depths, method,
@@ -730,7 +773,7 @@ summary.horizon_boundaries <- function(object, ...) {
 #'   Default: FALSE (cluster by element composition only). Set TRUE for noisy
 #'   data to encourage spatial grouping.
 #' @param use_rust logical. Use Rust implementation? Default: TRUE (when available).
-#'   Currently only R implementation available.
+#'   Falls back to R implementation if Rust not available.
 #'
 #' @return Object of class "fuzzy_horizons" (S3 list) with components:
 #'   \itemize{
@@ -785,6 +828,11 @@ horizon_classify_fuzzy <- function(data,
     stop("data must be a data.frame")
   }
 
+  # Validate m parameter (required by Rust implementation)
+  if (!is.numeric(m) || m <= 1.0) {
+    stop("Fuzziness exponent m must be > 1.0, got: ", m)
+  }
+
   # Auto-detect element columns if not specified
   if (is.null(element_cols)) {
     numeric_cols <- names(data)[sapply(data, is.numeric)]
@@ -834,19 +882,57 @@ horizon_classify_fuzzy <- function(data,
     element_matrix <- cbind(element_matrix, depth = depth_standardized)
   }
 
-  # Call implementation
-  # Note: use_rust ignored for now (only R implementation)
-  if (use_rust) {
-    warning("Rust implementation not yet available, using R implementation",
-            call. = FALSE)
+  # Call implementation (try Rust first if available)
+  result_raw <- NULL
+  method_used <- "r"
+
+  if (use_rust && rust_backend_available()) {
+    # Try Rust implementation
+    tryCatch({
+      # Initialize centers for Rust
+      if (init_method == "kmeans") {
+        km_init <- stats::kmeans(element_matrix, centers = n_horizons, nstart = 10)
+        centers_init <- km_init$centers
+      } else {
+        set.seed(NULL)
+        init_indices <- sample(nrow(element_matrix), n_horizons)
+        centers_init <- element_matrix[init_indices, , drop = FALSE]
+      }
+
+      # Call Rust implementation directly via .Call
+      rust_result <- .Call(
+        "wrap__fuzzy_kmeans_rust",
+        element_matrix, as.integer(n_horizons), as.numeric(m),
+        as.integer(max_iter), as.numeric(tolerance),
+        centers_init,
+        PACKAGE = "soilmotif"
+      )
+
+      # Convert Rust result to expected format
+      result_raw <- list(
+        centers = rust_result$centers,
+        memberships = rust_result$memberships,
+        entropy = rust_result$entropy,
+        iterations = rust_result$iterations,
+        converged = rust_result$converged
+      )
+      method_used <- "rust"
+    }, error = function(e) {
+      # Rust implementation failed, will fall back to R
+      NULL
+    })
   }
 
-  result_raw <- .fuzzy_kmeans_r(
-    element_matrix, k = n_horizons, m = m,
-    max_iter = max_iter, tol = tolerance,
-    init_method = init_method,
-    convergence = convergence
-  )
+  # Fall back to R implementation if Rust not available or failed
+  if (is.null(result_raw)) {
+    result_raw <- .fuzzy_kmeans_r(
+      element_matrix, k = n_horizons, m = m,
+      max_iter = max_iter, tol = tolerance,
+      init_method = init_method,
+      convergence = convergence
+    )
+    method_used <- "r"
+  }
 
   # Determine dominant horizon for each depth
   dominant_horizon <- apply(result_raw$memberships, 1, which.max)
@@ -864,7 +950,7 @@ horizon_classify_fuzzy <- function(data,
     m = m,
     iterations = result_raw$iterations,
     converged = result_raw$converged,
-    method = "r"
+    method = method_used
   )
 
   class(result) <- "fuzzy_horizons"

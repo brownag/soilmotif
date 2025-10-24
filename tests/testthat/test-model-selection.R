@@ -91,9 +91,15 @@ test_that("fit_motif_auto handles fitting failures gracefully", {
   # Create problematic data that might cause fitting issues
   x <- rep(NaN, 200)
 
-  # Should not error, but may have warnings
-  result <- suppressWarnings(fit_motif_auto(x, models = c("uniform", "gradational")))
+  # Should handle NaN data gracefully, generating expected warnings for optimization failures
 
-  # At minimum, should have the result structure
+  expect_warning(
+    expect_warning(
+      result <- fit_motif_auto(x, models = c("uniform", "gradational")),
+      "Failed to fit gradational"
+    ),
+    "NA/NaN replaced by maximum positive value|Failed to fit"
+  )
+
   expect_s3_class(result, "fit_motif_auto")
 })

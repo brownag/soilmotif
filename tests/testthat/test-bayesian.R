@@ -42,7 +42,10 @@ create_test_bootstrap <- function() {
 test_that("sm_to_priors works with optimization result", {
   fit <- create_test_fit()
 
-  priors <- sm_to_priors(fit)
+  expect_warning(
+    priors <- sm_to_priors(fit),
+    "No parameter uncertainty available"
+  )
 
   # Check structure
   expect_type(priors, "list")
@@ -112,7 +115,10 @@ test_that("sm_to_priors handles invalid input", {
 test_that("sm_to_brms_priors works", {
   fit <- create_test_fit()
 
-  prior_strings <- sm_to_brms_priors(fit)
+  expect_warning(
+    prior_strings <- sm_to_brms_priors(fit),
+    "No parameter uncertainty available"
+  )
 
   # Check structure
   expect_type(prior_strings, "character")
@@ -126,7 +132,10 @@ test_that("sm_to_brms_priors works", {
 test_that("sm_to_brms_priors handles custom prefix", {
   fit <- create_test_fit()
 
-  prior_strings <- sm_to_brms_priors(fit, prefix = "")
+  expect_warning(
+    prior_strings <- sm_to_brms_priors(fit, prefix = ""),
+    "No parameter uncertainty available"
+  )
 
   expect_match(prior_strings[1], "coef = 'param_1'")
   expect_match(prior_strings[2], "coef = 'param_2'")
@@ -139,7 +148,10 @@ test_that("sm_to_brms_priors handles custom prefix", {
 test_that("sm_to_stan_priors works", {
   fit <- create_test_fit()
 
-  stan_code <- sm_to_stan_priors(fit)
+  expect_warning(
+    stan_code <- sm_to_stan_priors(fit),
+    "No parameter uncertainty available"
+  )
 
   # Check structure
   expect_type(stan_code, "character")
@@ -155,7 +167,10 @@ test_that("sm_to_stan_priors works", {
 test_that("sm_to_stan_priors handles custom parameter names", {
   fit <- create_test_fit()
 
-  stan_code <- sm_to_stan_priors(fit, param_names = c("beta1", "beta2"))
+  expect_warning(
+    stan_code <- sm_to_stan_priors(fit, param_names = c("beta1", "beta2")),
+    "No parameter uncertainty available"
+  )
 
   lines <- strsplit(stan_code, "\n")[[1]]
   expect_match(lines[1], "beta1 ~ normal\\(.*\\);")
@@ -165,9 +180,12 @@ test_that("sm_to_stan_priors handles custom parameter names", {
 test_that("sm_to_stan_priors validates parameter names", {
   fit <- create_test_fit()
 
-  expect_error(
-    sm_to_stan_priors(fit, param_names = c("beta1")),  # Wrong length
-    "param_names must have the same length"
+  expect_warning(
+    expect_error(
+      sm_to_stan_priors(fit, param_names = c("beta1")),  # Wrong length
+      "param_names must have the same length"
+    ),
+    "No parameter uncertainty available"
   )
 })
 
@@ -196,7 +214,10 @@ test_that("Bayesian functions work with bootstrap uncertainty", {
 test_that("Bayesian functions provide reasonable prior widths", {
   fit <- create_test_fit()
 
-  priors <- sm_to_priors(fit)
+  expect_warning(
+    priors <- sm_to_priors(fit),
+    "No parameter uncertainty available"
+  )
 
   # For optimization results, priors should be reasonably wide
   # but not ridiculously so
