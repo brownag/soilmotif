@@ -37,7 +37,9 @@ sm_optim_ssq <- function(observed, predicted, ...) {
 #' @param params Parameters for the shape function `FUN`
 #' @param FUN Shape function. Defaults to `sm_shape_sigmoid()`
 #' @param ... Additional arguments passed to `FUN`
-#' @param ylim numeric. Length 2 vector representing depth limits.
+#' @param depths numeric. Depth coordinates corresponding to observed values. If NULL (default), assumes uniform 1cm spacing: seq_along(observed).
+#'   Must have the same length as observed if provided.
+#' @param ylim numeric. Length 2 vector representing depth limits for evaluation.
 #' @param OPTFUN Objective function. Defaults to `sm_optim_rmse()`.
 #' @param as_function Return function that takes depth vector as input?
 #' @return numeric vector or function when `as_function=TRUE`
@@ -72,10 +74,22 @@ sm_optim_ssq <- function(observed, predicted, ...) {
 #'        col = c("BLACK","RED","BLUE"))
 sm_motif <- function(observed, params,
                      FUN = sm_shape_sigmoid,
-                     ..., ylim = .DEFAULT_DEPTH_RANGE,
+                     ..., depths = NULL, ylim = .DEFAULT_DEPTH_RANGE,
                      as_function = FALSE) {
+  # Use provided depths or construct default (uniform 1cm spacing)
+  if (is.null(depths)) {
+    depth_vector <- seq_along(observed)
+  } else {
+    # Validate that depths and observed have the same length
+    if (length(depths) != length(observed)) {
+      stop("depths and observed must have the same length. ",
+           "Got lengths ", length(depths), " and ", length(observed), ".")
+    }
+    depth_vector <- depths
+  }
+
   # Scale shape function output to data range for optimal fitting
-  .fun <- \(depth) .scaleprop(FUN(depth, params, ...), c(min(observed), max(observed)))
+  .fun <- \(eval_depths) .scaleprop(FUN(eval_depths, params, ...), c(min(observed), max(observed)))
   if (as_function)
     return(.fun)
   .fun(seq(ylim[1], ylim[2]))
@@ -341,12 +355,25 @@ sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rms
 # Store original R implementation for dispatch
 sm_optim_r_impl <- function(observed, params, ...,
                            FUN = sm_shape_sigmoid,
-                           OPTFUN = sm_optim_rmse) {
+                           OPTFUN = sm_optim_rmse,
+                           depths = NULL) {
+  # Use provided depths or construct default (uniform 1cm spacing)
+  if (is.null(depths)) {
+    depth_vector <- seq_along(observed)
+  } else {
+    # Validate that depths and observed have the same length
+    if (length(depths) != length(observed)) {
+      stop("depths and observed must have the same length. ",
+           "Got lengths ", length(depths), " and ", length(observed), ".")
+    }
+    depth_vector <- depths
+  }
+
   method <- if (length(params) == 1) "Brent" else "Nelder-Mead"
   lower <- if (length(params) == 1) 0 else -Inf  # Shape parameters are in [0,1]
   upper <- if (length(params) == 1) 1 else Inf
 
-  fit <- suppressWarnings(stats::optim(params, function(p) OPTFUN(sm_motif(observed, p, FUN = FUN, ...), observed),
+  fit <- suppressWarnings(stats::optim(params, function(p) OPTFUN(sm_motif(observed, p, FUN = FUN, depths = depth_vector, ...), observed),
                       method = method, lower = lower, upper = upper))
 
   # Only sort for specific motif types where it makes sense
@@ -355,12 +382,12 @@ sm_optim_r_impl <- function(observed, params, ...,
     final_par <- sort(final_par)
   }
 
-  res <- sm_motif(observed, final_par, FUN = FUN, ...)
+  res <- sm_motif(observed, final_par, FUN = FUN, depths = depth_vector, ...)
   optimization_result <- list(
     fitted = res,
     params = final_par,
     observed = observed,
-    depths = seq_along(observed),
+    depths = depth_vector,
     shape_family = deparse(substitute(FUN)),
     objective = if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse",
     algorithm = "nelder_mead",
@@ -379,7 +406,7 @@ sm_optim_r_impl <- function(observed, params, ...,
 # Replace sm_optim with dispatch wrapper that can route to Rust
 sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse, use_rust = FALSE,
-                     compare = FALSE, algorithm = "auto") {
+                     compare = FALSE, algorithm = "auto", depths = NULL) {
   # algorithm can be:
   #   "auto" - auto-select based on problem characteristics (default)
   #   "nelder_mead" - Nelder-Mead simplex method (gradient-free)
@@ -387,16 +414,29 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
   #   "particle_swarm" or "pso" - Particle Swarm Optimization (population-based)
   #   "simulated_annealing" or "sa" - Simulated Annealing (global optimization)
   #   "newton_cg" - Newton-CG method (gradient + Hessian, very fast for smooth problems)
+
+  # Use provided depths or construct default (uniform 1cm spacing)
+  if (is.null(depths)) {
+    depth_vector <- seq_along(observed)
+  } else {
+    # Validate that depths and observed have the same length
+    if (length(depths) != length(observed)) {
+      stop("depths and observed must have the same length. ",
+           "Got lengths ", length(depths), " and ", length(observed), ".")
+    }
+    depth_vector <- depths
+  }
+
   # If comparison mode requested, run both R and Rust and return comparison
   if (compare) {
-    return(compare_r_vs_rust(observed, params, FUN = FUN, OPTFUN = OPTFUN, ...))
+    return(compare_r_vs_rust(observed, params, FUN = FUN, OPTFUN = OPTFUN, depths = depth_vector, ...))
   }
 
   # If Rust requested, dispatch to Rust backend (with R fallback)
   if (use_rust) {
     if (!rust_backend_available()) {
       warning("Rust backend not available; falling back to R")
-      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN))
+      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN, depths = depth_vector))
     }
 
     # Determine objective type from OPTFUN
@@ -424,9 +464,6 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
       algorithm <- sm_recommend_optimizer(length(params), length(observed), objective_type)
     }
 
-    # Determine depth vector
-    depth_vector <- seq_along(observed)
-
     # Try Rust implementation with algorithm selection and fallback to R
     tryCatch({
       result <- optimize_profile_rust_flexible(
@@ -440,7 +477,7 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
       )
 
       # Return result in proper object format
-      predicted <- sm_motif(observed, result, FUN = FUN, ...)
+      predicted <- sm_motif(observed, result, FUN = FUN, depths = depth_vector, ...)
       optimization_result <- list(
         fitted = predicted,
         params = result,
@@ -462,12 +499,12 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
 
     }, error = function(e) {
       warning("Rust optimization failed: ", e$message, "; falling back to R")
-      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN))
+      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN, depths = depth_vector))
     })
   }
 
   # Use R implementation (default path)
-  sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN)
+  sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN, depths = depth_vector)
 }
 
 #' Bootstrap Uncertainty Quantification for Soil Motif Optimization
