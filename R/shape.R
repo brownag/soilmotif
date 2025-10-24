@@ -33,7 +33,6 @@
 #'
 #' \strong{Valid Ranges:} Depth parameters should be within soil profile depth (typically 0-200 cm).
 #' Parameter order matters: start_depth < end_depth for ascending profiles.
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}, \code{\link{sm_shape_wetting_front}}
 #' @examples
 #' # Clay accumulation in Bt horizon (typical argillic horizon)
@@ -48,6 +47,7 @@
 #' plot(carbonate_profile, depths, ylim = c(150, 0), type = "l",
 #'      xlab = "Carbonate Content", ylab = "Depth (cm)",
 #'      main = "Carbonate Leaching Zone")
+#' @export
 sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
   num2 <- sum(params) / 2
   num <- vector("numeric", length(x))
@@ -86,7 +86,6 @@ sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
 #' - The uniform shape serves as a null model for pedogenic processes
 #'
 #' \strong{Valid Ranges:} mean_value should be in the range 0 to 1. Use ascending=FALSE to invert the interpretation.
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Well-mixed anthropogenic soil (constant properties)
@@ -101,6 +100,7 @@ sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
 #' plot(sandy_soil, depths, ylim = c(100, 0), type = "l",
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Sandy Entisol")
+#' @export
 sm_shape_uniform <- function(x, params, ascending = TRUE) {
   # Return normalized value [0, 1] - param should be in [0, 1] range
   shape <- rep(params[1], length(x))
@@ -142,7 +142,6 @@ sm_shape_uniform <- function(x, params, ascending = TRUE) {
 #'
 #' \strong{Valid Ranges:} start_depth < end_depth, both within profile depth (0-200 cm typically).
 #' Parameter order matters for correct gradient direction.
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Organic matter decline with depth (typical A horizon)
@@ -157,6 +156,7 @@ sm_shape_uniform <- function(x, params, ascending = TRUE) {
 #' plot(clay_profile, depths, ylim = c(100, 0), type = "l",
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Clay Illuviation")
+#' @export
 sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
   start_depth <- params[1]
   end_depth <- params[2]
@@ -201,7 +201,6 @@ sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
 #' - Large k values indicate processes confined to near-surface
 #'
 #' \strong{Valid Ranges:} C0 in the range 0 to 1, k > 0 (typically 0.01-0.5 for soil profiles).
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Organic matter decline (typical surface horizon)
@@ -216,6 +215,7 @@ sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
 #' plot(root_profile, depths, ylim = c(100, 0), type = "l",
 #'      xlab = "Root Density", ylab = "Depth (cm)",
 #'      main = "Root Distribution")
+#' @export
 sm_shape_exponential <- function(x, params, ascending = TRUE) {
   C0 <- params[1]
   k <- params[2]
@@ -258,7 +258,6 @@ sm_shape_exponential <- function(x, params, ascending = TRUE) {
 #'
 #' \strong{Valid Ranges:} Depth parameters within soil profile (0-200 cm typically).
 #' This is an alias for sm_shape_sigmoid() with identical behavior.
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}, \code{\link{sm_shape_sigmoid}}
 #' @examples
 #' # Soil moisture wetting front after irrigation
@@ -273,6 +272,7 @@ sm_shape_exponential <- function(x, params, ascending = TRUE) {
 #' plot(salt_profile, depths, ylim = c(120, 0), type = "l",
 #'      xlab = "Salt Concentration", ylab = "Depth (cm)",
 #'      main = "Salt Accumulation Zone")
+#' @export
 sm_shape_wetting_front <- function(x, params, ascending = TRUE) {
   sm_shape_sigmoid(x, params, ascending)
 }
@@ -307,7 +307,6 @@ sm_shape_wetting_front <- function(x, params, ascending = TRUE) {
 #' - The direction reflects which material has higher property values
 #'
 #' \strong{Valid Ranges:} depth_discontinuity within profile (0-200 cm), transition_width >= 0.
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Lithologic discontinuity (sharp textural change)
@@ -322,6 +321,7 @@ sm_shape_wetting_front <- function(x, params, ascending = TRUE) {
 #' plot(clay_profile, depths, ylim = c(150, 0), type = "l",
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Diffuse Horizon Boundary")
+#' @export
 sm_shape_abrupt <- function(x, params, ascending = TRUE) {
   depth_disc <- params[1]
   transition_width <- if (length(params) > 1) params[2] else 0
@@ -372,7 +372,6 @@ sm_shape_abrupt <- function(x, params, ascending = TRUE) {
 #' - Valley shapes (ascending=FALSE) represent eluvial zones
 #'
 #' \strong{Valid Ranges:} depth_of_max within profile (0-200 cm), width > 0 (typically 10-50 cm).
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Clay accumulation in Bt horizon
@@ -387,6 +386,7 @@ sm_shape_abrupt <- function(x, params, ascending = TRUE) {
 #' plot(carbonate_peak, depths, ylim = c(120, 0), type = "l",
 #'      xlab = "Carbonate Content", ylab = "Depth (cm)",
 #'      main = "Carbonate Accumulation")
+#' @export
 sm_shape_peak <- function(x, params, ascending = TRUE) {
   depth_max <- params[1]
   width <- params[2]
@@ -440,7 +440,6 @@ sm_shape_peak <- function(x, params, ascending = TRUE) {
 #'
 #' \strong{Valid Ranges:} depth_min < depth_max, both within profile (0-200 cm),
 #' widths > 0 (typically 10-40 cm).
-#' @export
 #' @seealso \code{\link{sm_motif}}, \code{\link{sm_optim}}
 #' @examples
 #' # Classic E-Bt horizon sequence (clay depletion then accumulation)
@@ -456,6 +455,7 @@ sm_shape_peak <- function(x, params, ascending = TRUE) {
 #' plot(om_profile, depths, ylim = c(140, 0), type = "l",
 #'      xlab = "Organic Matter", ylab = "Depth (cm)",
 #'      main = "Podzol Organic Matter Distribution")
+#' @export
 sm_shape_minimax <- function(x, params, ascending = TRUE) {
   depth_min <- params[1]
   width_min <- params[2]
