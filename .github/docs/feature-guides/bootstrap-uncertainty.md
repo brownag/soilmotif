@@ -29,8 +29,9 @@ print(result$param_ci_upper)   # Upper bounds
 # Check which method was used
 print(result$method_used)      # "parametric" or "sieve"
 
-# For sieve bootstrap, view AR(1) coefficient
-print(result$ar1_coef)         # Autocorrelation estimate
+# For sieve bootstrap, view AR(1) model parameters
+print(result$ar1_coef)         # Autoregressive coefficient (φ)
+print(result$ar1_sigma2)       # Innovation variance (σ²)
 ```
 
 ## Method Comparison
@@ -42,6 +43,7 @@ print(result$ar1_coef)         # Autocorrelation estimate
 | **Speed** | Faster | Slightly slower |
 | **Best For** | Sparse data, discrete horizons | High-resolution profiles |
 | **AR(1) Coef** | N/A | Yes, exposed as `ar1_coef` |
+| **AR(1) Variance** | N/A | Yes, exposed as `ar1_sigma2` |
 | **Stationarity** | N/A | Required for validity |
 
 ## Parametric Bootstrap
@@ -99,21 +101,31 @@ Sieve bootstrap is an advanced resampling technique that preserves autocorrelati
 
 ### AR(1) Model Interpretation
 
-The AR(1) coefficient (φ) describes residual autocorrelation:
+The sieve bootstrap fits an AR(1) process to capture residual autocorrelation:
 
 **r_t = φ * r_(t-1) + ε_t + mean**
 
-- **φ = 0**: No autocorrelation (independent residuals)
-- **φ > 0**: Positive autocorrelation (residuals tend to persist)
-- **φ < 0**: Negative autocorrelation (residuals tend to alternate)
-- **|φ| < 1**: Stationary process (required for validity)
+Where:
+- **φ (ar1_coef)**: AR(1) autoregressive coefficient
+  - **φ = 0**: No autocorrelation (independent residuals)
+  - **φ > 0**: Positive autocorrelation (residuals tend to persist)
+  - **φ < 0**: Negative autocorrelation (residuals tend to alternate)
+  - **|φ| < 1**: Stationary process (required for validity)
+
+- **σ² (ar1_sigma2)**: Innovation variance (variance of innovations ε_t)
+  - Calculated as: σ² = γ₀(1 - φ²) where γ₀ is residual variance
+  - Always positive for valid models
+  - Represents the baseline variability not explained by the AR(1) process
 
 **Example**:
 ```r
 result <- sm_optim_bootstrap(clay, initial = c(25, 100), method = "sieve")
 cat("AR(1) coefficient:", result$ar1_coef, "\n")
-# Output: AR(1) coefficient: 0.68
-# Interpretation: Moderate positive autocorrelation in residuals
+cat("Innovation variance:", result$ar1_sigma2, "\n")
+# Output:
+# AR(1) coefficient: 0.68
+# Innovation variance: 12.5
+# Interpretation: Moderate positive autocorrelation with base innovation variance of 12.5
 ```
 
 ### Fallback Behavior
@@ -247,7 +259,8 @@ result$param_samples      # Matrix: n_bootstrap rows × n_params columns
 
 result$original_cost      # RMSE/SSE/etc from original fit
 result$method_used        # "parametric" or "sieve"
-result$ar1_coef           # AR(1) coefficient (NA for parametric)
+result$ar1_coef           # AR(1) coefficient φ (NA for parametric)
+result$ar1_sigma2         # AR(1) innovation variance σ² (NA for parametric)
 
 result$successful_fits    # Number of successful bootstrap iterations
 result$failed_fits        # Number of failed iterations (stored as NaN)

@@ -143,6 +143,29 @@ let values_r: Vec<Robj> = result.values
     .collect();
 ```
 
+**Pattern 4**: Direct scalar in Vec<f64> (October 2025 workaround)
+```rust
+// When extendr list! macro won't properly convert scalar f64,
+// wrap it in a vector - R will extract the single element
+// This bypasses extendr's internal type resolution issues
+list!(
+    ar1_coef = result_struct.ar1_coef,      // Direct f64 ✓
+    ar1_sigma2 = vec![result_struct.ar1_sigma2]  // Wrapped ✓
+)
+
+// On R side, extract:
+result_list$ar1_sigma2 <- if (length(rust_result$ar1_sigma2) > 0) {
+    rust_result$ar1_sigma2[1]
+} else {
+    NA_real_
+}
+```
+**When to use Pattern 4**:
+- Direct scalar f64 in list! returns NAN as NA (correct)
+- But sometimes appears missing entirely from returned list
+- Wrapping in vec ensures it's included, then extract in R
+- Useful as fallback when direct scalar conversion fails mysteriously
+
 ### Test Coverage
 
 Add test to verify Option type conversion round-trips:
@@ -242,7 +265,17 @@ This bug was found and fixed during:
 
 ---
 
-**Last Updated**: October 23, 2025  
-**Status**: Complete & Applied  
-**Severity**: Critical (data loss during FFI marshalling)  
-**Resolution**: Explicit Option<T> -> Robj conversion patterns
+## Updates
+
+### October 24, 2025: Vec<f64> Wrapper Pattern
+Added Pattern 4 (Vec<f64> scalar wrapper) as documented fallback for extendr list! macro limitations. Used successfully for ar1_sigma2 field in BootstrapEngineResult. This pattern ensures scalar values always appear in returned list, with extraction on R side.
+
+### October 23, 2025: Initial Option<T> Pattern Documentation
+Documented explicit Option<T> -> Robj conversion patterns and deprecation of direct Option passing through extendr.
+
+---
+
+**Last Updated**: October 24, 2025
+**Status**: Complete & Applied
+**Severity**: Critical (data loss during FFI marshalling)
+**Resolution**: Explicit Option<T> -> Robj conversion patterns + Vec wrapper fallback

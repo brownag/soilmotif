@@ -66,8 +66,8 @@ tidy(boot)
 
 # Glance includes bootstrap diagnostics
 glance(boot)
-#   n_bootstrap n_successful n_failed success_rate method_used ar1_coef rmse_mean rmse_sd r2_mean r2_sd aic_mean aic_sd
-# 1         100           100        0         1.00      sieve     0.85      2.8    0.3    0.92  0.02    450.2   15.3
+#   n_bootstrap n_successful n_failed success_rate method_used ar1_coef ar1_sigma2 rmse_mean rmse_sd r2_mean r2_sd aic_mean aic_sd
+# 1         100           100        0         1.00      sieve     0.85       12.5      2.8    0.3    0.92  0.02    450.2   15.3
 
 # Augment provides prediction intervals
 augment(boot)
