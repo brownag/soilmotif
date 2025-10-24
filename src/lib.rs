@@ -449,13 +449,8 @@ fn bootstrap_engine_rust(
         .map(|v| v.into_robj())
         .collect();
 
-    // Convert Option<f64> to R scalar (NA if None)
-    let ar1_coef_robj = match result_struct.ar1_coef {
-        Some(val) => Robj::from(val),
-        None => Robj::from(f64::NAN),
-    };
-
     // Build and return the result list
+    // Note: f64::NAN is automatically converted to R's NA by extendr
     list!(
         success_rate = result_struct.success_rate,
         parameter_samples = parameter_samples_robj,
@@ -466,7 +461,8 @@ fn bootstrap_engine_rust(
         n_successful = n_successful,
         n_failed = n_failed,
         message = result_struct.message,
-        ar1_coef = ar1_coef_robj
+        ar1_coef = result_struct.ar1_coef,
+        ar1_sigma2 = vec![result_struct.ar1_sigma2]
     )
 }
 

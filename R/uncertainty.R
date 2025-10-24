@@ -36,7 +36,9 @@
 #'   \item{n_successful}{Number of successful bootstrap samples}
 #'   \item{n_failed}{Number of failed bootstrap samples}
 #'   \item{method_used}{Character string indicating which bootstrap method was actually used}
-#'   \item{ar1_coef}{AR(1) coefficient (if sieve method used), or NA}
+#'   \item{ar1_coef}{AR(1) autoregressive coefficient φ (if sieve method used), or NA}
+#'   \item{ar1_sigma2}{AR(1) innovation variance σ² (if sieve method used), or NA.
+#'     Represents the variance of innovations: σ² = γ₀(1 - φ²)}
 #'   \item{summary}{List with summary statistics (means, sds, cis)}
 #'   \item{original_fit}{List with original optimization results}
 #'   \item{settings}{List with function call settings}
@@ -207,9 +209,13 @@ sm_optim_bootstrap <- function(
     call = match.call()
   )
 
-  # Add AR(1) coefficient if available
-  result_list$ar1_coef <- if (!is.null(rust_result$ar1_coef)) {
-    rust_result$ar1_coef
+  # Add AR(1) coefficient (will be NA if not available from Rust)
+  result_list$ar1_coef <- rust_result$ar1_coef
+
+  # Add AR(1) innovation variance (will be NA if not available from Rust)
+  # Note: sigma2 is returned as a vector with one element due to FFI conversion requirements
+  result_list$ar1_sigma2 <- if (!is.null(rust_result$ar1_sigma2) && length(rust_result$ar1_sigma2) > 0) {
+    rust_result$ar1_sigma2[1]
   } else {
     NA_real_
   }
@@ -446,7 +452,11 @@ print.bootstrap_result <- function(x, ...) {
   cat(sprintf("Failed fits: %d\n", length(x$failed_indices)))
 
   if (!is.na(x$ar1_coef)) {
-    cat(sprintf("AR(1) coefficient: %.4f\n", x$ar1_coef))
+    cat(sprintf("AR(1) coefficient (φ): %.4f\n", x$ar1_coef))
+  }
+
+  if (!is.na(x$ar1_sigma2)) {
+    cat(sprintf("AR(1) innovation variance (σ²): %.4f\n", x$ar1_sigma2))
   }
 
   if (nrow(x$param_samples) > 0) {
@@ -503,7 +513,11 @@ summary.bootstrap_result <- function(object, ...) {
   cat(sprintf("Failed fits: %d\n", length(object$failed_indices)))
 
   if (!is.na(object$ar1_coef)) {
-    cat(sprintf("AR(1) coefficient: %.4f\n", object$ar1_coef))
+    cat(sprintf("AR(1) coefficient (φ): %.4f\n", object$ar1_coef))
+  }
+
+  if (!is.na(object$ar1_sigma2)) {
+    cat(sprintf("AR(1) innovation variance (σ²): %.4f\n", object$ar1_sigma2))
   }
 
   if (nrow(object$param_samples) > 0) {

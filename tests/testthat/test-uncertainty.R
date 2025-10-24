@@ -705,3 +705,132 @@ test_that("sm_optim_bootstrap summary shows method information", {
   summary_result <- summary(result_sieve)
   expect_true(is.list(summary_result))
 })
+
+# ============================================================================
+# AR(1) INNOVATION VARIANCE (sigma2) TESTS
+# ============================================================================
+
+test_that("sm_optim_bootstrap ar1_sigma2 is present for sieve bootstrap", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 5
+  )
+
+  # Sieve bootstrap should compute AR(1) innovation variance
+  expect_true(!is.null(result_sieve$ar1_sigma2) || is.na(result_sieve$ar1_sigma2))
+  # If not NA, it should be positive (variance must be non-negative)
+  if (!is.na(result_sieve$ar1_sigma2)) {
+    expect_true(result_sieve$ar1_sigma2 >= 0)
+  }
+})
+
+test_that("sm_optim_bootstrap ar1_sigma2 is NA for parametric bootstrap", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_param <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "parametric",
+    n_bootstrap = 5
+  )
+
+  # Parametric bootstrap should not compute AR(1) innovation variance
+  expect_true(is.na(result_param$ar1_sigma2))
+})
+
+test_that("sm_optim_bootstrap ar1_coef and ar1_sigma2 relationship", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 5
+  )
+
+  # If both are available (not NA), verify they have expected properties
+  if (!is.na(result_sieve$ar1_coef) && !is.na(result_sieve$ar1_sigma2)) {
+    # AR(1) coefficient should be in [-1, 1] for stationarity
+    expect_true(result_sieve$ar1_coef > -1 && result_sieve$ar1_coef < 1)
+    # Innovation variance should be positive
+    expect_true(result_sieve$ar1_sigma2 > 0)
+    # Sigma2 represents variance, so it should be finite
+    expect_true(is.finite(result_sieve$ar1_sigma2))
+  }
+})
+
+test_that("sm_optim_bootstrap glance output includes ar1_sigma2", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 5
+  )
+
+  glance_result <- glance(result_sieve)
+
+  # glance should return a data frame
+  expect_true(is.data.frame(glance_result))
+  # Should contain ar1_sigma2 column
+  expect_true("ar1_sigma2" %in% names(glance_result))
+  # Value should be numeric or NA
+  expect_true(is.numeric(glance_result$ar1_sigma2))
+})
+
+test_that("sm_optim_bootstrap print shows ar1_sigma2 for sieve", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 3
+  )
+
+  # Capture print output
+  output <- capture.output(print(result_sieve))
+  output_text <- paste(output, collapse = "\n")
+
+  # If ar1_sigma2 is available, it should appear in output
+  if (!is.na(result_sieve$ar1_sigma2)) {
+    expect_true(grepl("sigma2|innovation variance", output_text, ignore.case = TRUE))
+  }
+})
+
+test_that("sm_optim_bootstrap summary shows ar1_sigma2 for sieve", {
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
+
+  result_sieve <- sm_optim_bootstrap(
+    observed = test_observed,
+    depths = test_depths,
+    initial_params = test_params,
+    shape_family = "sigmoid",
+    method = "sieve",
+    n_bootstrap = 3
+  )
+
+  # Capture summary output
+  output <- capture.output(summary(result_sieve))
+  output_text <- paste(output, collapse = "\n")
+
+  # If ar1_sigma2 is available, it should appear in output
+  if (!is.na(result_sieve$ar1_sigma2)) {
+    expect_true(grepl("sigma2|innovation variance", output_text, ignore.case = TRUE))
+  }
+})

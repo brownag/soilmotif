@@ -13,6 +13,7 @@ src/*.so
 src/*.a
 src/Makefile
 src/Makevars
+src/Makevars.win
 inst/libs/
 libs/
 

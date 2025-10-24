@@ -281,6 +281,7 @@ glance.bootstrap_result <- function(x, ...) {
     success_rate = if (!is.null(x$n_successful)) x$n_successful / x$settings$n_bootstrap else nrow(x$param_samples) / x$settings$n_bootstrap,
     method_used = if (!is.null(x$settings$method_used)) x$settings$method_used else "parametric",
     ar1_coef = x$ar1_coef,
+    ar1_sigma2 = x$ar1_sigma2,
     rmse_mean = mean(x$rmse_samples, na.rm = TRUE),
     rmse_sd = sd(x$rmse_samples, na.rm = TRUE),
     r2_mean = mean(x$r2_samples, na.rm = TRUE),

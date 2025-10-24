@@ -12,7 +12,8 @@ pub struct BootstrapEngineResult {
     pub aic_samples: Vec<f64>,
     pub failed_indices: Vec<i32>,
     pub message: String,
-    pub ar1_coef: Option<f64>,
+    pub ar1_coef: f64,  // NAN if not available (parametric or AR fitting failure)
+    pub ar1_sigma2: f64,  // NAN if not available (parametric or AR fitting failure)
 }
 
 #[derive(Debug, Clone)]
@@ -147,7 +148,8 @@ pub fn sieve_bootstrap(
         aic_samples: Vec::new(),
         failed_indices: Vec::new(),
         message: String::new(),
-        ar1_coef: None,
+        ar1_coef: f64::NAN,
+        ar1_sigma2: f64::NAN,
     };
 
     // Step 1: Initial optimization
@@ -191,7 +193,10 @@ pub fn sieve_bootstrap(
     // Step 2: Fit AR(1) model
     let ar1_model = match fit_ar1_model(&residuals) {
         Some(model) => {
-            result.ar1_coef = Some(model.phi);
+            result.ar1_coef = model.phi;
+            result.ar1_sigma2 = model.sigma2;
+            result.message = format!("Sieve bootstrap completed: {} successful, {} failed (AR1 phi = {:.4}, sigma2 = {:.6})",
+                n_bootstrap, 0, model.phi, model.sigma2);
             model
         }
         None => {
@@ -336,10 +341,11 @@ pub fn sieve_bootstrap(
     result.aic_samples = aic_samples;
     result.failed_indices = failed_indices.into_iter().map(|i| i as i32).collect();
     result.message = format!(
-        "Sieve bootstrap completed: {} successful, {} failed (AR1 phi = {:.4})",
+        "Sieve bootstrap completed: {} successful, {} failed (AR1 phi = {:.4}, sigma2 = {:.6})",
         result.parameter_samples.len(),
         result.failed_indices.len(),
-        result.ar1_coef.unwrap_or(0.0)
+        if result.ar1_coef.is_nan() { 0.0 } else { result.ar1_coef },
+        if result.ar1_sigma2.is_nan() { 0.0 } else { result.ar1_sigma2 }
     );
 
     Ok(result)
@@ -368,7 +374,8 @@ pub fn parametric_bootstrap(
         aic_samples: Vec::new(),
         failed_indices: Vec::new(),
         message: String::new(),
-        ar1_coef: None,
+        ar1_coef: f64::NAN,
+        ar1_sigma2: f64::NAN,
     };
 
     // Note: seed parameter reserved for future use (per-iteration randomization)

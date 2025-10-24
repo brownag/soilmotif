@@ -65,7 +65,9 @@ A list with class "bootstrap_result" containing:
 \item{n_successful}{Number of successful bootstrap samples}
 \item{n_failed}{Number of failed bootstrap samples}
 \item{method_used}{Character string indicating which bootstrap method was actually used}
-\item{ar1_coef}{AR(1) coefficient (if sieve method used), or NA}
+\item{ar1_coef}{AR(1) autoregressive coefficient φ (if sieve method used), or NA}
+\item{ar1_sigma2}{AR(1) innovation variance σ² (if sieve method used), or NA.
+Represents the variance of innovations: σ² = γ₀(1 - φ²)}
 \item{summary}{List with summary statistics (means, sds, cis)}
 \item{original_fit}{List with original optimization results}
 \item{settings}{List with function call settings}
