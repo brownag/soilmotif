@@ -4,10 +4,10 @@
 \alias{sm_shape_minimax}
 \title{MiniMax Shape Function}
 \usage{
-sm_shape_minimax(x, params, ascending = TRUE)
+sm_shape_minimax(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(depth_min, width_min, depth_max, width_max, skew_min, skew_max).
 \itemize{

@@ -4,10 +4,10 @@
 \alias{sm_shape_uniform}
 \title{Uniform Shape Function}
 \usage{
-sm_shape_uniform(x, params, ascending = TRUE)
+sm_shape_uniform(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(mean_value).
 \itemize{

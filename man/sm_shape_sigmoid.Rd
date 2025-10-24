@@ -4,10 +4,10 @@
 \alias{sm_shape_sigmoid}
 \title{Sigmoid Shape Function}
 \usage{
-sm_shape_sigmoid(x, params, ascending = TRUE)
+sm_shape_sigmoid(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (typically 1 to 200 cm, increasing downward).}
+\item{depth}{numeric. Depth vector (typically 1 to 200 cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
 \itemize{

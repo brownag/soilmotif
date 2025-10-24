@@ -70,7 +70,7 @@
 #' result <- fit_motif_auto(x, criterion = "AIC")
 #' print(result)
 #' plot(result)
-fit_motif_auto <- function(x,
+sm_fit_motif_auto <- function(x,
                            models = "all",
                            criterion = "AIC",
                            depth_range = c(1, 200),
@@ -217,3 +217,4 @@ summary.fit_motif_auto <- function(object, ...) {
   cat("\n(Full ranking available in $ranking slot)\n")
   invisible(object)
 }
+

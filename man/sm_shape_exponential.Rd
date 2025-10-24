@@ -4,10 +4,10 @@
 \alias{sm_shape_exponential}
 \title{Exponential Shape Function}
 \usage{
-sm_shape_exponential(x, params, ascending = TRUE)
+sm_shape_exponential(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(C0_surface_value, k_decay_rate).
 \itemize{

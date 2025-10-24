@@ -5,7 +5,7 @@
 \title{Monotone and Restricted Cubic Splines}
 \usage{
 sm_shape_spline(
-  x,
+  depth,
   control_points,
   type = "monotone",
   ascending = TRUE,
@@ -13,7 +13,7 @@ sm_shape_spline(
 )
 }
 \arguments{
-\item{x}{Numeric vector of depths at which to evaluate the spline}
+\item{depth}{Numeric vector of depths at which to evaluate the spline}
 
 \item{control_points}{Named numeric vector or data frame with columns 'depth' and 'value'
 specifying interpolation knots. Must have at least 2 points, sorted by depth.

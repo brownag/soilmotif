@@ -119,7 +119,7 @@ sm_motif <- function(observed, params,
 #' 
 #' # Quantile regression for conservative estimates
 #' conservative_obj <- create_soil_objective("quantile", quantile = 0.9)
-create_soil_objective <- function(type, ...) {
+sm_create_soil_objective <- function(type, ...) {
   args <- list(...)
   
   switch(type,

@@ -4,10 +4,10 @@
 \alias{sm_shape_wetting_front}
 \title{Wetting Front Shape Function}
 \usage{
-sm_shape_wetting_front(x, params, ascending = TRUE)
+sm_shape_wetting_front(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
 \itemize{

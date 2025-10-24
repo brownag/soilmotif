@@ -4,10 +4,10 @@
 \alias{sm_shape_abrupt}
 \title{Abrupt Shape Function}
 \usage{
-sm_shape_abrupt(x, params, ascending = TRUE)
+sm_shape_abrupt(depth, params, ascending = TRUE)
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(depth_discontinuity, transition_width).
 \itemize{

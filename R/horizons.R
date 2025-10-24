@@ -455,7 +455,7 @@
 }
 
 
-horizon_boundaries_mahalanobis <- function(data,
+sm_horizon_boundaries_mahalanobis <- function(data,
                                             depth_col = "depth",
                                             element_cols = NULL,
                                             window_size = 10,
@@ -824,7 +824,7 @@ summary.horizon_boundaries <- function(object, ...) {
 #' fuzzy_soft <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
 #' summary(fuzzy_soft)
 #' }
-horizon_classify_fuzzy <- function(data,
+sm_horizon_classify_fuzzy <- function(data,
                                     depth_col = "depth",
                                     element_cols = NULL,
                                     n_horizons = 5,

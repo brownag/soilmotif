@@ -49,7 +49,7 @@
 #' }
 #'
 #' @export
-plot_weathering_indices <- function(indices_df,
+sm_plot_weathering_indices <- function(indices_df,
                                      indices = NULL,
                                      facet = FALSE,
                                      ylim = NULL,
@@ -186,7 +186,7 @@ plot_weathering_indices <- function(indices_df,
 #' }
 #'
 #' @export
-plot_CIA_WIP <- function(indices_df,
+sm_plot_CIA_WIP <- function(indices_df,
                          color_by = "depth",
                          main = "CIA vs WIP Weathering Pathway") {
 
@@ -294,7 +294,7 @@ plot_CIA_WIP <- function(indices_df,
 #' }
 #'
 #' @export
-plot_element_mobility <- function(depletion_df,
+sm_plot_element_mobility <- function(depletion_df,
                                    main = "Element Mobility Profile") {
 
   if (!all(c("depth", "element", "depletion_factor") %in% names(depletion_df))) {
@@ -364,3 +364,4 @@ plot_element_mobility <- function(depletion_df,
 
   invisible(depletion_df)
 }
+th

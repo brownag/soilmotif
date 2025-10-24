@@ -34,7 +34,7 @@
 #'   scale_y_reverse() +
 #'   labs(x = "Clay (%)", y = "Depth (cm)")
 #' }
-prepare_ggplot_data <- function(x, bootstrap_result = NULL, depths = NULL) {
+sm_prepare_ggplot_data <- function(x, bootstrap_result = NULL, depths = NULL) {
   .require_package("ggplot2", "ggplot2 visualization helpers")
 
   # Handle both list format and numeric vector with attributes (backward compatibility)
@@ -113,7 +113,7 @@ prepare_ggplot_data <- function(x, bootstrap_result = NULL, depths = NULL) {
 #' #             alpha = 0.1, fill = "gray") +
 #' #   geom_text(aes(x = 0, label = label), hjust = 0)
 #' }
-prepare_horizon_ggplot <- function(boundary_result) {
+sm_prepare_horizon_ggplot <- function(boundary_result) {
   .require_package("ggplot2", "ggplot2 visualization helpers")
 
   # Placeholder for 03g integration
@@ -148,7 +148,7 @@ prepare_horizon_ggplot <- function(boundary_result) {
 #' #   scale_fill_gradient(low = "white", high = "blue") +
 #' #   scale_y_reverse()
 #' }
-prepare_fuzzy_ggplot <- function(fuzzy_result) {
+sm_prepare_fuzzy_ggplot <- function(fuzzy_result) {
   .require_package("ggplot2", "ggplot2 visualization helpers")
 
   # Placeholder for 03h integration
@@ -163,4 +163,4 @@ prepare_fuzzy_ggplot <- function(fuzzy_result) {
   )
 }
 
-# Note: get_shape_function helper is now in util.R as ..get_shape_function()
+# Note: get_shape_function helper is now in util.R as ..get_shape_function()on

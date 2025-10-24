@@ -25,7 +25,7 @@
 #'     cat("Rust backend is available\n")
 #'   }
 #' }
-rust_backend_available <- function() {
+sm_rust_backend_available <- function() {
   tryCatch({
     .Call("wrap__check_rust_backend", PACKAGE = "soilmotif")
     TRUE
@@ -330,7 +330,7 @@ sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
 #'   comp <- compare_r_vs_rust(observed, c(100, 20))
 #'   print(comp$passed)  # Should be TRUE if implementations match
 #' }
-compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
+sm_compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
                               OPTFUN = sm_optim_rmse,
                               tolerance = 0.01, ...) {
   # Run R implementation

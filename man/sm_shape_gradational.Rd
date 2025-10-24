@@ -4,10 +4,10 @@
 \alias{sm_shape_gradational}
 \title{Gradational Shape Function}
 \usage{
-sm_shape_gradational(x, params, ascending = TRUE, type = "linear")
+sm_shape_gradational(depth, params, ascending = TRUE, type = "linear")
 }
 \arguments{
-\item{x}{numeric. Depth vector (cm, increasing downward).}
+\item{depth}{numeric. Depth vector (cm, increasing downward).}
 
 \item{params}{numeric. Parameters: c(start_depth, end_depth).
 \itemize{

@@ -6,37 +6,42 @@
 \title{Fit a Soil Property Shape Function}
 \usage{
 sm_motif(
-  x,
-  X,
+  observed,
+  params,
   FUN = sm_shape_sigmoid,
   ...,
-  ylim = c(1, 200),
+  depths = NULL,
+  ylim = .DEFAULT_DEPTH_RANGE,
   as_function = FALSE
 )
 
 sm_optim(
-  x,
-  X,
+  observed,
+  params,
   ...,
   FUN = sm_shape_sigmoid,
   OPTFUN = sm_optim_rmse,
   use_rust = FALSE,
   compare = FALSE,
-  algorithm = "auto"
+  algorithm = "auto",
+  depths = NULL
 )
 }
 \arguments{
-\item{x}{A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.}
+\item{observed}{A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.}
 
-\item{X}{Parameters for the shape function \code{FUN}}
+\item{params}{Parameters for the shape function \code{FUN}}
 
 \item{FUN}{Shape function. Defaults to \code{sm_shape_sigmoid()}}
 
 \item{...}{Additional arguments passed to \code{FUN}}
 
-\item{ylim}{numeric. Length 2 vector representing \code{Y} (depth) limits.}
+\item{depths}{numeric. Depth coordinates corresponding to observed values. If NULL (default), assumes uniform 1cm spacing: seq_along(observed).
+Must have the same length as observed if provided.}
 
-\item{as_function}{Return function that takes \code{Y} (depth) vector as input?}
+\item{ylim}{numeric. Length 2 vector representing depth limits for evaluation.}
+
+\item{as_function}{Return function that takes depth vector as input?}
 
 \item{OPTFUN}{Objective function. Defaults to \code{sm_optim_rmse()}.}
 

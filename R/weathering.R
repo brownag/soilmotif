@@ -1,5 +1,4 @@
 # Weathering Indices from Elemental Data
-# Phase 3i: Quantitative weathering characterization from pXRF measurements
 
 # ============================================================================
 # Helper Functions
@@ -185,7 +184,7 @@
 #' }
 #'
 #' @export
-calculate_CIA <- function(Al2O3, K2O, Na2O) {
+sm_calculate_CIA <- function(Al2O3, K2O, Na2O) {
   denominator <- Al2O3 + K2O + Na2O
 
   # Handle zeros in denominator
@@ -231,7 +230,7 @@ calculate_CIA <- function(Al2O3, K2O, Na2O) {
 #' }
 #'
 #' @export
-calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
+sm_calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
   # Modified formula using oxide values
   # WIP = [2*Na2O/0.35 + 2*K2O/0.25 + MgO/0.9 + 2*CaO/1.3] / 10
 
@@ -274,7 +273,7 @@ calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
 #' }
 #'
 #' @export
-calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
+sm_calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
   numerator <- Al2O3 - K2O
   denominator <- Al2O3 + CaO - K2O
 
@@ -316,7 +315,7 @@ calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
 #' calculate_SAR(SiO2 = 50, Al2O3 = 20)  # SAR ≈ 2.5 (heavily weathered)
 #'
 #' @export
-calculate_SAR <- function(SiO2, Al2O3) {
+sm_calculate_SAR <- function(SiO2, Al2O3) {
   sar <- SiO2 / Al2O3
   sar[Al2O3 == 0] <- NA_real_
   sar
@@ -353,7 +352,7 @@ calculate_SAR <- function(SiO2, Al2O3) {
 #' calculate_ZrTi(Zr_ppm = 500, Ti_ppm = 2000)  # Higher ZrTi ≈ 0.25
 #'
 #' @export
-calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
+sm_calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
   zrti <- Zr_ppm / Ti_ppm
   zrti[Ti_ppm == 0] <- NA_real_
   zrti
@@ -393,7 +392,7 @@ calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
 #' calculate_FAR(Fe_ppm = 120000)  # FAR = 2.4 (strong enrichment)
 #'
 #' @export
-calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
+sm_calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
   far <- Fe_ppm / parent_Fe_ppm
   far
 }
@@ -454,7 +453,7 @@ calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
 #' }
 #'
 #' @export
-weathering_indices <- function(data,
+sm_weathering_indices <- function(data,
                                depth_col = "depth",
                                element_cols = NULL,
                                indices = "all",
@@ -585,7 +584,7 @@ weathering_indices <- function(data,
 #' }
 #'
 #' @export
-integrated_weathering_index <- function(CIA, WIP, PIA) {
+sm_integrated_weathering_index <- function(CIA, WIP, PIA) {
   # Normalize to 0-1 range
   cia_norm <- pmin(pmax((CIA - 50) / 50, 0), 1)
   wip_norm <- pmin(pmax((100 - WIP) / 100, 0), 1)
@@ -615,7 +614,7 @@ integrated_weathering_index <- function(CIA, WIP, PIA) {
 #'   - Laterite: CIA > 90 & WIP < 20
 #'
 #' @export
-weathering_stage <- function(CIA, WIP) {
+sm_weathering_stage <- function(CIA, WIP) {
   stage <- rep("unknown", length(CIA))
 
   stage[CIA < 60 & WIP > 80] <- "fresh"
@@ -675,7 +674,7 @@ weathering_stage <- function(CIA, WIP) {
 #' }
 #'
 #' @export
-element_depletion <- function(data,
+sm_element_depletion <- function(data,
                               element_cols = NULL,
                               immobile_element = "Zr",
                               parent_composition = NULL) {
@@ -762,7 +761,7 @@ element_depletion <- function(data,
 #' }
 #'
 #' @export
-weathering_by_horizon <- function(indices_df, fuzzy_classification) {
+sm_weathering_by_horizon <- function(indices_df, fuzzy_classification) {
   # Extract horizon membership from fuzzy classification
   # This allows mapping of depth points to horizons
 
@@ -813,7 +812,7 @@ weathering_by_horizon <- function(indices_df, fuzzy_classification) {
 #' }
 #'
 #' @export
-weathering_progression <- function(indices_df) {
+sm_weathering_progression <- function(indices_df) {
   # Use CIA as primary indicator
   if (!("CIA" %in% names(indices_df))) {
     return("unknown (CIA not available)")

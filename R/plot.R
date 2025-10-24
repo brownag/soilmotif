@@ -151,7 +151,7 @@ plot.soilmotif_optimization <- function(x, bootstrap_result = NULL,
 #' plot_data <- extract_plot_data(fit)
 #' str(plot_data)
 #' }
-extract_plot_data <- function(optimization_result, bootstrap_result = NULL, depths = NULL) {
+sm_extract_plot_data <- function(optimization_result, bootstrap_result = NULL, depths = NULL) {
   # Handle both list format and numeric vector with attributes (backward compatibility)
   if (is.list(optimization_result) && !is.null(optimization_result$observed)) {
     # New list format
@@ -229,7 +229,7 @@ extract_plot_data <- function(optimization_result, bootstrap_result = NULL, dept
 #' @param ... Additional arguments passed to plotting functions
 #' @return Invisible NULL
 #' @export
-plot_horizon_boundaries <- function(boundary_result, element_data = NULL,
+sm_plot_horizon_boundaries <- function(boundary_result, element_data = NULL,
                                    which = "all", ...) {
   # Placeholder implementation for future 03g integration
   message("Horizon boundary plotting will be available after Phase 3g implementation")
@@ -252,7 +252,7 @@ plot_horizon_boundaries <- function(boundary_result, element_data = NULL,
 #' @param ... Additional arguments passed to plotting functions
 #' @return Invisible NULL
 #' @export
-plot_fuzzy_horizons <- function(fuzzy_result, type = "heatmap", ...) {
+sm_plot_fuzzy_horizons <- function(fuzzy_result, type = "heatmap", ...) {
   # Placeholder implementation for future 03h integration
   message("Fuzzy horizon plotting will be available after Phase 3h implementation")
 
@@ -284,7 +284,7 @@ plot_fuzzy_horizons <- function(fuzzy_result, type = "heatmap", ...) {
 #'                           shape_family = "sigmoid", n_bootstrap = 100)
 #' plot_bootstrap_params(boot)
 #' }
-plot_bootstrap_params <- function(x, type = "histogram", ...) {
+sm_plot_bootstrap_params <- function(x, type = "histogram", ...) {
   if (x$n_successful == 0) {
     stop("No successful bootstrap samples to plot")
   }
@@ -339,7 +339,7 @@ plot_bootstrap_params <- function(x, type = "histogram", ...) {
 #' fit <- sm_optim(clay_data, c(40, 60), use_rust = TRUE)
 #' plot_residuals(fit)
 #' }
-plot_residuals <- function(x, ...) {
+sm_plot_residuals <- function(x, ...) {
   # Handle both list format and numeric vector with attributes (backward compatibility)
   if (is.list(x) && !is.null(x$observed)) {
     # New list format

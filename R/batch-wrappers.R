@@ -39,7 +39,7 @@
 #'
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
+#' @seealso \code{\link{sm_optim}}, \code{\link{sm_motif}}, \code{\link{sm_batch_get_successful}}, \code{\link{sm_batch_get_failed}}, \code{\link{sm_as_summary_table}}
 #' @examples
 #' \dontrun{
 #'   # Single profile (for testing)
@@ -60,12 +60,12 @@
 #'   cat(result$summary, "\n")
 #'
 #'   # Check for failed profiles
-#'   failed <- batch_get_failed(result)
+#'   failed <- sm_batch_get_failed(result)
 #'   if (length(failed) > 0) {
 #'     cat("Failed cells:", failed, "\n")
 #'   }
 #' }
-batch_optimize_profiles <- function(profiles,
+sm_batch_optimize_profiles <- function(profiles,
                                     initial_params_list = NULL,
                                     x = NULL,
                                     shape_type = "wetting_front",
@@ -149,8 +149,8 @@ batch_optimize_profiles <- function(profiles,
 #' @return data.frame with profile_id, params (as list column), and optionally rmse
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_failed}}, \code{\link{as_summary_table}}
-batch_get_successful <- function(x, include_rmse = TRUE) {
+#' @seealso \code{\link{sm_batch_optimize_profiles}}, \code{\link{sm_batch_get_failed}}, \code{\link{sm_as_summary_table}}
+sm_batch_get_successful <- function(x, include_rmse = TRUE) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
   }
@@ -192,8 +192,8 @@ batch_get_successful <- function(x, include_rmse = TRUE) {
 #' @return data.frame with profile_id and error columns (empty if no failures)
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{as_summary_table}}
-batch_get_failed <- function(x) {
+#' @seealso \code{\link{sm_batch_optimize_profiles}}, \code{\link{sm_batch_get_successful}}, \code{\link{sm_as_summary_table}}
+sm_batch_get_failed <- function(x) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
   }
@@ -246,8 +246,8 @@ print.batch_result <- function(x, ...) {
 #' @return data.frame with profile_id, converged, rmse, error, and optionally params
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
-as_summary_table <- function(x, include_params = TRUE) {
+#' @seealso \code{\link{sm_batch_optimize_profiles}}, \code{\link{sm_batch_get_successful}}, \code{\link{sm_batch_get_failed}}
+sm_as_summary_table <- function(x, include_params = TRUE) {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
   }
@@ -275,8 +275,8 @@ as_summary_table <- function(x, include_params = TRUE) {
 #' @return Extracted component
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{batch_get_successful}}, \code{\link{batch_get_failed}}
-batch_get <- function(x, what = "params") {
+#' @seealso \code{\link{sm_batch_optimize_profiles}}, \code{\link{sm_batch_get_successful}}, \code{\link{sm_batch_get_failed}}
+sm_batch_get <- function(x, what = "params") {
   if (!inherits(x, "batch_result")) {
     stop("x must be a batch_result object")
   }
@@ -293,7 +293,7 @@ batch_get <- function(x, what = "params") {
 
 #' High-level batch fitting for soil property data
 #'
-#' Wrapper around batch_optimize_profiles with sensible defaults for common workflows.
+#' Wrapper around sm_batch_optimize_profiles with sensible defaults for common workflows.
 #'
 #' @param profile_data list of data.frames with columns: id, depth, property.
 #'   Alternatively, list of numeric vectors (profiles only).
@@ -301,13 +301,13 @@ batch_get <- function(x, what = "params") {
 #' @param ascending logical direction flag
 #' @param use_rust logical use Rust backend (default TRUE if available)
 #' @param objective_type character objective function
-#' @param ... additional arguments to batch_optimize_profiles
+#' @param ... additional arguments to sm_batch_optimize_profiles
 #'
 #' @return batch_result object
 #' @export
 #' @keywords internal
-#' @seealso \code{\link{batch_optimize_profiles}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
-fit_batch_profiles <- function(profile_data,
+#' @seealso \code{\link{sm_batch_optimize_profiles}}, \code{\link{sm_optim}}, \code{\link{sm_motif}}
+sm_fit_batch_profiles <- function(profile_data,
                                shape_type = "wetting_front",
                                ascending = TRUE,
                                use_rust = TRUE,
@@ -326,7 +326,7 @@ fit_batch_profiles <- function(profile_data,
     stop("R backend for batch processing not yet implemented. Use use_rust=TRUE.")
   }
 
-  batch_optimize_profiles(
+  sm_batch_optimize_profiles(
     profiles = profiles,
     shape_type = shape_type,
     ascending = ascending,
