@@ -5,6 +5,8 @@ Actionable guidance for AI coding agents working on soilmotif: an R package for 
 Current Status: Phase 2 (Rust Core) Complete; Phase 3 (Advanced Analysis & Optimization) Preparation Underway
 See .github/prompts/0.1.0/03-Phase-3-Advanced-Analysis/ for detailed Phase 3 roadmap.
 
+**03f-r-integration COMPLETE**: Full R ecosystem integration implemented (broom, ggplot2, Bayesian workflows)
+
 CRITICAL RULES - ALWAYS FOLLOW
 ------------------------------
 1. NEVER use Unicode characters. Use ASCII equivalents only (R^2 not superscript 2, " not smart quotes, etc.)
@@ -94,6 +96,10 @@ soilmotif/
 |   |-- spline.R                # Preprocessing: sm_spline() mass-preserving interpolation
 |   |-- preprocess.R            # Data QC: sm_prepare(), validation
 |   |-- model-selection.R       # Auto model selection: fit_motif_auto()
+|   |-- broom-methods.R         # S3 methods for broom package (tidy/glance/augment)
+|   |-- plot.R                  # Base R plotting functions with bootstrap support
+|   |-- ggplot-helpers.R        # ggplot2 data preparation utilities
+|   |-- bayesian.R              # Bayesian prior specification utilities
 |   |-- util.R                  # Helpers: .scaleprop(), .validate_*, etc.
 |   `-- zzz.R                   # .onLoad() for Rust backend initialization
 |
@@ -228,7 +234,7 @@ Integration Points & Phase 3 Preparation
   - 03c: algorithm selection exposed (R interface sm_optim(..., algorithm = "lbfgs"))
   - 03d: custom shape families (src/shape_functions.rs extended)
   - 03e: uncertainty quantification (new R/uncertainty.R + Rust bootstrap trait)
-  - 03f: R ecosystem integration (broom methods, tidyverse, Bayesian, visualization)
+  - ✅ 03f: R ecosystem integration (broom methods, tidyverse, Bayesian, visualization) - COMPLETE
 - **Analysis Track (3g-3l):**
   - 03g-3h: horizon detection (new src/horizons.rs + R/horizons.R)
   - 03i: weathering indices (new R/weathering.R, element ratios)
@@ -238,7 +244,7 @@ Integration Points & Phase 3 Preparation
 
 **What This Means for Agents:**
 - Expect new Rust modules (horizons.rs, etc.) during Phase 3
-- R API may expand (new functions in fit.R, preprocess.R, new files for 03f-03l)
+- R API may expand (new functions in fit.R, preprocess.R, broom-methods.R, plot.R, ggplot-helpers.R, bayesian.R, new files for 03g-03l)
 - FFI stable; internal refactoring of optimizer.rs/objective.rs is OK
 - Batch processing infrastructure ready for parallel Phase 3 analyses
 - Trait patterns will extend (ObjectiveFunction, Analyzer, etc.)
@@ -337,6 +343,44 @@ fit_boot <- sm_optim_bootstrap(
 )
 ci_lower <- fit_boot$param_ci_lower
 ci_upper <- fit_boot$param_ci_upper
+```
+
+**R Ecosystem Integration (03f - Complete):**
+```r
+library(soilmotif)
+library(broom)  # For tidy model summaries
+library(ggplot2)  # For enhanced plotting
+
+# Fit a model
+fit <- sm_optim(clay_data, c(40, 60), use_rust = TRUE)
+
+# Broom integration
+tidy(fit)      # Parameter estimates with uncertainty
+glance(fit)    # Model diagnostics (RMSE, R², AIC)
+augment(fit)   # Predictions and residuals
+
+# Bootstrap uncertainty
+boot <- sm_optim_bootstrap(clay_data, depths = 1:200,
+                          initial_params = c(40, 60),
+                          n_bootstrap = 100)
+tidy(boot)     # Parameter estimates with confidence intervals
+glance(boot)   # Bootstrap diagnostics
+augment(boot)  # Predictions with uncertainty bands
+
+# Base R plotting
+plot(fit)      # Profile plot with fitted curve
+plot(boot)     # Profile plot with uncertainty bands
+
+# ggplot2 integration
+library(ggplot2)
+plot_data <- extract_plot_data(fit)
+ggplot(plot_data, aes(x = .fitted, y = .depth)) +
+  geom_line() +
+  scale_y_reverse()
+
+# Bayesian priors from optimization results
+priors <- sm_to_brms_priors(fit, shape_family = "sigmoid")
+# Use priors in brms models for Bayesian soil modeling
 ```
 
 **Phase 3 Preview (Analysis Track):**
@@ -492,7 +536,7 @@ As you implement Phase 3, prepare for:
 - [ ] Algorithm selection (03c): Will add algorithm parameter to sm_optim(); auto-selection logic
 - [ ] Custom shapes (03d): Will extend src/shape_functions.rs; backward compatible
 - [ ] Uncertainty (03e): Will add new R functions; bootstrap infrastructure in Rust
-- [ ] R integration (03f): Will add broom methods, tidyverse helpers, Bayesian integration
+- [✅] R integration (03f): Broom methods, tidyverse helpers, Bayesian integration - COMPLETE
 - [ ] Horizon delineation (03g): Will add src/horizons.rs, R/horizons.R
 - [ ] Fuzzy clustering (03h): Will add clustering functions to R/horizons.R
 - [ ] Weathering indices (03i): Will add R/weathering.R

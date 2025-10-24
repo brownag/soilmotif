@@ -10,15 +10,20 @@ License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 Depends: R (>= 4.1.0)
-SystemRequirements: Cargo (>= 1.56)
+SystemRequirements: Cargo (>= 1.56), OpenBLAS (optional, system version preferred for faster compilation)
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Imports: 
     stats
 Suggests: 
     aqp,
+    broom,
+    dplyr,
+    ggplot2,
     mpspline2,
+    purrr,
     testthat (>= 3.0.0),
+    tidyr,
     knitr,
     rmarkdown
 Config/testthat/edition: 3

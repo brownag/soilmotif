@@ -22,3 +22,21 @@
   # Scale to target range [xlim[1], xlim[2]]
   pmin(pmax(xlim[1], x_normalized * (xlim[2] - xlim[1]) + xlim[1]), xlim[2])
 }
+
+#' Check for required suggested packages
+#'
+#' Internal helper for checking and requiring suggested package dependencies.
+#' Follows the pattern established in R/preprocess.R and R/spline.R.
+#'
+#' @param pkg character. Package name to check for.
+#' @param reason character. Description of why the package is needed (for error message).
+#' @return invisible TRUE if package is available, otherwise throws error.
+#' @noRd
+#' @keywords internal
+.require_package <- function(pkg, reason = "this functionality") {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    stop(sprintf("Package '%s' is required for %s.\nInstall with: install.packages('%s')",
+                 pkg, reason, pkg),
+         call. = FALSE)
+  }
+}

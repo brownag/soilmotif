@@ -234,8 +234,19 @@ sm_optim <- function(x, X, ...,
   }
   
   res <- sm_motif(x, final_par, FUN = FUN, ...)
-  attr(res, 'par') <- final_par
-  res
+  optimization_result <- list(
+    fitted = res,
+    params = final_par,
+    observed = x,
+    depths = seq_along(x),
+    shape_family = deparse(substitute(FUN)),
+    objective = if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse",
+    algorithm = "nelder_mead",
+    converged = fit$convergence == 0,
+    message = if (fit$convergence == 0) "Optimization completed successfully" else "Optimization may not have converged"
+  )
+  class(optimization_result) <- "soilmotif_optimization"
+  optimization_result
 }
 
 #' Suggest Initial Parameters for Motif Fitting
@@ -317,7 +328,8 @@ sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rms
   }
   
   tryCatch({
-    recommend_optimizer_rust(as.integer(n_params), as.integer(n_obs %||% 100), objective_type)
+    n_obs_val <- if (is.null(n_obs)) 100 else n_obs
+    recommend_optimizer_rust(as.integer(n_params), as.integer(n_obs_val), objective_type)
   }, error = function(e) {
     warning("Failed to get recommendation from Rust: ", e$message)
     "nelder_mead"
@@ -329,7 +341,42 @@ sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rms
 # ============================================================================
 
 # Store original R implementation for dispatch
-sm_optim_r_impl <- sm_optim
+sm_optim_r_impl <- function(x, X, ...,
+                           FUN = sm_shape_sigmoid,
+                           OPTFUN = sm_optim_rmse) {
+  method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
+  lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
+  upper <- if (length(X) == 1) 1 else Inf
+  
+  fit <- stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
+                      method = method, lower = lower, upper = upper)
+  
+  # Only sort for specific motif types where it makes sense
+  final_par <- fit$par
+  if (identical(FUN, sm_shape_wetting_front)) {
+    final_par <- sort(final_par)
+  }
+  
+  res <- sm_motif(x, final_par, FUN = FUN, ...)
+  optimization_result <- list(
+    fitted = res,
+    params = final_par,
+    observed = x,
+    depths = seq_along(x),
+    shape_family = deparse(substitute(FUN)),
+    objective = if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse",
+    algorithm = "nelder_mead",
+    converged = fit$convergence == 0,
+    message = if (fit$convergence == 0) "Optimization completed successfully" else "Optimization may not have converged"
+  )
+  class(optimization_result) <- "soilmotif_optimization"
+  
+  # For backward compatibility, return fitted values with optimization result as attribute
+  attr(res, "optimization_result") <- optimization_result
+  attr(res, "par") <- final_par  # Legacy parameter access
+  class(res) <- c("soilmotif_optimization", class(res))
+  res
+}
 
 # Replace sm_optim with dispatch wrapper that can route to Rust
 sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
@@ -394,9 +441,25 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
         as.character(algorithm)
       )
 
-      # Return result in same format as R implementation
+      # Return result in proper object format
       predicted <- sm_motif(x, result, FUN = FUN, ...)
-      attr(predicted, 'par') <- result
+      optimization_result <- list(
+        fitted = predicted,
+        params = result,
+        observed = x,
+        depths = depth_vector,
+        shape_family = shape_type,
+        objective = objective_type,
+        algorithm = algorithm,
+        converged = TRUE,  # Assume convergence if no error
+        message = "Optimization completed successfully"
+      )
+      class(optimization_result) <- "soilmotif_optimization"
+      
+      # For backward compatibility, return fitted values with optimization result as attribute
+      attr(predicted, "optimization_result") <- optimization_result
+      attr(predicted, "par") <- result  # Legacy parameter access
+      class(predicted) <- c("soilmotif_optimization", class(predicted))
       return(predicted)
 
     }, error = function(e) {
@@ -407,5 +470,153 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
 
   # Use R implementation (default path)
   sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN)
+}
+
+#' Bootstrap Uncertainty Quantification for Soil Motif Optimization
+#'
+#' Performs parametric or sieve bootstrap resampling to quantify uncertainty in fitted parameters.
+#' Uses either parametric bootstrap (assumes independence) or sieve bootstrap (accounts for autocorrelation).
+#'
+#' @param observed numeric vector of observed soil property values
+#' @param depths numeric vector of depth values (same length as observed)
+#' @param initial_params numeric vector of initial parameter values for optimization
+#' @param shape_family character shape function family ("sigmoid", "uniform", "gradational", "exponential", "abrupt", "peak", "minimax")
+#' @param objective character objective function ("rmse", "sse", "mae", "r2", "weighted_rmse", "huber", "quantile", "ordinal", "bounded")
+#' @param algorithm character optimization algorithm ("auto", "nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing", "newton_cg")
+#' @param n_bootstrap integer number of bootstrap samples (default 1000)
+#' @param method character bootstrap method: "auto", "parametric", or "sieve" (default "auto")
+#' @param seed integer random seed for reproducibility (default NULL for random)
+#' @param parallel logical whether to use parallel processing (default FALSE)
+#' @param max_retries integer maximum retries per bootstrap sample (default 3)
+#' @param strict logical if TRUE, fail on AR(1) fitting errors; if FALSE, fallback to parametric (default FALSE)
+#' @param ... additional arguments passed to objective functions
+#'
+#' @return list with class "bootstrap_result" containing:
+#'   - param_samples: matrix of bootstrap parameter estimates (n_successful x n_params)
+#'   - rmse_samples: numeric vector of RMSE values for each bootstrap sample
+#'   - r2_samples: numeric vector of R² values for each bootstrap sample
+#'   - aic_samples: numeric vector of AIC values for each bootstrap sample
+#'   - failed_indices: integer vector of indices for failed bootstrap samples
+#'   - n_successful: integer number of successful bootstrap samples
+#'   - settings: list of bootstrap settings used
+#'   - ar1_coef: numeric AR(1) coefficient (NA if not applicable or failed)
+#'   - message: character message about method used and any issues
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' # Basic bootstrap with uncertainty quantification
+#' clay_data <- sm_motif(1:200, c(40, 60)) + rnorm(200, 0, 3)
+#' boot <- sm_optim_bootstrap(
+#'   observed = clay_data,
+#'   depths = 1:200,
+#'   initial_params = c(35, 65),
+#'   shape_family = "sigmoid",
+#'   n_bootstrap = 100
+#' )
+#'
+#' # Extract parameter confidence intervals
+#' tidy(boot)  # broom-compatible summary
+#'
+#' # Check bootstrap diagnostics
+#' glance(boot)  # success rate, AR(1) coefficient, etc.
+#' }
+sm_optim_bootstrap <- function(observed, depths, initial_params,
+                              shape_family = "sigmoid",
+                              objective = "rmse",
+                              algorithm = "auto",
+                              n_bootstrap = 1000L,
+                              method = "auto",
+                              seed = NULL,
+                              parallel = FALSE,
+                              max_retries = 3L,
+                              strict = FALSE,
+                              ...) {
+  if (!rust_backend_available()) {
+    stop("Rust backend required for bootstrap uncertainty quantification")
+  }
+
+  # Input validation
+  if (length(observed) != length(depths)) {
+    stop("observed and depths must have the same length")
+  }
+  if (length(observed) < 3) {
+    stop("Need at least 3 observations for bootstrap")
+  }
+  if (n_bootstrap < 10) {
+    warning("n_bootstrap < 10 may not provide reliable uncertainty estimates")
+  }
+
+  # Store original depths before any processing
+  original_depths <- depths
+
+  # Determine bootstrap method
+  if (method == "auto") {
+    # Auto-select based on sample size (following sieve bootstrap guidelines)
+    method <- if (length(observed) >= 20) "sieve" else "parametric"
+  }
+
+  # Prepare configuration for Rust
+  config <- list(
+    shape_type = shape_family,
+    objective_name = objective,
+    optimizer_name = algorithm,
+    n_bootstrap = as.integer(n_bootstrap),
+    seed = if (is.null(seed)) -1L else as.integer(seed),
+    fallback = !strict,
+    method = method,
+    max_retries = as.integer(max_retries),
+    parallel = parallel
+  )
+
+  # Call Rust bootstrap engine
+  tryCatch({
+    result <- bootstrap_engine_rust(
+      as.numeric(observed),
+      as.numeric(depths),
+      as.numeric(initial_params),
+      config
+    )
+
+    # Check for errors in result
+    if ("Error" %in% names(result)) {
+      stop("Bootstrap failed: ", result$Error)
+    }
+
+    # Convert parameter samples from R list to matrix
+    if (length(result$parameter_samples) > 0) {
+      param_matrix <- do.call(rbind, result$parameter_samples)
+    } else {
+      param_matrix <- matrix(numeric(0), 0, length(initial_params))
+    }
+
+    # Build result object
+    bootstrap_result <- list(
+      param_samples = param_matrix,
+      rmse_samples = result$rmse_samples,
+      r2_samples = result$r2_samples,
+      aic_samples = result$aic_samples,
+      failed_indices = result$failed_indices,
+      n_successful = result$n_successful,
+      depths = original_depths,
+      settings = list(
+        n_bootstrap = n_bootstrap,
+        method_used = method,
+        shape_family = shape_family,
+        objective = objective,
+        algorithm = algorithm,
+        depths = original_depths,
+        initial_params = initial_params
+      ),
+      ar1_coef = result$ar1_coef,
+      message = result$message
+    )
+
+    class(bootstrap_result) <- "bootstrap_result"
+    bootstrap_result
+
+  }, error = function(e) {
+    stop("Bootstrap failed: ", e$message)
+  })
 }
 

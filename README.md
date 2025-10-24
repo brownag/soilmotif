@@ -184,6 +184,80 @@ The “optimized” curve is shifted upwards by about 20 cm, with final
 parameters 15.4274881, 73.4434748 reflecting a smooth spline increase
 around 45 cm.
 
+## R Ecosystem Integration
+
+{soilmotif} provides seamless integration with popular R packages for enhanced workflows:
+
+### Broom Integration
+
+Extract model summaries, diagnostics, and predictions in tidy format:
+
+``` r
+library(soilmotif)
+library(broom)
+
+# Fit a model
+fit <- sm_optim(clay_spline, c(25, 100))
+
+# Tidy parameter estimates
+tidy(fit)
+
+# Model diagnostics
+glance(fit)
+
+# Predictions and residuals
+augment(fit)
+```
+
+### Bootstrap Uncertainty Quantification
+
+``` r
+# Bootstrap uncertainty
+boot <- sm_optim_bootstrap(
+  clay_spline, depths = 1:200,
+  initial_params = c(25, 100),
+  n_bootstrap = 100
+)
+
+# Parameter estimates with confidence intervals
+tidy(boot)
+
+# Bootstrap diagnostics
+glance(boot)
+
+# Predictions with uncertainty bands
+augment(boot)
+```
+
+### Visualization
+
+{soilmotif} provides both base R and ggplot2-compatible plotting:
+
+``` r
+# Base R plotting
+plot(fit)      # Profile plot
+plot(boot)     # With uncertainty bands
+
+# ggplot2 integration
+library(ggplot2)
+plot_data <- extract_plot_data(fit)
+ggplot(plot_data, aes(x = .fitted, y = .depth)) +
+  geom_line() +
+  geom_ribbon(data = augment(boot), 
+              aes(xmin = .lower, xmax = .upper), alpha = 0.3) +
+  scale_y_reverse()
+```
+
+### Bayesian Integration
+
+Convert optimization results to informative priors for Bayesian modeling:
+
+``` r
+# Generate priors for brms/rstan
+priors <- sm_to_brms_priors(fit, shape_family = "sigmoid")
+priors <- sm_to_stan_priors(fit, shape_family = "sigmoid")
+```
+
 ## Rust Backend (High-Performance)
 
 {soilmotif} includes an optional high-performance Rust backend for

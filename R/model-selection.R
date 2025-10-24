@@ -189,8 +189,8 @@ plot.fit_motif_auto <- function(x, ...) {
   best_fit <- x$fits[[best_name]]
   depth <- seq(1, x$input_length)
 
-  plot(best_fit, depth, ylim = c(max(depth), min(depth)),
-       type = "l", col = "blue", lwd = 2,
+  plot(best_fit, depths = depth, ylim = c(max(depth), min(depth)),
+       col = "blue", lwd = 2,
        xlab = paste(best_name, "value"), ylab = "Depth (cm)",
        main = paste("Best fit:", best_name))
 
