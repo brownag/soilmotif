@@ -308,6 +308,13 @@ calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
 #' SAR is sensitive to clay mineral type. Kaolinite (Al2Si2O5(OH)4) has SAR ≈ 2,
 #' while feldspar (KAlSi3O8) has SAR ≈ 3-4.
 #'
+#' @examples
+#' # Unweathered granitic material (quartzite-rich)
+#' calculate_SAR(SiO2 = 75, Al2O3 = 12)  # SAR ≈ 6.25 (unweathered)
+#'
+#' # Heavily weathered material (clay-rich)
+#' calculate_SAR(SiO2 = 50, Al2O3 = 20)  # SAR ≈ 2.5 (heavily weathered)
+#'
 #' @export
 calculate_SAR <- function(SiO2, Al2O3) {
   sar <- SiO2 / Al2O3
@@ -338,6 +345,13 @@ calculate_SAR <- function(SiO2, Al2O3) {
 #' - Tracing sediment sources
 #' - Detecting mineralogical changes (zircon vs ilmenite)
 #'
+#' @examples
+#' # Granitic parent material
+#' calculate_ZrTi(Zr_ppm = 200, Ti_ppm = 3000)  # Typical granite ZrTi ≈ 0.067
+#'
+#' # Zircon-enriched sand
+#' calculate_ZrTi(Zr_ppm = 500, Ti_ppm = 2000)  # Higher ZrTi ≈ 0.25
+#'
 #' @export
 calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
   zrti <- Zr_ppm / Ti_ppm
@@ -367,6 +381,16 @@ calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
 #'
 #' Default parent Fe = 50000 ppm (typical granitic rock).
 #' Adjust for specific parent materials (e.g., basalt ~110000 ppm).
+#'
+#' @examples
+#' # No Fe accumulation (same as parent material)
+#' calculate_FAR(Fe_ppm = 50000)  # FAR = 1.0 (unweathered)
+#'
+#' # Moderate Fe enrichment (laterite)
+#' calculate_FAR(Fe_ppm = 75000)  # FAR = 1.5 (moderate enrichment)
+#'
+#' # Strong Fe enrichment (lateritic ironstone)
+#' calculate_FAR(Fe_ppm = 120000)  # FAR = 2.4 (strong enrichment)
 #'
 #' @export
 calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
@@ -638,6 +662,18 @@ weathering_stage <- function(CIA, WIP) {
 #' - DF > 1: Accumulation (enriched)
 #' - DF < 1: Loss (depleted)
 #'
+#' @examples
+#' \dontrun{
+#' # Calculate depletion factors using Zr as immobile reference
+#' data <- data.frame(
+#'   depth = 1:10,
+#'   Al = c(50000, 45000, 40000, 35000, 30000, 30000, 30000, 30000, 30000, 30000),
+#'   Fe = c(40000, 42000, 44000, 46000, 50000, 55000, 60000, 65000, 70000, 75000),
+#'   Zr = c(190, 190, 190, 190, 190, 190, 190, 190, 190, 190)
+#' )
+#' depletion <- element_depletion(data)
+#' }
+#'
 #' @export
 element_depletion <- function(data,
                               element_cols = NULL,
@@ -717,6 +753,14 @@ element_depletion <- function(data,
 #'
 #' @return data.frame with horizon-level summaries
 #'
+#' @examples
+#' \dontrun{
+#' # Compute weathering indices and classify horizons
+#' indices <- weathering_indices(soil_data)
+#' horizons <- horizon_classify_fuzzy(soil_data, n_horizons = 3)
+#' by_horizon <- weathering_by_horizon(indices, horizons)
+#' }
+#'
 #' @export
 weathering_by_horizon <- function(indices_df, fuzzy_classification) {
   # Extract horizon membership from fuzzy classification
@@ -759,6 +803,14 @@ weathering_by_horizon <- function(indices_df, fuzzy_classification) {
 #'   "increasing" (more weathered at surface),
 #'   "decreasing" (less weathered at surface),
 #'   "stable" (consistent with depth)
+#'
+#' @examples
+#' \dontrun{
+#' # Analyze how weathering changes with depth
+#' indices <- weathering_indices(soil_data)
+#' trend <- weathering_progression(indices)
+#' cat("Weathering trend:", trend, "\n")
+#' }
 #'
 #' @export
 weathering_progression <- function(indices_df) {

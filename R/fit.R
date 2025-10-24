@@ -1,4 +1,12 @@
-#' Objective Functions
+# ============================================================================
+# Constants for fitting and optimization
+# ============================================================================
+
+# Default depth range for profile evaluation
+.DEFAULT_DEPTH_RANGE <- c(1, 200)
+
+# ============================================================================
+# Objective Functions
 #'
 #' @param x numeric. Vector of "observed" values.
 #' @param y numeric. Vector of "predicted" values.
@@ -64,7 +72,7 @@ sm_optim_ssq <- function(x, y, ...) {
 #'        col = c("BLACK","RED","BLUE"))
 sm_motif <- function(x, X,
                      FUN = sm_shape_sigmoid,
-                     ..., ylim = c(1, 200),
+                     ..., ylim = .DEFAULT_DEPTH_RANGE,
                      as_function = FALSE) {
   # Scale shape function output to data range for optimal fitting
   .fun <- \(Y) .scaleprop(FUN(Y, X, ...), c(min(x), max(x)))

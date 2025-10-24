@@ -3,6 +3,18 @@
 # Phase 3h: Fuzzy k-means Horizon Classification
 
 # ============================================================================
+# Constants for horizon detection algorithms
+# ============================================================================
+
+# Mahalanobis distance boundary detection defaults
+.MAHALANOBIS_DEFAULT_THRESHOLD <- 2.0
+
+# Fuzzy k-means clustering defaults
+.FUZZY_DEFAULT_EXPONENT <- 2.0
+.FUZZY_DEFAULT_MAX_ITER <- 100
+.FUZZY_DEFAULT_TOLERANCE <- 1e-4
+
+# ============================================================================
 # Phase 3g: Mahalanobis Distance Boundary Detection
 # ============================================================================
 
@@ -447,7 +459,7 @@ horizon_boundaries_mahalanobis <- function(data,
                                             depth_col = "depth",
                                             element_cols = NULL,
                                             window_size = 10,
-                                            threshold = 2.0,
+                                            threshold = .MAHALANOBIS_DEFAULT_THRESHOLD,
                                             method = "local_maxima",
                                             min_horizon_depth = 5,
                                             window_type = "centered") {
@@ -632,8 +644,9 @@ summary.horizon_boundaries <- function(object, ...) {
 #' @param convergence Convergence criterion ("membership", "centers", "both")
 #' @return List with centers, memberships, entropy, iterations, converged
 #' @noRd
-.fuzzy_kmeans_r <- function(data_matrix, k, m = 2.0,
-                             max_iter = 100, tol = 1e-4,
+.fuzzy_kmeans_r <- function(data_matrix, k, m = .FUZZY_DEFAULT_EXPONENT,
+                             max_iter = .FUZZY_DEFAULT_MAX_ITER,
+                             tol = .FUZZY_DEFAULT_TOLERANCE,
                              init_method = "kmeans",
                              convergence = "membership") {
 
@@ -815,9 +828,9 @@ horizon_classify_fuzzy <- function(data,
                                     depth_col = "depth",
                                     element_cols = NULL,
                                     n_horizons = 5,
-                                    m = 2.0,
-                                    max_iter = 100,
-                                    tolerance = 1e-4,
+                                    m = .FUZZY_DEFAULT_EXPONENT,
+                                    max_iter = .FUZZY_DEFAULT_MAX_ITER,
+                                    tolerance = .FUZZY_DEFAULT_TOLERANCE,
                                     convergence = "membership",
                                     init_method = "kmeans",
                                     include_depth_feature = FALSE,
