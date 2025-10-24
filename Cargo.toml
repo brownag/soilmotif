@@ -8,7 +8,7 @@ license = "GPL (>= 3)"
 [dependencies]
 extendr-api = "0.8"
 ndarray = "0.15"
-ndarray-linalg = { version = "0.16", features = ["openblas-system"] }
+ndarray-linalg = { version = "0.16", default-features = false }
 nalgebra = "0.33"
 argmin = { version = "0.9", features = ["serde"] }
 argmin-math = "0.3"

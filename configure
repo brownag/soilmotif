@@ -17,6 +17,33 @@ fi
 PACKAGE_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$PACKAGE_ROOT"
 
+# Determine OpenBLAS build type
+USE_STATIC_OPENBLAS=0
+
+# Check for explicit static override
+if [ "${SOILMOTIF_OPENBLAS_STATIC:-}" = "1" ] || [ "${SOILMOTIF_OPENBLAS_STATIC:-}" = "true" ]; then
+    echo "Using static OpenBLAS (forced by SOILMOTIF_OPENBLAS_STATIC)"
+    USE_STATIC_OPENBLAS=1
+else
+    # Check if system OpenBLAS is available
+    if command -v pkg-config &> /dev/null && pkg-config --exists openblas; then
+        echo "System OpenBLAS detected, using system libraries"
+        USE_STATIC_OPENBLAS=0
+    else
+        echo "System OpenBLAS not found, falling back to static build"
+        USE_STATIC_OPENBLAS=1
+    fi
+fi
+
+# Set environment variables for OpenBLAS build
+if [ "$USE_STATIC_OPENBLAS" -eq 1 ]; then
+    export RUSTFLAGS="--cfg openblas_static $RUSTFLAGS"
+    echo "Building with static OpenBLAS (slower compile, more portable)"
+else
+    export RUSTFLAGS="--cfg openblas_system $RUSTFLAGS"
+    echo "Building with system OpenBLAS (faster compile, requires system libraries)"
+fi
+
 # Force clean of src artifacts to ensure fresh build
 # This prevents stale .so and .a files from being used
 echo "Cleaning previous build artifacts..."
