@@ -390,7 +390,8 @@ sm_shape_abrupt <- function(x, params, ascending = TRUE) {
 sm_shape_peak <- function(x, params, ascending = TRUE) {
   depth_max <- params[1]
   width <- params[2]
-  skew <- if (length(params) > 2) params[3] else 0  # TODO: implement skewness
+  # NOTE: 3rd parameter (skewness) is reserved for future implementation
+  # Currently only 2 parameters (depth_max, width) are used
   
   # Clamp parameters
   depth_max <- max(min(x), min(max(x), depth_max))

@@ -23,16 +23,6 @@ sm_optim_ssq <- function(x, y, ...) {
   sum((y - x) ^ 2, ...)
 }
 
-## TODO: some functions might be (initially) parameterized by first doing some math on clusters
-# sm_motif_kmeans <- function(x, centers = 2, ..., ylim = c(1, 200),
-#                             FUN = soilmotif::sm_shape_sigmoid) {
-#  pr <- kmeans(x, centers = centers, ...)
-#  propmin <- pr$centers[1]
-#  propmax <- pr$centers[2]
-#  sm_optim_rmse(x, .scaleprop(FUN(seq(ylim[1], ylim[2]), c(propmin, propmax)), c(min(x), max(x))))
-# }
-# sm_motif_kmeans(z$clay_spline)
-
 #' Fit a Soil Property Shape Function
 #'
 #' @param x A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.
@@ -76,7 +66,7 @@ sm_motif <- function(x, X,
                      FUN = sm_shape_sigmoid,
                      ..., ylim = c(1, 200),
                      as_function = FALSE) {
-  # TODO: property scaling not need to be based on minima/maxima within x
+  # Scale shape function output to data range for optimal fitting
   .fun <- \(Y) .scaleprop(FUN(Y, X, ...), c(min(x), max(x)))
   if (as_function)
     return(.fun)

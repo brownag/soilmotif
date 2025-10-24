@@ -171,7 +171,7 @@ augment.soilmotif_optimization <- function(x, newdata = NULL, ...) {
     depths <- newdata
     observed_aug <- rep(NA_real_, length(newdata))  # No observed data for new depths
     # Re-evaluate the shape function at new depths
-    fitted_aug <- sm_motif(depths, params, FUN = get_shape_function(shape_family))
+    fitted_aug <- sm_motif(depths, params, FUN = .get_shape_function(shape_family))
   }
 
   # Calculate residuals where we have observed data
@@ -206,28 +206,8 @@ glance <- function(x, ...) UseMethod("glance")
 #' @export
 augment <- function(x, ...) UseMethod("augment")
 
-# Helper function to get shape function from string
-get_shape_function <- function(shape_family) {
-  # Handle both "sigmoid" and "sm_shape_sigmoid" formats
-  if (grepl("^sm_shape_", shape_family)) {
-    shape_name <- sub("^sm_shape_", "", shape_family)
-  } else {
-    shape_name <- shape_family
-  }
-  
-  switch(shape_name,
-    "sigmoid" = sm_shape_sigmoid,
-    "wetting_front" = sm_shape_wetting_front,
-    "uniform" = sm_shape_uniform,
-    "gradational" = sm_shape_gradational,
-    "exponential" = sm_shape_exponential,
-    "abrupt" = sm_shape_abrupt,
-    "peak" = sm_shape_peak,
-    "minimax" = sm_shape_minimax,
-    # Default fallback
-    sm_shape_sigmoid
-  )
-}
+# Note: get_shape_function helper is now in util.R as .get_shape_function()
+# For backward compatibility, provide an alias if needed locally
 
 #' Tidy a bootstrap result
 #'
@@ -352,7 +332,7 @@ augment.bootstrap_result <- function(x, newdata = NULL, ...) {
   }
 
   # Get shape function
-  shape_fun <- get_shape_function(x$settings$shape_family)
+  shape_fun <- .get_shape_function(x$settings$shape_family)
 
   # Calculate predictions for each bootstrap sample
   n_bootstrap <- nrow(x$param_samples)

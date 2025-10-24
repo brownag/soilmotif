@@ -8,7 +8,7 @@
 #' Internal: Validate weathering data
 #'
 #' @param data data.frame with element columns
-#' @param element_cols Character vector of column names to use
+#' @param element_cols character vector of column names to use
 #' @return List of validated data and element names
 #' @noRd
 .validate_weathering_data <- function(data, element_cols = NULL) {
@@ -88,10 +88,10 @@
 #' Converts elemental concentrations (ppm) to oxide weight percentages
 #' using standard atomic weights and oxide formulas.
 #'
-#' @param element Character. Element symbol (Al, Fe, Si, K, Ca, Na, Mg, Ti, Zr)
-#' @param ppm_value Numeric. Concentration in ppm
+#' @param element character. Element symbol (Al, Fe, Si, K, Ca, Na, Mg, Ti, Zr)
+#' @param ppm_value numeric. Concentration in ppm
 #'
-#' @return Numeric. Concentration in oxide wt%
+#' @return numeric. Concentration in oxide wt%
 #' @noRd
 .ppm_to_oxide <- function(element, ppm_value) {
   # Conversion factors: (atomic_weight_of_oxide / atomic_weight_of_element) * 100
@@ -121,7 +121,7 @@
 #' Internal: Check if element columns are in ppm or oxide wt%
 #'
 #' @param data data.frame with element columns
-#' @param element_cols Character vector of element names
+#' @param element_cols character vector of element names
 #'
 #' @return Character. Either "ppm" or "oxide"
 #' @noRd
@@ -158,11 +158,11 @@
 #'
 #' Formula: CIA = (Al2O3 / (Al2O3 + K2O + Na2O)) * 100
 #'
-#' @param Al2O3 Numeric. Al2O3 concentration (wt%)
-#' @param K2O Numeric. K2O concentration (wt%)
-#' @param Na2O Numeric. Na2O concentration (wt%)
+#' @param Al2O3 numeric. Al2O3 concentration (wt%)
+#' @param K2O numeric. K2O concentration (wt%)
+#' @param Na2O numeric. Na2O concentration (wt%)
 #'
-#' @return Numeric. CIA value (0-100). Interpretation ranges:
+#' @return numeric. CIA value (0-100). Interpretation ranges:
 #'   - 50-60: Fresh, minimal weathering (granitic rocks)
 #'   - 60-75: Moderate weathering
 #'   - 75-85: Strong weathering (laterite weathering)
@@ -206,12 +206,12 @@ calculate_CIA <- function(Al2O3, K2O, Na2O) {
 #'
 #' Formula: WIP = (2*Na2O/0.35 + 2*K2O/0.25 + MgO/0.9 + 2*CaO/1.3) / 10
 #'
-#' @param K2O Numeric. K2O concentration (wt%)
-#' @param Na2O Numeric. Na2O concentration (wt%)
-#' @param CaO Numeric. CaO concentration (wt%)
-#' @param MgO Numeric. MgO concentration (wt%)
+#' @param K2O numeric. K2O concentration (wt%)
+#' @param Na2O numeric. Na2O concentration (wt%)
+#' @param CaO numeric. CaO concentration (wt%)
+#' @param MgO numeric. MgO concentration (wt%)
 #'
-#' @return Numeric. WIP value (0-100+, typically 20-100). Interpretation ranges:
+#' @return numeric. WIP value (0-100+, typically 20-100). Interpretation ranges:
 #'   - 100: No weathering (fresh feldspar)
 #'   - 60-80: Moderate weathering
 #'   - 20-60: Strong weathering
@@ -250,12 +250,12 @@ calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
 #'
 #' Formula: PIA = ((Al2O3 - K2O) / (Al2O3 + CaO - K2O)) * 100
 #'
-#' @param Al2O3 Numeric. Al2O3 concentration (wt%)
-#' @param Na2O Numeric. Na2O concentration (wt%)
-#' @param K2O Numeric. K2O concentration (wt%)
-#' @param CaO Numeric. CaO concentration (wt%)
+#' @param Al2O3 numeric. Al2O3 concentration (wt%)
+#' @param Na2O numeric. Na2O concentration (wt%)
+#' @param K2O numeric. K2O concentration (wt%)
+#' @param CaO numeric. CaO concentration (wt%)
 #'
-#' @return Numeric. PIA value (0-100). Interpretation ranges:
+#' @return numeric. PIA value (0-100). Interpretation ranges:
 #'   - Less than 50: Low plagioclase weathering
 #'   - 50-80: Moderate plagioclase weathering
 #'   - Greater than 80: Intense plagioclase alteration
@@ -295,10 +295,10 @@ calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
 #'
 #' Formula: SAR = SiO2 / Al2O3
 #'
-#' @param SiO2 Numeric. SiO2 concentration (wt%)
-#' @param Al2O3 Numeric. Al2O3 concentration (wt%)
+#' @param SiO2 numeric. SiO2 concentration (wt%)
+#' @param Al2O3 numeric. Al2O3 concentration (wt%)
 #'
-#' @return Numeric. SAR value (typically 3-8). Interpretation ranges:
+#' @return numeric. SAR value (typically 3-8). Interpretation ranges:
 #'   - Greater than 7: Unweathered (quartzite, granitoid with high quartz)
 #'   - 5 to 7: Moderately weathered (clay-rich)
 #'   - 3 to 5: Heavily weathered (clay minerals dominant)
@@ -322,10 +322,10 @@ calculate_SAR <- function(SiO2, Al2O3) {
 #'
 #' Formula: ZrTi = Zr_ppm / Ti_ppm
 #'
-#' @param Zr_ppm Numeric. Zirconium concentration (ppm)
-#' @param Ti_ppm Numeric. Titanium concentration (ppm)
+#' @param Zr_ppm numeric. Zirconium concentration (ppm)
+#' @param Ti_ppm numeric. Titanium concentration (ppm)
 #'
-#' @return Numeric. ZrTi ratio (typically 0.01-0.1)
+#' @return numeric. ZrTi ratio (typically 0.01-0.1)
 #'
 #' **Interpretation:**
 #' - Parent material dependent; used mainly for source tracing
@@ -352,10 +352,10 @@ calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
 #'
 #' Formula: FAR = Fe_present / Fe_parent
 #'
-#' @param Fe_ppm Numeric. Iron concentration (ppm) in soil
-#' @param parent_Fe_ppm Numeric. Reference Fe concentration in parent material (ppm)
+#' @param Fe_ppm numeric. Iron concentration (ppm) in soil
+#' @param parent_Fe_ppm numeric. Reference Fe concentration in parent material (ppm)
 #'
-#' @return Numeric. FAR value (typically 0.5-3.0). Interpretation ranges:
+#' @return numeric. FAR value (typically 0.5-3.0). Interpretation ranges:
 #'   - Less than 1: Fe depletion (unusual, indicates loss to solution)
 #'   - Equals 1: No Fe accumulation (same as parent)
 #'   - 1 to 2: Moderate Fe enrichment (laterite formation)
@@ -386,13 +386,13 @@ calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
 #'
 #' @param data data.frame with depth and element concentration columns
 #' @param depth_col Character. Name of depth column (default: "depth")
-#' @param element_cols Character vector of element column names to use.
+#' @param element_cols character vector of element column names to use.
 #'        If NULL (default), auto-detects common elements (Al, Fe, Si, K, Ca, Na, Mg, Ti, Zr)
 #' @param indices Character vector of indices to compute. Options:
 #'        "CIA", "WIP", "PIA", "SAR", "ZrTi", "FAR", or "all" (default)
 #' @param convert_to_oxides Logical. If TRUE (default) and units appear to be ppm,
 #'        converts to oxide wt% using standard conversion factors
-#' @param parent_Fe_ppm Numeric. Reference Fe concentration (ppm) for FAR calculation.
+#' @param parent_Fe_ppm numeric. Reference Fe concentration (ppm) for FAR calculation.
 #'        Default 50000 (granitic parent). Use 110000 for basaltic.
 #'
 #' @return data.frame with columns including depth and calculated indices.
@@ -539,11 +539,11 @@ weathering_indices <- function(data,
 #' Combines major weathering indices (CIA, WIP, PIA) into a single
 #' 0-1 weathering score.
 #'
-#' @param CIA Numeric. Chemical Index of Alteration (0-100)
-#' @param WIP Numeric. Weathering Index of Parker (0-100+)
-#' @param PIA Numeric. Plagioclase Index of Alteration (0-100)
+#' @param CIA numeric. Chemical Index of Alteration (0-100)
+#' @param WIP numeric. Weathering Index of Parker (0-100+)
+#' @param PIA numeric. Plagioclase Index of Alteration (0-100)
 #'
-#' @return Numeric. Integrated index (0-1), where 1 = fully weathered
+#' @return numeric. Integrated index (0-1), where 1 = fully weathered
 #'
 #' @details
 #' Normalization applied to each index:
@@ -576,8 +576,8 @@ integrated_weathering_index <- function(CIA, WIP, PIA) {
 #'
 #' Assigns weathering stage category based on CIA and WIP values.
 #'
-#' @param CIA Numeric. Chemical Index of Alteration (0-100)
-#' @param WIP Numeric. Weathering Index of Parker (0-100+)
+#' @param CIA numeric. Chemical Index of Alteration (0-100)
+#' @param WIP numeric. Weathering Index of Parker (0-100+)
 #'
 #' @return Factor. Weathering stage with levels:
 #'   "fresh", "slightly_altered", "moderate", "strong", "laterite"
@@ -619,7 +619,7 @@ weathering_stage <- function(CIA, WIP) {
 #' to quantify element loss during weathering.
 #'
 #' @param data data.frame with depth and element columns
-#' @param element_cols Character vector of element names to evaluate
+#' @param element_cols character vector of element names to evaluate
 #' @param immobile_element Character. Reference immobile element ("Zr" or "Ti")
 #' @param parent_composition data.frame with parent material composition
 #'

@@ -74,7 +74,7 @@ plot.soilmotif_optimization <- function(x, bootstrap_result = NULL,
     xlim <- range(c(observed, fitted), na.rm = TRUE)
     if (!is.null(bootstrap_result) && bootstrap_result$n_successful > 0) {
       # Include bootstrap predictions in range calculation
-      shape_fun <- get_shape_function(shape_family)
+      shape_fun <- .get_shape_function(shape_family)
       boot_preds <- apply(bootstrap_result$param_samples, 1, function(params) {
         sm_motif(depths, params, FUN = shape_fun)
       })
@@ -99,7 +99,7 @@ plot.soilmotif_optimization <- function(x, bootstrap_result = NULL,
 
   # Add confidence bands first (behind everything else)
   if (!is.null(bootstrap_result) && bootstrap_result$n_successful > 0) {
-    shape_fun <- get_shape_function(shape_family)
+    shape_fun <- .get_shape_function(shape_family)
     boot_preds <- apply(bootstrap_result$param_samples, 1, function(params) {
       sm_motif(depths, params, FUN = shape_fun)
     })
@@ -198,7 +198,7 @@ extract_plot_data <- function(optimization_result, bootstrap_result = NULL, dept
 
   # Add bootstrap uncertainty if available
   if (!is.null(bootstrap_result) && bootstrap_result$n_successful > 0) {
-    shape_fun <- get_shape_function(shape_family)
+    shape_fun <- .get_shape_function(shape_family)
     boot_preds <- apply(bootstrap_result$param_samples, 1, function(params) {
       sm_motif(depths, params, FUN = shape_fun)
     })
@@ -265,28 +265,7 @@ plot_fuzzy_horizons <- function(fuzzy_result, type = "heatmap", ...) {
   invisible(NULL)
 }
 
-# Helper function to get shape function from string (used internally)
-get_shape_function <- function(shape_family) {
-  # Handle both "sigmoid" and "sm_shape_sigmoid" formats
-  if (grepl("^sm_shape_", shape_family)) {
-    shape_name <- sub("^sm_shape_", "", shape_family)
-  } else {
-    shape_name <- shape_family
-  }
-
-  switch(shape_name,
-    "sigmoid" = sm_shape_sigmoid,
-    "wetting_front" = sm_shape_wetting_front,
-    "uniform" = sm_shape_uniform,
-    "gradational" = sm_shape_gradational,
-    "exponential" = sm_shape_exponential,
-    "abrupt" = sm_shape_abrupt,
-    "peak" = sm_shape_peak,
-    "minimax" = sm_shape_minimax,
-    # Default fallback
-    sm_shape_sigmoid
-  )
-}
+# Note: get_shape_function helper is now in util.R as ..get_shape_function()
 
 #' Plot bootstrap parameter distributions
 #'
