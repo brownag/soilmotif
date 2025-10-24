@@ -8,8 +8,8 @@
 # ============================================================================
 # Objective Functions
 #'
-#' @param x numeric. Vector of "observed" values.
-#' @param y numeric. Vector of "predicted" values.
+#' @param observed numeric. Vector of observed values.
+#' @param predicted numeric. Vector of predicted values.
 #' @param ... Additional arguments to statistics functions `mean()`, `sum()` etc. such as `na.rm`.
 #'
 #' @return numeric
@@ -18,8 +18,8 @@
 #'
 #' @examples
 #' sm_optim_rmse(1:10, runif(10))
-sm_optim_rmse <- function(x, y, ...) {
-  sqrt(mean((y - x) ^ 2, ...))
+sm_optim_rmse <- function(observed, predicted, ...) {
+  sqrt(mean((predicted - observed) ^ 2, ...))
 }
 
 #' @rdname sm-objective
@@ -27,24 +27,24 @@ sm_optim_rmse <- function(x, y, ...) {
 #'
 #' @examples
 #' sm_optim_ssq(1:10, runif(10))
-sm_optim_ssq <- function(x, y, ...) {
-  sum((y - x) ^ 2, ...)
+sm_optim_ssq <- function(observed, predicted, ...) {
+  sum((predicted - observed) ^ 2, ...)
 }
 
 #' Fit a Soil Property Shape Function
 #'
-#' @param x A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.
-#' @param X Parameters for the shape function `FUN`
+#' @param observed A continuous vector representing a soil property; e.g. spline output or otherwise made continuous (i.e. 1 unit intervals). See methods for spline/step interpolation.
+#' @param params Parameters for the shape function `FUN`
 #' @param FUN Shape function. Defaults to `sm_shape_sigmoid()`
 #' @param ... Additional arguments passed to `FUN`
-#' @param ylim numeric. Length 2 vector representing `Y` (depth) limits.
+#' @param ylim numeric. Length 2 vector representing depth limits.
 #' @param OPTFUN Objective function. Defaults to `sm_optim_rmse()`.
-#' @param as_function Return function that takes `Y` (depth) vector as input?
+#' @param as_function Return function that takes depth vector as input?
 #' @return numeric vector or function when `as_function=TRUE`
 #' @export
 #' @rdname sm_motif
 #' @section Parameter Semantics by Motif Type:
-#' 
+#'
 #' - **Uniform:** Single constant value
 #' - **Gradational:** c(start_value, end_value); order matters
 #' - **Exponential:** c(surface_value, decay_rate); order matters
@@ -70,12 +70,12 @@ sm_optim_ssq <- function(x, y, ...) {
 #'        pch = c("+", NA, NA),
 #'        lty = c(NA, 2, 1),
 #'        col = c("BLACK","RED","BLUE"))
-sm_motif <- function(x, X,
+sm_motif <- function(observed, params,
                      FUN = sm_shape_sigmoid,
                      ..., ylim = .DEFAULT_DEPTH_RANGE,
                      as_function = FALSE) {
   # Scale shape function output to data range for optimal fitting
-  .fun <- \(Y) .scaleprop(FUN(Y, X, ...), c(min(x), max(x)))
+  .fun <- \(depth) .scaleprop(FUN(depth, params, ...), c(min(observed), max(observed)))
   if (as_function)
     return(.fun)
   .fun(seq(ylim[1], ylim[2]))
@@ -339,28 +339,28 @@ sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rms
 # ============================================================================
 
 # Store original R implementation for dispatch
-sm_optim_r_impl <- function(x, X, ...,
+sm_optim_r_impl <- function(observed, params, ...,
                            FUN = sm_shape_sigmoid,
                            OPTFUN = sm_optim_rmse) {
-  method <- if (length(X) == 1) "Brent" else "Nelder-Mead"
-  lower <- if (length(X) == 1) 0 else -Inf  # Shape parameters are in [0,1]
-  upper <- if (length(X) == 1) 1 else Inf
+  method <- if (length(params) == 1) "Brent" else "Nelder-Mead"
+  lower <- if (length(params) == 1) 0 else -Inf  # Shape parameters are in [0,1]
+  upper <- if (length(params) == 1) 1 else Inf
 
-  fit <- suppressWarnings(stats::optim(X, function(Y) OPTFUN(sm_motif(x, Y, FUN = FUN, ...), x),
+  fit <- suppressWarnings(stats::optim(params, function(p) OPTFUN(sm_motif(observed, p, FUN = FUN, ...), observed),
                       method = method, lower = lower, upper = upper))
-  
+
   # Only sort for specific motif types where it makes sense
   final_par <- fit$par
   if (identical(FUN, sm_shape_wetting_front)) {
     final_par <- sort(final_par)
   }
-  
-  res <- sm_motif(x, final_par, FUN = FUN, ...)
+
+  res <- sm_motif(observed, final_par, FUN = FUN, ...)
   optimization_result <- list(
     fitted = res,
     params = final_par,
-    observed = x,
-    depths = seq_along(x),
+    observed = observed,
+    depths = seq_along(observed),
     shape_family = deparse(substitute(FUN)),
     objective = if (identical(OPTFUN, sm_optim_ssq)) "sse" else "rmse",
     algorithm = "nelder_mead",
@@ -368,7 +368,7 @@ sm_optim_r_impl <- function(x, X, ...,
     message = if (fit$convergence == 0) "Optimization completed successfully" else "Optimization may not have converged"
   )
   class(optimization_result) <- "soilmotif_optimization"
-  
+
   # For backward compatibility, return fitted values with optimization result as attribute
   attr(res, "optimization_result") <- optimization_result
   attr(res, "par") <- final_par  # Legacy parameter access
@@ -377,7 +377,7 @@ sm_optim_r_impl <- function(x, X, ...,
 }
 
 # Replace sm_optim with dispatch wrapper that can route to Rust
-sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
+sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse, use_rust = FALSE,
                      compare = FALSE, algorithm = "auto") {
   # algorithm can be:
@@ -389,14 +389,14 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
   #   "newton_cg" - Newton-CG method (gradient + Hessian, very fast for smooth problems)
   # If comparison mode requested, run both R and Rust and return comparison
   if (compare) {
-    return(compare_r_vs_rust(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
+    return(compare_r_vs_rust(observed, params, FUN = FUN, OPTFUN = OPTFUN, ...))
   }
 
   # If Rust requested, dispatch to Rust backend (with R fallback)
   if (use_rust) {
     if (!rust_backend_available()) {
       warning("Rust backend not available; falling back to R")
-      return(sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN))
+      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN))
     }
 
     # Determine objective type from OPTFUN
@@ -405,13 +405,13 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
     # Determine shape type from FUN
     shape_type <- deparse(substitute(FUN))
     shape_type <- gsub("^sm_shape_", "", shape_type)
-    
+
     # Map R function names to Rust shape type names
     shape_type <- switch(shape_type,
       "sigmoid" = "wetting_front",
       "wetting_front" = "wetting_front",
       "uniform" = "uniform",
-      "gradational" = "gradational", 
+      "gradational" = "gradational",
       "exponential" = "exponential",
       "abrupt" = "abrupt",
       "peak" = "peak",
@@ -421,18 +421,18 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
 
     # Determine algorithm
     if (algorithm == "auto") {
-      algorithm <- sm_recommend_optimizer(length(X), length(x), objective_type)
+      algorithm <- sm_recommend_optimizer(length(params), length(observed), objective_type)
     }
 
     # Determine depth vector
-    depth_vector <- seq_along(x)
+    depth_vector <- seq_along(observed)
 
     # Try Rust implementation with algorithm selection and fallback to R
     tryCatch({
       result <- optimize_profile_rust_flexible(
-        as.numeric(x),
+        as.numeric(observed),
         as.numeric(depth_vector),
-        as.numeric(X),
+        as.numeric(params),
         as.character(shape_type),
         TRUE,
         as.character(objective_type),
@@ -440,11 +440,11 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
       )
 
       # Return result in proper object format
-      predicted <- sm_motif(x, result, FUN = FUN, ...)
+      predicted <- sm_motif(observed, result, FUN = FUN, ...)
       optimization_result <- list(
         fitted = predicted,
         params = result,
-        observed = x,
+        observed = observed,
         depths = depth_vector,
         shape_family = shape_type,
         objective = objective_type,
@@ -453,7 +453,7 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
         message = "Optimization completed successfully"
       )
       class(optimization_result) <- "soilmotif_optimization"
-      
+
       # For backward compatibility, return fitted values with optimization result as attribute
       attr(predicted, "optimization_result") <- optimization_result
       attr(predicted, "par") <- result  # Legacy parameter access
@@ -462,12 +462,12 @@ sm_optim <- function(x, X, ..., FUN = sm_shape_sigmoid,
 
     }, error = function(e) {
       warning("Rust optimization failed: ", e$message, "; falling back to R")
-      return(sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN))
+      return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN))
     })
   }
 
   # Use R implementation (default path)
-  sm_optim_r_impl(x, X, ..., FUN = FUN, OPTFUN = OPTFUN)
+  sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN)
 }
 
 #' Bootstrap Uncertainty Quantification for Soil Motif Optimization
