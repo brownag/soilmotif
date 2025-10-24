@@ -3,7 +3,7 @@
 ^LICENSE\.md$
 ^README\.Rmd$
 ^misc$
-^\.github$
+^\.github/working$
 ^\.\.Rcheck$
 ^Cargo\.lock$
 ^rust-toolchain\.toml$

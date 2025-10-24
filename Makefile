@@ -89,8 +89,8 @@ ffi-install: ffi-document
 ffi-test:
 	@echo "Testing FFI function registration..."
 	@echo "Checking that all registered Rust functions are callable from R..."
-	R -e "library(soilmotif); \
-	if (!rust_backend_available()) { \
+	R -e "devtools::load_all(); \
+	if (!sm_rust_backend_available()) { \
 		cat('FAILED: Rust backend not available\n'); \
 		quit(status=1) \
 	}; \

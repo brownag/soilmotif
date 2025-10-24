@@ -35,7 +35,5 @@ Cargo.lock
 *~
 .DS_Store
 
-# Documentation
-.github/prompts
-.github/archived/
-.github/examples/
+# Temporary AI agent workspace (should NOT be committed)
+.github/working/

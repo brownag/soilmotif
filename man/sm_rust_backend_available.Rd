@@ -33,7 +33,7 @@ Check if Rust backend is available and loaded
 }
 \examples{
 \dontrun{
-  if (rust_backend_available()) {
+  if (sm_rust_backend_available()) {
     cat("Rust backend is available\n")
   }
 }
