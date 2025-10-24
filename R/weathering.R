@@ -23,14 +23,55 @@
 
   # Auto-detect element columns if not specified
   if (is.null(element_cols)) {
-    common_elements <- c("Al", "Fe", "Si", "K", "Ca", "Na", "Mg", "Ti", "Zr", "Mn", "P")
+    common_elements <- c("Al", "Fe", "Si", "K", "Ca", "Na", "Mg", "Ti", "Zr",
+                         "Mn", "P")
     element_cols <- intersect(common_elements, names(data))
 
-    if (length(element_cols) == 0) {
-      stop("Could not auto-detect element columns. Please specify element_cols parameter.")
+    # Also look for oxide column names
+    oxide_to_element <- list(
+      Al2O3 = "Al",
+      Fe2O3 = "Fe", Fe3O4 = "Fe",
+      SiO2 = "Si",
+      K2O = "K",
+      CaO = "Ca",
+      Na2O = "Na",
+      MgO = "Mg",
+      TiO2 = "Ti",
+      ZrO2 = "Zr",
+      Mn2O3 = "Mn", Mn3O4 = "Mn",
+      P2O5 = "P"
+    )
+
+    oxide_cols <- intersect(names(oxide_to_element), names(data))
+    if (length(oxide_cols) > 0) {
+      # Rename oxide columns to element names
+      for (oxide_col in oxide_cols) {
+        elem_name <- oxide_to_element[[oxide_col]]
+        names(data)[names(data) == oxide_col] <- elem_name
+      }
+      element_cols <- unique(c(element_cols,
+                               as.character(oxide_to_element[oxide_cols])))
     }
 
-    message("Auto-detected element columns: ", paste(element_cols, collapse = ", "))
+    # Also handle columns with _ppm suffix (e.g., Zr_ppm -> Zr, Ti_ppm -> Ti)
+    ppm_cols <- names(data)[grepl("_ppm$", names(data))]
+    if (length(ppm_cols) > 0) {
+      for (ppm_col in ppm_cols) {
+        elem_name <- sub("_ppm$", "", ppm_col)
+        if (!(elem_name %in% names(data))) {
+          names(data)[names(data) == ppm_col] <- elem_name
+          element_cols <- unique(c(element_cols, elem_name))
+        }
+      }
+    }
+
+    if (length(element_cols) == 0) {
+      stop("Could not auto-detect element columns. ",
+           "Please specify element_cols parameter.")
+    }
+
+    message("Auto-detected element columns: ",
+            paste(element_cols, collapse = ", "))
   }
 
   # Check that all specified columns exist

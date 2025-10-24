@@ -143,9 +143,24 @@ test_that("weathering_indices function with ppm data", {
 })
 
 test_that("weathering_indices function with oxide data", {
-  # Skip oxide data test - oxide column name mapping is complex
-  # The main function tests with ppm data cover the core functionality
-  skip("Oxide data handling requires more detailed column mapping")
+  data <- create_test_data_oxides()
+  # weathering_indices auto-detects oxide and ppm column names
+  result <- weathering_indices(data, indices = "all", convert_to_oxides = FALSE)
+
+  # Should return a data frame with depth and all indices
+  expect_s3_class(result, "data.frame")
+  expect_true("depth" %in% names(result))
+  expect_true("CIA" %in% names(result))
+  expect_true("WIP" %in% names(result))
+  expect_true("PIA" %in% names(result))
+  expect_true("SAR" %in% names(result))
+  expect_true("ZrTi" %in% names(result))
+  expect_true("FAR" %in% names(result))
+
+  # Check value ranges
+  expect_true(all(result$CIA >= 0, na.rm = TRUE))
+  expect_true(all(result$WIP >= 0, na.rm = TRUE))
+  expect_true(all(result$PIA >= 0 & result$PIA <= 100, na.rm = TRUE))
 })
 
 test_that("weathering_indices function with subset of indices", {
@@ -285,10 +300,52 @@ test_that("element_depletion function works", {
 # Test: Horizon Integration
 # ============================================================================
 
-test_that("weathering_by_horizon function integrates with fuzzy classification", {
-  # Skip this test as it requires a fuzzy_horizons object from horizon_classify_fuzzy()
-  # which needs actual fuzzy classification implementation
-  skip("weathering_by_horizon requires fuzzy_horizons class from horizon_classify_fuzzy()")
+test_that("weathering_by_horizon integrates with fuzzy classification", {
+  # Create pXRF and indices data
+  pxrf_data <- create_test_data_ppm()
+  indices_df <- weathering_indices(pxrf_data, indices = "CIA",
+                                   convert_to_oxides = TRUE)
+
+  # Manually create a fuzzy_horizons object for testing
+  depths <- pxrf_data$depth
+  n_depths <- length(depths)
+  n_horizons <- 3
+
+  # Create mock membership matrix (rows sum to 1)
+  memberships <- matrix(0, nrow = n_depths, ncol = n_horizons)
+  # Assign weights to create 3 horizons
+  horizons <- rep(1:n_horizons, length.out = n_depths)
+  for (i in seq_along(horizons)) {
+    h <- horizons[i]
+    memberships[i, h] <- 0.8  # Strong membership
+    # Distribute remaining 0.2 to other horizons
+    other_h <- setdiff(1:n_horizons, h)
+    memberships[i, other_h] <- 0.2 / (n_horizons - 1)
+  }
+
+  # Create the fuzzy_horizons object
+  fuzzy_class <- list(
+    call = quote(horizon_classify_fuzzy(data, n_horizons = 3)),
+    depths = depths,
+    element_cols = c("Al", "Fe", "Si"),
+    centers = matrix(rnorm(n_horizons * 3), nrow = n_horizons),
+    memberships = memberships,
+    entropy = rep(0.1, n_depths),
+    dominant_horizon = apply(memberships, 1, which.max),
+    n_horizons = n_horizons,
+    m = 2.0,
+    iterations = 10,
+    converged = TRUE,
+    method = "r"
+  )
+  class(fuzzy_class) <- "fuzzy_horizons"
+
+  # Test weathering_by_horizon with this object
+  result <- weathering_by_horizon(indices_df, fuzzy_class)
+
+  expect_s3_class(result, "data.frame")
+  expect_equal(nrow(result), n_horizons)
+  expect_true("horizon" %in% names(result))
 })
 
 test_that("weathering_progression function identifies trends", {
@@ -312,12 +369,19 @@ test_that("weathering_indices validates input", {
   expect_error(weathering_indices("not a dataframe"))
 
   # With depth and element columns should work
-  data <- data.frame(depth = seq(0, 100, by = 10), Al = 80000, Fe = 40000, Si = 300000)
+  data <- data.frame(depth = seq(0, 100, by = 10), Al = 80000, Fe = 40000, Si = 300000, K = 30000, Ca = 50000, Na = 25000)
   expect_no_error(weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE))
 
   # No element columns should error
   data <- data.frame(depth = seq(0, 100, by = 10))
   expect_error(weathering_indices(data))
+
+  # Missing required columns for CIA should warn
+  data <- data.frame(depth = seq(0, 100, by = 10), Al = 80000, Fe = 40000, Si = 300000)
+  expect_warning(
+    weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE),
+    "Skipping CIA: Al, K, Na columns required"
+  )
 })
 
 test_that("calculate_CIA validates inputs", {
