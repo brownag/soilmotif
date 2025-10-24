@@ -5,7 +5,7 @@
 #' @title Sigmoid Shape Function
 #' @description Models an S-shaped curve with smooth transition between depths. Useful for wetting fronts, reaction fronts, and gradual pedogenic changes.
 #'
-#' @param x numeric. Depth vector (typically 1 to 200 cm, increasing downward).
+#' @param depth numeric. Depth vector (typically 1 to 200 cm, increasing downward).
 #' @param params numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
 #'   - depth_inflection_start: Upper depth (cm) where transition begins (typically 20-80 cm)
 #'   - depth_inflection_end: Lower depth (cm) where transition completes (typically 40-150 cm)
@@ -48,13 +48,13 @@
 #'      xlab = "Carbonate Content", ylab = "Depth (cm)",
 #'      main = "Carbonate Leaching Zone")
 #' @export
-sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
+sm_shape_sigmoid <- function(depth, params, ascending = TRUE) {
   num2 <- sum(params) / 2
-  num <- vector("numeric", length(x))
-  num[x < num2] <- (2 * ((x[x < num2] - params[1]) / (params[2] - params[1])) ^ 2)
-  num[x >= num2] <- 1 - (2 * ((x[x >= num2] - params[2]) / (params[2] - params[1])) ^ 2)
-  num[x < params[1]] <- 0
-  num[x > params[2]] <- 1
+  num <- vector("numeric", length(depth))
+  num[depth < num2] <- (2 * ((depth[depth < num2] - params[1]) / (params[2] - params[1])) ^ 2)
+  num[depth >= num2] <- 1 - (2 * ((depth[depth >= num2] - params[2]) / (params[2] - params[1])) ^ 2)
+  num[depth < params[1]] <- 0
+  num[depth > params[2]] <- 1
   if (!ascending)
     return(1 - num)
   num
@@ -64,7 +64,7 @@ sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
 #'
 #' Models a constant value at all depths. Useful for undeveloped or mixed soils.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(mean_value).
 #'   - mean_value: Constant property value (0-1 range, where 0 = minimal, 1 = maximal expression).
 #' @param ascending logical. If FALSE, inverts the constant value (1 - mean_value).
@@ -101,9 +101,9 @@ sm_shape_sigmoid <- function(x, params, ascending = TRUE) {
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Sandy Entisol")
 #' @export
-sm_shape_uniform <- function(x, params, ascending = TRUE) {
+sm_shape_uniform <- function(depth, params, ascending = TRUE) {
   # Return normalized value [0, 1] - param should be in [0, 1] range
-  shape <- rep(params[1], length(x))
+  shape <- rep(params[1], length(depth))
   if (!ascending) {
     shape <- 1 - shape
   }
@@ -115,7 +115,7 @@ sm_shape_uniform <- function(x, params, ascending = TRUE) {
 #'
 #' Models a linear or smooth change with depth. Useful for steady accumulation processes.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(start_depth, end_depth).
 #'   - start_depth: Upper depth (cm) where property begins changing (typically 0-100 cm)
 #'   - end_depth: Lower depth (cm) where property reaches final value (typically 50-200 cm)
@@ -157,15 +157,15 @@ sm_shape_uniform <- function(x, params, ascending = TRUE) {
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Clay Illuviation")
 #' @export
-sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
+sm_shape_gradational <- function(depth, params, ascending = TRUE, type = "linear") {
   start_depth <- params[1]
   end_depth <- params[2]
   range <- end_depth - start_depth
   if (abs(range) < 1e-10) range <- 1.0
-  
-  val <- (x - start_depth) / range
+
+  val <- (depth - start_depth) / range
   shape <- pmax(0, pmin(1, val))
-  
+
   if (!ascending) {
     shape <- 1 - shape
   }
@@ -176,7 +176,7 @@ sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
 #'
 #' Models rapid change at surface with asymptotic behavior. Useful for OM, roots, surface-driven processes.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(C0_surface_value, k_decay_rate).
 #'   - C0_surface_value: Initial value at surface (0-1 range, relative scale)
 #'   - k_decay_rate: Decay constant (> 0, typically 0.01-0.5). Higher values = faster decay.
@@ -216,10 +216,10 @@ sm_shape_gradational <- function(x, params, ascending = TRUE, type = "linear") {
 #'      xlab = "Root Density", ylab = "Depth (cm)",
 #'      main = "Root Distribution")
 #' @export
-sm_shape_exponential <- function(x, params, ascending = TRUE) {
+sm_shape_exponential <- function(depth, params, ascending = TRUE) {
   C0 <- params[1]
   k <- params[2]
-  shape <- C0 * exp(-k * x)
+  shape <- C0 * exp(-k * depth)
   # Normalize to [0, 1]
   shape <- (shape - min(shape)) / (max(shape) - min(shape))
   if (!ascending) {
@@ -232,7 +232,7 @@ sm_shape_exponential <- function(x, params, ascending = TRUE) {
 #'
 #' Models an S-shaped curve; smooth transition between depths. Useful for reaction fronts, leaching.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(depth_inflection_start, depth_inflection_end).
 #'   - depth_inflection_start: Upper depth (cm) where wetting front begins (typically 30-100 cm)
 #'   - depth_inflection_end: Lower depth (cm) where wetting front stabilizes (typically 60-150 cm)
@@ -273,15 +273,15 @@ sm_shape_exponential <- function(x, params, ascending = TRUE) {
 #'      xlab = "Salt Concentration", ylab = "Depth (cm)",
 #'      main = "Salt Accumulation Zone")
 #' @export
-sm_shape_wetting_front <- function(x, params, ascending = TRUE) {
-  sm_shape_sigmoid(x, params, ascending)
+sm_shape_wetting_front <- function(depth, params, ascending = TRUE) {
+  sm_shape_sigmoid(depth, params, ascending)
 }
 
 #' Abrupt Shape Function
 #'
 #' Models a sharp step-like discontinuity at a single depth. Useful for lithologic changes.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(depth_discontinuity, transition_width).
 #'   - depth_discontinuity: Depth (cm) of the sharp boundary (typically 30-150 cm)
 #'   - transition_width: Width (cm) of transition zone (0 for hard boundary, >0 for gradual).
@@ -322,21 +322,21 @@ sm_shape_wetting_front <- function(x, params, ascending = TRUE) {
 #'      xlab = "Clay Content", ylab = "Depth (cm)",
 #'      main = "Diffuse Horizon Boundary")
 #' @export
-sm_shape_abrupt <- function(x, params, ascending = TRUE) {
+sm_shape_abrupt <- function(depth, params, ascending = TRUE) {
   depth_disc <- params[1]
   transition_width <- if (length(params) > 1) params[2] else 0
-  
+
   # Clamp parameters to valid ranges
-  depth_disc <- max(min(x), min(max(x), depth_disc))  # within x range
+  depth_disc <- max(min(depth), min(max(depth), depth_disc))  # within depth range
   transition_width <- max(1e-6, transition_width)  # positive small value
-  
+
   if (transition_width <= 1e-6) {
-    shape <- as.numeric(x >= depth_disc)
+    shape <- as.numeric(depth >= depth_disc)
   } else {
     # Smooth step using logistic
-    shape <- plogis(x, location = depth_disc, scale = transition_width)
+    shape <- plogis(depth, location = depth_disc, scale = transition_width)
   }
-  
+
   if (!ascending) {
     shape <- 1 - shape
   }
@@ -347,7 +347,7 @@ sm_shape_abrupt <- function(x, params, ascending = TRUE) {
 #'
 #' Models a bell-shaped accumulation zone. Useful for Bt horizon, clay peaks.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(depth_of_max, width, skewness).
 #'   - depth_of_max: Depth (cm) of maximum property value (typically 40-120 cm)
 #'   - width: Standard deviation of the peak (cm, typically 10-50 cm). Controls peak width.
@@ -387,20 +387,20 @@ sm_shape_abrupt <- function(x, params, ascending = TRUE) {
 #'      xlab = "Carbonate Content", ylab = "Depth (cm)",
 #'      main = "Carbonate Accumulation")
 #' @export
-sm_shape_peak <- function(x, params, ascending = TRUE) {
+sm_shape_peak <- function(depth, params, ascending = TRUE) {
   depth_max <- params[1]
   width <- params[2]
   # NOTE: 3rd parameter (skewness) is reserved for future implementation
   # Currently only 2 parameters (depth_max, width) are used
-  
+
   # Clamp parameters
-  depth_max <- max(min(x), min(max(x), depth_max))
+  depth_max <- max(min(depth), min(max(depth), depth_max))
   width <- max(1e-6, width)
-  
+
   # Normal distribution
-  shape <- dnorm(x, mean = depth_max, sd = width)
+  shape <- dnorm(depth, mean = depth_max, sd = width)
   shape <- shape / max(shape)  # Normalize to [0, 1]
-  
+
   if (!ascending) {
     shape <- 1 - shape
   }
@@ -411,7 +411,7 @@ sm_shape_peak <- function(x, params, ascending = TRUE) {
 #'
 #' Models two peaks: minimum then maximum. Useful for complex multi-process soils.
 #'
-#' @param x numeric. Depth vector (cm, increasing downward).
+#' @param depth numeric. Depth vector (cm, increasing downward).
 #' @param params numeric. Parameters: c(depth_min, width_min, depth_max, width_max, skew_min, skew_max).
 #'   - depth_min: Depth (cm) of minimum/depletion zone (typically 20-80 cm)
 #'   - width_min: Width (cm) of minimum zone (typically 10-30 cm)
@@ -456,28 +456,28 @@ sm_shape_peak <- function(x, params, ascending = TRUE) {
 #'      xlab = "Organic Matter", ylab = "Depth (cm)",
 #'      main = "Podzol Organic Matter Distribution")
 #' @export
-sm_shape_minimax <- function(x, params, ascending = TRUE) {
+sm_shape_minimax <- function(depth, params, ascending = TRUE) {
   depth_min <- params[1]
   width_min <- params[2]
   depth_max <- params[3]
   width_max <- params[4]
   # skew_min <- if (length(params) > 4) params[5] else 0
   # skew_max <- if (length(params) > 5) params[6] else 0
-  
+
   # Clamp parameters
-  depth_min <- max(min(x), min(max(x), depth_min))
-  depth_max <- max(min(x), min(max(x), depth_max))
+  depth_min <- max(min(depth), min(max(depth), depth_min))
+  depth_max <- max(min(depth), min(max(depth), depth_max))
   width_min <- max(1e-6, width_min)
   width_max <- max(1e-6, width_max)
-  
+
   # Create valley and peak distributions (raw densities)
-  valley_density <- dnorm(x, mean = depth_min, sd = width_min)
-  peak_density <- dnorm(x, mean = depth_max, sd = width_max)
-  
+  valley_density <- dnorm(depth, mean = depth_min, sd = width_min)
+  peak_density <- dnorm(depth, mean = depth_max, sd = width_max)
+
   # Combine: valley is inverted, then average
   valley <- 1.0 - valley_density
   combined <- (valley + peak_density) / 2.0
-  
+
   # Normalize to [0, 1] after combining
   max_combined <- max(combined)
   if (max_combined > 1e-10) {
@@ -485,7 +485,7 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
   } else {
     shape <- combined
   }
-  
+
   if (!ascending) {
     shape <- 1 - shape
   }
@@ -498,7 +498,7 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
 #' or natural boundary conditions (cubic spline). Both interpolate smoothly through
 #' control points with analytical gradients for optimization.
 #'
-#' @param x Numeric vector of depths at which to evaluate the spline
+#' @param depth Numeric vector of depths at which to evaluate the spline
 #' @param control_points Named numeric vector or data frame with columns 'depth' and 'value'
 #'        specifying interpolation knots. Must have at least 2 points, sorted by depth.
 #'        Format: c(depth1, value1, depth2, value2, ...) or list(depth=c(...), value=c(...))
@@ -546,7 +546,7 @@ sm_shape_minimax <- function(x, params, ascending = TRUE) {
 #' plot(depths_eval, clay_rcs, type="l", main="RCS Clay Profile")
 #'
 #' @export
-sm_shape_spline <- function(x, control_points, type = "monotone", ascending = TRUE, strict = TRUE) {
+sm_shape_spline <- function(depth, control_points, type = "monotone", ascending = TRUE, strict = TRUE) {
   # Validate and parse control points
   if (strict) {
     if (is.null(control_points) || length(control_points) == 0) {
@@ -570,7 +570,7 @@ sm_shape_spline <- function(x, control_points, type = "monotone", ascending = TR
       depths <- control_points[seq(1, length(control_points), by = 2)]
       values <- control_points[seq(2, length(control_points), by = 2)]
     }
-    
+
     # Ensure depths are sorted
     if (is.unsorted(depths)) {
       stop("control point depths must be sorted in ascending order")
@@ -591,22 +591,22 @@ sm_shape_spline <- function(x, control_points, type = "monotone", ascending = TR
     depths <- control_points[seq(1, length(control_points), by = 2)]
     values <- control_points[seq(2, length(control_points), by = 2)]
   }
-  
+
   # Flatten for Rust dispatch
   flat_params <- as.numeric(rbind(depths, values))
-  
+
   # Route to appropriate shape type
   shape_type <- switch(type, monotone = "monotone_cubic_spline", rcs = "restricted_cubic_spline",
                        stop("type must be 'monotone' or 'rcs'"))
-  
+
   # Call Rust evaluation
-  result <- shape_eval_rust(shape_type, as.numeric(x), flat_params, ascending)
-  
+  result <- shape_eval_rust(shape_type, as.numeric(depth), flat_params, ascending)
+
   # Normalize to [0, 1]
   if (min(result, na.rm = TRUE) < 0 || max(result, na.rm = TRUE) > 1) {
     # Clamp to [0, 1] if needed
     result <- pmax(0, pmin(1, result))
   }
-  
+
   result
 }
