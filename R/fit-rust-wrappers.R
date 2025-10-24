@@ -21,7 +21,7 @@
 #' @export
 #' @examples
 #' \dontrun{
-#'   if (rust_backend_available()) {
+#'   if (sm_rust_backend_available()) {
 #'     cat("Rust backend is available\n")
 #'   }
 #' }
@@ -42,7 +42,7 @@ sm_rust_backend_available <- function() {
 #' @return numeric RMSE value
 #' @keywords internal
 objective_rmse_rust <- function(observed, predicted) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     return(sqrt(mean((observed - predicted)^2)))
   }
   
@@ -65,7 +65,7 @@ objective_rmse_rust <- function(observed, predicted) {
 #' @return numeric SSE value
 #' @keywords internal
 objective_sse_rust <- function(observed, predicted) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     return(sum((observed - predicted)^2))
   }
   
@@ -88,7 +88,7 @@ objective_sse_rust <- function(observed, predicted) {
 #' @return numeric MAE value
 #' @keywords internal
 objective_mae_rust <- function(observed, predicted) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     return(mean(abs(observed - predicted)))
   }
   
@@ -111,7 +111,7 @@ objective_mae_rust <- function(observed, predicted) {
 #' @return numeric R-squared value
 #' @keywords internal
 objective_r2_rust <- function(observed, predicted) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     mean_obs <- mean(observed)
     ss_tot <- sum((observed - mean_obs)^2)
     ss_res <- sum((observed - predicted)^2)
@@ -143,7 +143,7 @@ objective_r2_rust <- function(observed, predicted) {
 #' @return numeric vector of shape values in 0 to 1 range
 #' @keywords internal
 shape_eval_rust <- function(shape_type, x, params, ascending = TRUE) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # Fall back to R implementation using built-in shape functions
     # params is expected to match Rust parameter order
     result <- switch(shape_type,
@@ -228,7 +228,7 @@ optimize_profile_rust_flexible <- function(observed, x, initial_params,
                                            ascending = TRUE,
                                            objective_type = "rmse",
                                            algorithm = "auto") {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend not available")
   }
 
@@ -275,7 +275,7 @@ sm_optim_dispatch <- function(x, X, FUN = sm_shape_sigmoid,
   }
   
   # Check if Rust backend is available
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     warning("Rust backend not available; falling back to R")
     return(sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...))
   }
@@ -342,7 +342,7 @@ sm_compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
   r_rmse <- OPTFUN(r_result, x)
 
   # Run Rust implementation (if available)
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     return(list(
       r_result = r_result,
       rust_result = NULL,
@@ -432,7 +432,7 @@ sm_compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
 #' @return numeric weighted RMSE value
 #' @keywords internal
 objective_weighted_rmse_rust <- function(observed, predicted, depths, target_depth, weight_factor) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # Simple R fallback: weight by proximity to target depth
     weights <- exp(-weight_factor * abs(depths - target_depth))
     sqrt(sum(weights * (observed - predicted)^2) / sum(weights))
@@ -464,7 +464,7 @@ objective_weighted_rmse_rust <- function(observed, predicted, depths, target_dep
 #' @return numeric ordinal error value
 #' @keywords internal
 objective_ordinal_rust <- function(observed, predicted, depths, underpredict_penalty, overpredict_penalty) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # Simple R fallback: asymmetric error
     errors <- observed - predicted
     sum(ifelse(errors < 0, abs(errors) * underpredict_penalty, abs(errors) * overpredict_penalty))
@@ -497,7 +497,7 @@ objective_ordinal_rust <- function(observed, predicted, depths, underpredict_pen
 #' @return numeric bounded error value
 #' @keywords internal
 objective_bounded_rust <- function(observed, predicted, depths, obs_min, obs_max, penalty_factor) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # Simple R fallback: penalize out-of-bounds
     out_of_bounds <- (predicted < obs_min) | (predicted > obs_max)
     base_error <- sum((observed - predicted)^2)
@@ -531,7 +531,7 @@ objective_bounded_rust <- function(observed, predicted, depths, obs_min, obs_max
 #' @return numeric Huber loss value
 #' @keywords internal
 objective_huber_rust <- function(observed, predicted, depths, delta) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # R fallback: Huber loss
     errors <- observed - predicted
     sum(ifelse(abs(errors) <= delta,
@@ -565,7 +565,7 @@ objective_huber_rust <- function(observed, predicted, depths, delta) {
 #' @return numeric quantile loss value
 #' @keywords internal
 objective_quantile_rust <- function(observed, predicted, depths, quantile) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # R fallback: quantile loss
     errors <- observed - predicted
     sum(ifelse(errors >= 0,
@@ -598,7 +598,7 @@ objective_quantile_rust <- function(observed, predicted, depths, quantile) {
 #' @return character recommended algorithm name
 #' @keywords internal
 recommend_optimizer_rust <- function(n_params, n_obs, objective_type) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     # Simple heuristic for R fallback
     if (n_params <= 3) "nelder_mead" else "particle_swarm"
   }
@@ -626,7 +626,7 @@ recommend_optimizer_rust <- function(n_params, n_obs, objective_type) {
 #' @return numeric vector of optimized parameters
 #' @keywords internal
 optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascending) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend not available for optimize_profile_rust")
   }
 
@@ -657,7 +657,7 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 #' @return list with results (handled by batch_optimize_profiles user wrapper)
 #' @keywords internal
 batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend not available for batch_optimize_profiles_rust")
   }
 
@@ -685,7 +685,7 @@ batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_ty
 #' @return list with bootstrap results
 #' @keywords internal
 bootstrap_engine_rust <- function(observed, depths, initial_params, config) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend not available for bootstrap_engine_rust")
   }
 

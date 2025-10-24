@@ -3,7 +3,7 @@
 test_that("horizon_classify_fuzzy basic functionality", {
   data <- test_data_simple()
 
-  result <- horizon_classify_fuzzy(
+  result <- sm_horizon_classify_fuzzy(
       data,
       depth_col = "depth",
       n_horizons = 3,
@@ -26,7 +26,7 @@ test_that("horizon_classify_fuzzy basic functionality", {
 test_that("fuzzy memberships sum to 1 per row", {
   data <- test_data_simple()
 
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   # Check that each row sums to 1 (within tolerance)
   row_sums <- rowSums(result$memberships)
@@ -37,7 +37,7 @@ test_that("fuzzy memberships sum to 1 per row", {
 test_that("entropy is normalized to [0, 1]", {
   data <- test_data_simple()
 
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   expect_true(all(result$entropy >= 0))
   expect_true(all(result$entropy <= 1))
@@ -48,7 +48,7 @@ test_that("horizon_classify_fuzzy auto-detects element columns", {
   data <- test_data_simple()
 
   # Don't specify element_cols
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   expect_equal(length(result$element_cols), 3)
   expect_true(all(result$element_cols %in% names(data)))
@@ -60,10 +60,10 @@ test_that("horizon_classify_fuzzy respects fuzziness parameter m", {
   data <- test_data_simple()
 
   # Lower m = crisper boundaries
-  result_crisp <- horizon_classify_fuzzy(data, n_horizons = 3, m = 1.5)
+  result_crisp <- sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 1.5)
 
   # Higher m = fuzzier boundaries
-  result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
+  result_fuzzy <- sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
 
   # Fuzzy should have higher mean entropy (more uncertainty)
   expect_gte(mean(result_fuzzy$entropy), mean(result_crisp$entropy))
@@ -74,12 +74,12 @@ test_that("horizon_classify_fuzzy validates m > 1.0", {
   data <- test_data_simple()
 
   expect_error(
-    horizon_classify_fuzzy(data, n_horizons = 3, m = 1.0),
+    sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 1.0),
     regexp = "m must be > 1.0"
   )
 
   expect_error(
-    horizon_classify_fuzzy(data, n_horizons = 3, m = 0.5),
+    sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 0.5),
     regexp = "m must be > 1.0"
   )
 })
@@ -89,7 +89,7 @@ test_that("horizon_classify_fuzzy works with different k values", {
   data <- test_data_simple()
 
   for (k in 2:5) {
-    result <- horizon_classify_fuzzy(data, n_horizons = k)
+    result <- sm_horizon_classify_fuzzy(data, n_horizons = k)
 
     expect_s3_class(result, "fuzzy_horizons")
     expect_equal(result$n_horizons, k)
@@ -103,13 +103,13 @@ test_that("horizon_classify_fuzzy handles initialization methods", {
   data <- test_data_simple()
 
   # kmeans initialization
-  result_kmeans <- horizon_classify_fuzzy(
+  result_kmeans <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       init_method = "kmeans"
     )
 
   # random initialization
-  result_random <- horizon_classify_fuzzy(
+  result_random <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       init_method = "random"
     )
@@ -125,7 +125,7 @@ test_that("horizon_classify_fuzzy convergence criteria work", {
   convergence_methods <- c("membership", "centers", "both")
 
   for (conv in convergence_methods) {
-    result <- horizon_classify_fuzzy(
+    result <- sm_horizon_classify_fuzzy(
         data, n_horizons = 3,
         convergence = conv
       )
@@ -141,13 +141,13 @@ test_that("horizon_classify_fuzzy include_depth_feature option", {
   data <- test_data_simple()
 
   # Without depth feature
-  result_no_depth <- horizon_classify_fuzzy(
+  result_no_depth <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       include_depth_feature = FALSE
     )
 
   # With depth feature
-  result_with_depth <- horizon_classify_fuzzy(
+  result_with_depth <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       include_depth_feature = TRUE
     )
@@ -163,7 +163,7 @@ test_that("horizon_classify_fuzzy include_depth_feature option", {
 test_that("horizon_classify_fuzzy works on pXRF data", {
   data <- test_data_pxrf()
 
-  result <- horizon_classify_fuzzy(
+  result <- sm_horizon_classify_fuzzy(
       data,
       n_horizons = 4,
       m = 2.0
@@ -180,7 +180,7 @@ test_that("horizon_classify_fuzzy works on pXRF data", {
 test_that("horizon_classify_fuzzy works with fuzzy overlapping data", {
   data <- test_data_fuzzy_overlapping()
 
-  result <- horizon_classify_fuzzy(
+  result <- sm_horizon_classify_fuzzy(
       data,
       n_horizons = 3,
       m = 2.0
@@ -198,7 +198,7 @@ test_that("horizon_classify_fuzzy works with fuzzy overlapping data", {
 test_that("horizon_classify_fuzzy handles noisy data", {
   data <- test_data_noisy()
 
-  result <- horizon_classify_fuzzy(
+  result <- sm_horizon_classify_fuzzy(
       data,
       n_horizons = 3,
       m = 2.0,
@@ -218,7 +218,7 @@ test_that("horizon_classify_fuzzy handles missing values", {
   # Expect warning about missing values
   expect_warning(
     expect_warning(
-      result <- horizon_classify_fuzzy(data, n_horizons = 3),
+      result <- sm_horizon_classify_fuzzy(data, n_horizons = 3),
       regexp = "rows.*removed"
     ),
     "missing values"
@@ -232,7 +232,7 @@ test_that("horizon_classify_fuzzy handles missing values", {
 
 test_that("print.fuzzy_horizons works", {
   data <- test_data_simple()
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   expect_output(print(result), regexp = "Fuzzy Horizon Classification")
   expect_output(print(result), regexp = "Number of horizons")
@@ -242,7 +242,7 @@ test_that("print.fuzzy_horizons works", {
 
 test_that("summary.fuzzy_horizons works", {
   data <- test_data_simple()
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   expect_output(summary(result), regexp = "Summary")
   expect_output(summary(result), regexp = "Cluster Centers")
@@ -252,7 +252,7 @@ test_that("summary.fuzzy_horizons works", {
 
 test_that("dominant_horizon assignments are valid", {
   data <- test_data_simple()
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   expect_type(result$dominant_horizon, "integer")
   expect_true(all(result$dominant_horizon >= 1))
@@ -267,7 +267,7 @@ test_that("horizon_classify_fuzzy transitional zones", {
   # transitional_zones parameter not yet implemented in Phase 2
   # This test will be updated when Phase 3h is complete
   expect_error(
-    horizon_classify_fuzzy(
+    sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       transitional_zones = TRUE
     ),
@@ -310,12 +310,12 @@ test_that("horizon_classify_fuzzy max_iter parameter", {
   data <- test_data_simple()
 
   # Test with different max_iter values
-  result_low <- horizon_classify_fuzzy(
+  result_low <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       max_iter = 10
     )
 
-  result_high <- horizon_classify_fuzzy(
+  result_high <- sm_horizon_classify_fuzzy(
       data, n_horizons = 3,
       max_iter = 100
     )
@@ -329,9 +329,9 @@ test_that("horizon_classify_fuzzy returns consistent results", {
   data <- test_data_simple()
 
   # With kmeans initialization, should be deterministic
-  result1 <- horizon_classify_fuzzy(data, n_horizons = 3, init_method = "kmeans")
+  result1 <- sm_horizon_classify_fuzzy(data, n_horizons = 3, init_method = "kmeans")
 
-  result2 <- horizon_classify_fuzzy(data, n_horizons = 3, init_method = "kmeans")
+  result2 <- sm_horizon_classify_fuzzy(data, n_horizons = 3, init_method = "kmeans")
 
   # Centers may be permuted (label switching), but should have same structure
   expect_equal(dim(result1$centers), dim(result2$centers))

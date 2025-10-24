@@ -13,7 +13,7 @@ library(soilmotif)
 
 test_that("Rust backend optimization works end-to-end", {
   # Skip if Rust backend not available (Phase 2 not complete)
-  skip_if_not(rust_backend_available(), "Rust backend not yet implemented")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not yet implemented")
 
   # Test 1: Rust single profile optimization workflow
   cat("\n=== RUST BACKEND TEST 1: Single Profile Optimization ===\n")
@@ -51,7 +51,7 @@ test_that("Rust backend optimization works end-to-end", {
   initial_params_list <- rep(list(c(100, 20)), 5)
 
   # Test batch processing
-  batch_result <- batch_optimize_profiles(
+  batch_result <- sm_batch_optimize_profiles(
     profiles = profiles,
     initial_params_list = initial_params_list,
     shape_type = "wetting_front",
@@ -131,7 +131,7 @@ test_that("Rust backend optimization works end-to-end", {
 
   # Test batch with mismatched lengths
   expect_error(
-    batch_optimize_profiles(
+    sm_batch_optimize_profiles(
       profiles = list(c(1, 2, 3)),
       initial_params_list = list(c(1), c(2))  # Wrong length
     ),
@@ -208,7 +208,7 @@ test_that("Dispatch logic and fallback behavior works", {
   expect_true(!is.null(attr(r_result, 'par')))
 
   # Test dispatch with Rust requested (should fallback gracefully)
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     expect_warning(
       rust_result <- sm_optim(observed, initial_params, use_rust = TRUE),
       "Rust backend not available"
@@ -233,14 +233,14 @@ test_that("Batch processing dispatch works", {
     c(rep(15, 50), seq(15, 45, length.out = 100), rep(45, 50))
   )
 
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     expect_error(
-      batch_optimize_profiles(profiles),
+      sm_batch_optimize_profiles(profiles),
       "Rust backend not available"
     )
   } else {
     # If available, should work
-    result <- batch_optimize_profiles(profiles)
+    result <- sm_batch_optimize_profiles(profiles)
     expect_s3_class(result, "batch_result")
     expect_length(result$profile_ids, 2)
   }

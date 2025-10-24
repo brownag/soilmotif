@@ -44,11 +44,11 @@ create_test_data_oxides <- function(n_depths = 11) {
 test_that("CIA calculation works correctly", {
   # CIA = 100 * [Al2O3 / (Al2O3 + K2O + Na2O)]
   # Simple test case: Al2O3=40, K2O=20, Na2O=20 => CIA = 100*40/80 = 50
-  result <- calculate_CIA(Al2O3 = 40, K2O = 20, Na2O = 20)
+  result <- sm_weathering_index("CIA")(Al2O3 = 40, K2O = 20, Na2O = 20)
   expect_equal(result, 50, tolerance = 0.1)
 
   # Test vector input
-  result <- calculate_CIA(
+  result <- sm_weathering_index("CIA")(
     Al2O3 = c(10, 20, 30),
     K2O = c(5, 10, 15),
     Na2O = c(5, 10, 15)
@@ -60,17 +60,17 @@ test_that("CIA calculation works correctly", {
 test_that("WIP calculation works correctly", {
   # WIP = (2*Na2O/0.35 + 2*K2O/0.25 + MgO/0.9 + 2*CaO/1.3) / 10
   # Simple known values test
-  result <- calculate_WIP(K2O = 2, MgO = 4, Na2O = 2, CaO = 5)
+  result <- sm_weathering_index("WIP")(K2O = 2, MgO = 4, Na2O = 2, CaO = 5)
   expect_true(result > 0)
 })
 
 test_that("PIA calculation works correctly", {
   # PIA = 100 * [(Al2O3 - K2O) / (Al2O3 - K2O + CaO + Na2O)]
-  result <- calculate_PIA(Al2O3 = 40, K2O = 20, Na2O = 20, CaO = 20)
+  result <- sm_weathering_index("PIA")(Al2O3 = 40, K2O = 20, Na2O = 20, CaO = 20)
   expect_true(result >= 0 & result <= 100)
 
   # Vector input
-  result <- calculate_PIA(
+  result <- sm_weathering_index("PIA")(
     Al2O3 = c(10, 20, 30),
     K2O = c(2, 4, 6),
     Na2O = c(3, 6, 9),
@@ -81,13 +81,13 @@ test_that("PIA calculation works correctly", {
 
 test_that("SAR calculation works correctly", {
   # SAR = SiO2 / Al2O3
-  result <- calculate_SAR(SiO2 = 60, Al2O3 = 20)
+  result <- sm_weathering_index("SAR")(SiO2 = 60, Al2O3 = 20)
   expect_equal(result, 3, tolerance = 0.01)
 
   # Should increase with SiO2, decrease with Al2O3
-  result1 <- calculate_SAR(SiO2 = 60, Al2O3 = 20)
-  result2 <- calculate_SAR(SiO2 = 70, Al2O3 = 20)
-  result3 <- calculate_SAR(SiO2 = 60, Al2O3 = 10)
+  result1 <- sm_weathering_index("SAR")(SiO2 = 60, Al2O3 = 20)
+  result2 <- sm_weathering_index("SAR")(SiO2 = 70, Al2O3 = 20)
+  result3 <- sm_weathering_index("SAR")(SiO2 = 60, Al2O3 = 10)
 
   expect_true(result2 > result1)  # More SiO2 = higher SAR
   expect_true(result3 > result1)  # Less Al2O3 = higher SAR
@@ -95,36 +95,36 @@ test_that("SAR calculation works correctly", {
 
 test_that("ZrTi calculation works correctly", {
   # ZrTi = Zr_ppm / Ti_ppm
-  result <- calculate_ZrTi(Zr_ppm = 300, Ti_ppm = 5000)
+  result <- sm_weathering_index("ZrTi")(Zr_ppm = 300, Ti_ppm = 5000)
   expect_equal(result, 0.06, tolerance = 0.001)
 
   # Vector input
-  result <- calculate_ZrTi(Zr_ppm = c(300, 350, 400), Ti_ppm = c(5000, 5500, 6000))
+  result <- sm_weathering_index("ZrTi")(Zr_ppm = c(300, 350, 400), Ti_ppm = c(5000, 5500, 6000))
   expect_length(result, 3)
   expect_true(all(result > 0))
 })
 
 test_that("FAR calculation works correctly", {
   # FAR = Fe_ppm / parent_Fe_ppm
-  result <- calculate_FAR(Fe_ppm = 50000, parent_Fe_ppm = 50000)
+  result <- sm_weathering_index("FAR")(Fe_ppm = 50000, parent_Fe_ppm = 50000)
   expect_equal(result, 1.0, tolerance = 0.01)
 
   # Enriched Fe
-  result <- calculate_FAR(Fe_ppm = 100000, parent_Fe_ppm = 50000)
+  result <- sm_weathering_index("FAR")(Fe_ppm = 100000, parent_Fe_ppm = 50000)
   expect_true(result > 1.0)
 
   # Depleted Fe
-  result <- calculate_FAR(Fe_ppm = 25000, parent_Fe_ppm = 50000)
+  result <- sm_weathering_index("FAR")(Fe_ppm = 25000, parent_Fe_ppm = 50000)
   expect_true(result < 1.0)
 })
 
 # ============================================================================
-# Test: Main weathering_indices Function
+# Test: Main sm_weathering Function
 # ============================================================================
 
-test_that("weathering_indices function with ppm data", {
+test_that("sm_weathering function with ppm data", {
   data <- create_test_data_ppm()
-  result <- weathering_indices(data, indices = "all", convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = "all", convert_to_oxides = TRUE)
 
   # Should return a data frame with depth and all indices
   expect_s3_class(result, "data.frame")
@@ -142,10 +142,10 @@ test_that("weathering_indices function with ppm data", {
   expect_true(all(result$PIA >= 0 & result$PIA <= 100, na.rm = TRUE))
 })
 
-test_that("weathering_indices function with oxide data", {
+test_that("sm_weathering function with oxide data", {
   data <- create_test_data_oxides()
-  # weathering_indices auto-detects oxide and ppm column names
-  result <- weathering_indices(data, indices = "all", convert_to_oxides = FALSE)
+  # sm_weathering auto-detects oxide and ppm column names
+  result <- sm_weathering(data, indices = "all", convert_to_oxides = FALSE)
 
   # Should return a data frame with depth and all indices
   expect_s3_class(result, "data.frame")
@@ -163,29 +163,29 @@ test_that("weathering_indices function with oxide data", {
   expect_true(all(result$PIA >= 0 & result$PIA <= 100, na.rm = TRUE))
 })
 
-test_that("weathering_indices function with subset of indices", {
+test_that("sm_weathering function with subset of indices", {
   data <- create_test_data_ppm()
-  result <- weathering_indices(data, indices = c("CIA", "WIP"), convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = c("CIA", "WIP"), convert_to_oxides = TRUE)
 
   expect_true("CIA" %in% names(result))
   expect_true("WIP" %in% names(result))
   expect_false("PIA" %in% names(result))
 })
 
-test_that("weathering_indices handles missing data", {
+test_that("sm_weathering handles missing data", {
   data <- create_test_data_ppm()
   data$Al[1] <- NA
   data$Fe[2] <- NA
 
-  result <- weathering_indices(data, indices = "all", convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = "all", convert_to_oxides = TRUE)
   expect_true(is.na(result$CIA[1]))
   expect_true(is.na(result$FAR[2]))
 })
 
-test_that("weathering_indices auto-detects element columns", {
+test_that("sm_weathering auto-detects element columns", {
   data <- create_test_data_ppm()
   # Remove depth column to test auto-detection
-  result <- weathering_indices(data, indices = c("CIA"), convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = c("CIA"), convert_to_oxides = TRUE)
   expect_true("CIA" %in% names(result))
 })
 
@@ -193,18 +193,18 @@ test_that("weathering_indices auto-detects element columns", {
 # Test: Derived Indices
 # ============================================================================
 
-test_that("integrated_weathering_index calculation", {
+test_that("sm_weathering_integrated calculation", {
   # Test with fresh feldspar values
-  result <- integrated_weathering_index(CIA = 50, WIP = 80, PIA = 50)
+  result <- sm_weathering_integrated(CIA = 50, WIP = 80, PIA = 50)
   expect_true(result >= 0 & result <= 1)
   expect_true(result < 0.5)  # Should indicate fresh material
 
   # Test with laterite values
-  result <- integrated_weathering_index(CIA = 90, WIP = 15, PIA = 85)
+  result <- sm_weathering_integrated(CIA = 90, WIP = 15, PIA = 85)
   expect_true(result > 0.7)  # Should indicate advanced weathering
 
   # Vector input
-  result <- integrated_weathering_index(
+  result <- sm_weathering_integrated(
     CIA = c(50, 75, 90),
     WIP = c(80, 45, 15),
     PIA = c(50, 70, 85)
@@ -215,24 +215,24 @@ test_that("integrated_weathering_index calculation", {
 
 test_that("weathering_stage classification", {
   # Fresh feldspar (CIA < 60, WIP > 80)
-  result <- weathering_stage(CIA = 50, WIP = 90)
+  result <- sm_weathering_stage(CIA = 50, WIP = 90)
   expect_s3_class(result, "factor")
   expect_equal(as.character(result), "fresh")
 
   # Moderate weathering (CIA 70-80, WIP 40-60)
-  result <- weathering_stage(CIA = 75, WIP = 50)
+  result <- sm_weathering_stage(CIA = 75, WIP = 50)
   expect_equal(as.character(result), "moderate")
 
   # Strong (CIA 80-90, WIP 20-40)
-  result <- weathering_stage(CIA = 85, WIP = 25)
+  result <- sm_weathering_stage(CIA = 85, WIP = 25)
   expect_equal(as.character(result), "strong")
 
   # Laterite (CIA > 90, WIP < 20)
-  result <- weathering_stage(CIA = 95, WIP = 10)
+  result <- sm_weathering_stage(CIA = 95, WIP = 10)
   expect_equal(as.character(result), "laterite")
 
   # Vector input - check that classifications exist
-  result <- weathering_stage(
+  result <- sm_weathering_stage(
     CIA = c(50, 75, 85, 95),
     WIP = c(90, 50, 25, 10)
   )
@@ -272,15 +272,15 @@ test_that(".detect_units function works correctly", {
 # Test: Element Depletion
 # ============================================================================
 
-test_that("element_depletion function works", {
+test_that("sm_weathering_depletion function works", {
   # Create data with immobile element Zr
   data <- create_test_data_ppm()
 
-  # element_depletion expects immobile_element to be in element_cols
+  # sm_weathering_depletion expects immobile_element to be in element_cols
   # Create a parent composition data frame with just one row
   parent_comp <- data.frame(Fe = 50000, Al = 80000, Si = 300000, Zr = 350)
 
-  result <- element_depletion(
+  result <- sm_weathering_depletion(
     data,
     element_cols = c("Fe", "Al", "Si", "Zr"),  # Zr must be included
     immobile_element = "Zr",
@@ -300,10 +300,10 @@ test_that("element_depletion function works", {
 # Test: Horizon Integration
 # ============================================================================
 
-test_that("weathering_by_horizon integrates with fuzzy classification", {
+test_that("sm_weathering_by_horizon integrates with fuzzy classification", {
   # Create pXRF and indices data
   pxrf_data <- create_test_data_ppm()
-  indices_df <- weathering_indices(pxrf_data, indices = "CIA",
+  indices_df <- sm_weathering(pxrf_data, indices = "CIA",
                                    convert_to_oxides = TRUE)
 
   # Manually create a fuzzy_horizons object for testing
@@ -325,7 +325,7 @@ test_that("weathering_by_horizon integrates with fuzzy classification", {
 
   # Create the fuzzy_horizons object
   fuzzy_class <- list(
-    call = quote(horizon_classify_fuzzy(data, n_horizons = 3)),
+    call = quote(sm_horizon_classify_fuzzy(data, n_horizons = 3)),
     depths = depths,
     element_cols = c("Al", "Fe", "Si"),
     centers = matrix(rnorm(n_horizons * 3), nrow = n_horizons),
@@ -340,21 +340,21 @@ test_that("weathering_by_horizon integrates with fuzzy classification", {
   )
   class(fuzzy_class) <- "fuzzy_horizons"
 
-  # Test weathering_by_horizon with this object
-  result <- weathering_by_horizon(indices_df, fuzzy_class)
+  # Test sm_weathering_by_horizon with this object
+  result <- sm_weathering_by_horizon(indices_df, fuzzy_class)
 
   expect_s3_class(result, "data.frame")
   expect_equal(nrow(result), n_horizons)
   expect_true("horizon" %in% names(result))
 })
 
-test_that("weathering_progression function identifies trends", {
+test_that("sm_weathering_progression function identifies trends", {
   pxrf_data <- create_test_data_ppm()
-  indices_df <- weathering_indices(pxrf_data, indices = "all", convert_to_oxides = TRUE)
+  indices_df <- sm_weathering(pxrf_data, indices = "all", convert_to_oxides = TRUE)
 
-  result <- weathering_progression(indices_df)
+  result <- sm_weathering_progression(indices_df)
 
-  # weathering_progression returns a character string describing the trend
+  # sm_weathering_progression returns a character string describing the trend
   expect_true(is.character(result))
   expect_true(length(result) == 1)
   expect_true(grepl("increasing|decreasing|stable|unknown|insufficient", result))
@@ -364,32 +364,32 @@ test_that("weathering_progression function identifies trends", {
 # Test: Input Validation
 # ============================================================================
 
-test_that("weathering_indices validates input", {
+test_that("sm_weathering validates input", {
   # Invalid input type
-  expect_error(weathering_indices("not a dataframe"))
+  expect_error(sm_weathering("not a dataframe"))
 
   # With depth and element columns should work
   data <- data.frame(depth = seq(0, 100, by = 10), Al = 80000, Fe = 40000, Si = 300000, K = 30000, Ca = 50000, Na = 25000)
-  expect_no_error(weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE))
+  expect_no_error(sm_weathering(data, indices = "CIA", convert_to_oxides = TRUE))
 
   # No element columns should error
   data <- data.frame(depth = seq(0, 100, by = 10))
-  expect_error(weathering_indices(data))
+  expect_error(sm_weathering(data))
 
   # Missing required columns for CIA should warn
   data <- data.frame(depth = seq(0, 100, by = 10), Al = 80000, Fe = 40000, Si = 300000)
   expect_warning(
-    weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE),
+    sm_weathering(data, indices = "CIA", convert_to_oxides = TRUE),
     "Skipping CIA: Al, K, Na columns required"
   )
 })
 
-test_that("calculate_CIA validates inputs", {
+test_that('sm_weathering_index("CIA") validates inputs', {
   # Missing required inputs (Na2O is required)
-  expect_error(calculate_CIA(Al2O3 = 10, K2O = 5))
+  expect_error(sm_weathering_index("CIA")(Al2O3 = 10, K2O = 5))
 
   # All required inputs should work
-  result <- calculate_CIA(Al2O3 = 10, K2O = 5, Na2O = 5)
+  result <- sm_weathering_index("CIA")(Al2O3 = 10, K2O = 5, Na2O = 5)
   expect_true(is.numeric(result))
   expect_true(result >= 0 & result <= 100)
 })
@@ -398,7 +398,7 @@ test_that("calculate_CIA validates inputs", {
 # Test: Edge Cases
 # ============================================================================
 
-test_that("weathering_indices handles all NA values", {
+test_that("sm_weathering handles all NA values", {
   data <- data.frame(
     depth = c(0, 10, 20),
     Al = c(NA, NA, NA),
@@ -409,11 +409,11 @@ test_that("weathering_indices handles all NA values", {
     Na = c(NA, NA, NA)
   )
 
-  result <- weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = "CIA", convert_to_oxides = TRUE)
   expect_true(all(is.na(result$CIA)))
 })
 
-test_that("weathering_indices handles single depth value", {
+test_that("sm_weathering handles single depth value", {
   data <- data.frame(
     depth = 0,
     Al = 80000,
@@ -424,12 +424,12 @@ test_that("weathering_indices handles single depth value", {
     Na = 25000
   )
 
-  result <- weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = "CIA", convert_to_oxides = TRUE)
   expect_equal(nrow(result), 1)
   expect_true(!is.na(result$CIA[1]))
 })
 
-test_that("weathering_indices handles division by zero", {
+test_that("sm_weathering handles division by zero", {
   # All zeros should not crash, though results may be NaN
   data <- data.frame(
     depth = 0,
@@ -441,14 +441,14 @@ test_that("weathering_indices handles division by zero", {
     Na = 0
   )
 
-  expect_no_error(weathering_indices(data, indices = "CIA", convert_to_oxides = TRUE))
+  expect_no_error(sm_weathering(data, indices = "CIA", convert_to_oxides = TRUE))
 })
 
 # ============================================================================
 # Test: Integration with Real-like Data
 # ============================================================================
 
-test_that("weathering_indices produces expected patterns", {
+test_that("sm_weathering produces expected patterns", {
   # Create data showing weathering progression with depth
   data <- data.frame(
     depth = seq(0, 100, by = 10),
@@ -463,7 +463,7 @@ test_that("weathering_indices produces expected patterns", {
     Zr = seq(300, 400, by = 10)
   )
 
-  result <- weathering_indices(data, indices = c("CIA", "WIP"), convert_to_oxides = TRUE)
+  result <- sm_weathering(data, indices = c("CIA", "WIP"), convert_to_oxides = TRUE)
 
   # CIA should increase down-profile (more weathering)
   expect_true(result$CIA[nrow(result)] > result$CIA[1])

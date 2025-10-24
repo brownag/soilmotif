@@ -8,7 +8,7 @@ test_params <- c(100, 20, 0.1, 50)
 test_observed <- sm_motif(test_depths, test_params) + rnorm(200, 0, 2)
 
 test_that("sm_optim_bootstrap basic functionality", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result <- sm_optim_bootstrap(
     observed = test_observed,
@@ -28,7 +28,7 @@ test_that("sm_optim_bootstrap basic functionality", {
 })
 
 test_that("sm_optim_bootstrap input validation", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Test missing arguments
   expect_error(sm_optim_bootstrap(), "argument \"observed\" is missing")
@@ -122,7 +122,7 @@ test_that("sm_optim_bootstrap input validation", {
 })
 
 test_that("sm_optim_bootstrap reproducibility with seed", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result1 <- sm_optim_bootstrap(
     observed = test_observed,
@@ -151,7 +151,7 @@ test_that("sm_optim_bootstrap reproducibility with seed", {
 })
 
 test_that("sm_optim_bootstrap different seed gives different results", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result1 <- sm_optim_bootstrap(
     observed = test_observed,
@@ -183,7 +183,7 @@ test_that("sm_optim_bootstrap different seed gives different results", {
 })
 
 test_that("sm_optim_bootstrap parallel vs sequential", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result_parallel <- sm_optim_bootstrap(
     observed = test_observed,
@@ -225,7 +225,7 @@ test_that("sm_optim_bootstrap parallel vs sequential", {
 })
 
 test_that("sm_optim_bootstrap different shape families", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   shapes <- c("uniform", "gradational", "exponential", "sigmoid", "abrupt", "peak")
 
@@ -266,7 +266,7 @@ test_that("sm_optim_bootstrap different shape families", {
 })
 
 test_that("sm_optim_bootstrap different objectives", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   objectives <- c("rmse", "sse", "mae", "r2")
 
@@ -285,7 +285,7 @@ test_that("sm_optim_bootstrap different objectives", {
 })
 
 test_that("sm_optim_bootstrap fallback strategies", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   strategies <- c("auto", "explicit", "strict")
 
@@ -304,7 +304,7 @@ test_that("sm_optim_bootstrap fallback strategies", {
 })
 
 test_that("sm_optim_bootstrap handles failed optimizations", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Use very poor initial params to potentially cause failures
   bad_params <- c(1000, 1000, 10, 1000)
@@ -324,7 +324,7 @@ test_that("sm_optim_bootstrap handles failed optimizations", {
 })
 
 test_that("sm_optim_bootstrap summary statistics", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result <- sm_optim_bootstrap(
     observed = test_observed,
@@ -348,7 +348,7 @@ test_that("sm_optim_bootstrap summary statistics", {
 })
 
 test_that("sm_optim_bootstrap print method", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result <- sm_optim_bootstrap(
     observed = test_observed,
@@ -363,7 +363,7 @@ test_that("sm_optim_bootstrap print method", {
 })
 
 test_that("sm_optim_bootstrap summary method", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result <- sm_optim_bootstrap(
     observed = test_observed,
@@ -379,7 +379,7 @@ test_that("sm_optim_bootstrap summary method", {
 })
 
 test_that("sm_optim_bootstrap edge cases", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Minimal data
   tiny_observed <- c(10, 20)
@@ -410,7 +410,7 @@ test_that("sm_optim_bootstrap edge cases", {
 })
 
 test_that("sm_optim_bootstrap NA handling", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Test NA in observed
   observed_na <- test_observed
@@ -440,7 +440,7 @@ test_that("sm_optim_bootstrap NA handling", {
 # ============================================================================
 
 test_that("sm_optim_bootstrap sieve method - explicit selection", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Explicitly request sieve bootstrap
   result <- sm_optim_bootstrap(
@@ -460,7 +460,7 @@ test_that("sm_optim_bootstrap sieve method - explicit selection", {
 })
 
 test_that("sm_optim_bootstrap parametric method - explicit selection", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Explicitly request parametric bootstrap
   result <- sm_optim_bootstrap(
@@ -479,7 +479,7 @@ test_that("sm_optim_bootstrap parametric method - explicit selection", {
 })
 
 test_that("sm_optim_bootstrap auto method - selects parametric for sparse data", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Use sparse data (length < sieve_threshold, default 20)
   sparse_observed <- test_observed[1:15]
@@ -502,7 +502,7 @@ test_that("sm_optim_bootstrap auto method - selects parametric for sparse data",
 })
 
 test_that("sm_optim_bootstrap auto method - selects sieve for dense data", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Use dense data (length > sieve_threshold, default 20)
   # test_observed already has 200 points
@@ -523,7 +523,7 @@ test_that("sm_optim_bootstrap auto method - selects sieve for dense data", {
 })
 
 test_that("sm_optim_bootstrap ar1_coef is present for sieve bootstrap", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result_sieve <- sm_optim_bootstrap(
     observed = test_observed,
@@ -543,7 +543,7 @@ test_that("sm_optim_bootstrap ar1_coef is present for sieve bootstrap", {
 })
 
 test_that("sm_optim_bootstrap ar1_coef is NA for parametric bootstrap", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result_param <- sm_optim_bootstrap(
     observed = test_observed,
@@ -559,7 +559,7 @@ test_that("sm_optim_bootstrap ar1_coef is NA for parametric bootstrap", {
 })
 
 test_that("sm_optim_bootstrap method validation", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Invalid method should error
   expect_error(sm_optim_bootstrap(
@@ -572,7 +572,7 @@ test_that("sm_optim_bootstrap method validation", {
 })
 
 test_that("sm_optim_bootstrap sieve_threshold parameter", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Test with different sieve threshold
   result <- sm_optim_bootstrap(
@@ -592,7 +592,7 @@ test_that("sm_optim_bootstrap sieve_threshold parameter", {
 })
 
 test_that("sm_optim_bootstrap strict parameter controls fallback", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # strict=FALSE (default): Sieve can fall back to parametric
   result_nonstrict <- sm_optim_bootstrap(
@@ -610,7 +610,7 @@ test_that("sm_optim_bootstrap strict parameter controls fallback", {
 })
 
 test_that("sm_optim_bootstrap sieve method shows AR fit in message", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result <- sm_optim_bootstrap(
     observed = test_observed,
@@ -629,7 +629,7 @@ test_that("sm_optim_bootstrap sieve method shows AR fit in message", {
 })
 
 test_that("sm_optim_bootstrap fallback_strategy parameter", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Test different fallback strategies
   strategies <- c("auto", "explicit", "strict")
@@ -651,7 +651,7 @@ test_that("sm_optim_bootstrap fallback_strategy parameter", {
 })
 
 test_that("sm_optim_bootstrap sieve with small data", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   # Test with minimal data
   small_observed <- c(10, 15, 20, 25, 30)
@@ -673,7 +673,7 @@ test_that("sm_optim_bootstrap sieve with small data", {
 })
 
 test_that("sm_optim_bootstrap print shows method information", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result_sieve <- sm_optim_bootstrap(
     observed = test_observed,
@@ -690,7 +690,7 @@ test_that("sm_optim_bootstrap print shows method information", {
 })
 
 test_that("sm_optim_bootstrap summary shows method information", {
-  skip_if_not(rust_backend_available(), "Rust backend not available")
+  skip_if_not(sm_rust_backend_available(), "Rust backend not available")
 
   result_sieve <- sm_optim_bootstrap(
     observed = test_observed,

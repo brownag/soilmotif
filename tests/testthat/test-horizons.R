@@ -17,7 +17,7 @@ test_that("generate_horizon_data creates valid test data", {
 test_that("horizon_boundaries_mahalanobis detects simple boundaries", {
   data <- test_data_simple()
 
-  result <- horizon_boundaries_mahalanobis(
+  result <- sm_horizon_boundaries_mahalanobis(
     data,
     depth_col = "depth",
     window_size = 10,
@@ -50,7 +50,7 @@ test_that("horizon_boundaries_mahalanobis handles different methods", {
   methods <- c("threshold", "local_maxima", "changepoint")
 
   for (m in methods) {
-    result <- horizon_boundaries_mahalanobis(
+    result <- sm_horizon_boundaries_mahalanobis(
       data,
       method = m,
       threshold = 2.0
@@ -67,7 +67,7 @@ test_that("horizon_boundaries_mahalanobis auto-detects element columns", {
   data <- test_data_simple()
 
   # Don't specify element_cols
-  result <- horizon_boundaries_mahalanobis(data)
+  result <- sm_horizon_boundaries_mahalanobis(data)
 
   expect_s3_class(result, "horizon_boundaries")
   expect_equal(length(result$element_cols), 3)
@@ -82,7 +82,7 @@ test_that("horizon_boundaries_mahalanobis handles window types", {
   window_types <- c("centered", "forward", "backward")
 
   for (wt in window_types) {
-    result <- horizon_boundaries_mahalanobis(
+    result <- sm_horizon_boundaries_mahalanobis(
       data,
       window_type = wt
     )
@@ -97,13 +97,13 @@ test_that("horizon_boundaries_mahalanobis respects min_horizon_depth", {
   data <- test_data_simple()
 
   # With small min_horizon_depth, may detect more boundaries
-  result_small <- horizon_boundaries_mahalanobis(
+  result_small <- sm_horizon_boundaries_mahalanobis(
     data,
     min_horizon_depth = 2
   )
 
   # With large min_horizon_depth, should merge close boundaries
-  result_large <- horizon_boundaries_mahalanobis(
+  result_large <- sm_horizon_boundaries_mahalanobis(
     data,
     min_horizon_depth = 20
   )
@@ -116,7 +116,7 @@ test_that("horizon_boundaries_mahalanobis handles irregular spacing", {
   data <- test_data_irregular()
 
   expect_warning(
-    result <- horizon_boundaries_mahalanobis(
+    result <- sm_horizon_boundaries_mahalanobis(
       data,
       window_size = 15,  # Larger window for irregular data
       threshold = 1.5
@@ -134,7 +134,7 @@ test_that("horizon_boundaries_mahalanobis handles missing values", {
 
   # Should complete with warning
   expect_warning(
-    result <- horizon_boundaries_mahalanobis(data),
+    result <- sm_horizon_boundaries_mahalanobis(data),
     regexp = "missing values"
   )
 
@@ -147,7 +147,7 @@ test_that("horizon_boundaries_mahalanobis validates input", {
 
   # Non-existent depth column
   expect_error(
-    horizon_boundaries_mahalanobis(data, depth_col = "nonexistent"),
+    sm_horizon_boundaries_mahalanobis(data, depth_col = "nonexistent"),
     regexp = "not found"
   )
 
@@ -155,13 +155,13 @@ test_that("horizon_boundaries_mahalanobis validates input", {
   data_dup <- data
   data_dup$depth[1] <- data_dup$depth[2]
   expect_error(
-    horizon_boundaries_mahalanobis(data_dup),
+    sm_horizon_boundaries_mahalanobis(data_dup),
     regexp = "Duplicate depth"
   )
 
   # Non-numeric data
   expect_error(
-    horizon_boundaries_mahalanobis(list(depth = 1:10, x = letters[1:10])),
+    sm_horizon_boundaries_mahalanobis(list(depth = 1:10, x = letters[1:10])),
     regexp = "data.frame"
   )
 })
@@ -169,7 +169,7 @@ test_that("horizon_boundaries_mahalanobis validates input", {
 
 test_that("print.horizon_boundaries works", {
   data <- test_data_simple()
-  result <- horizon_boundaries_mahalanobis(data)
+  result <- sm_horizon_boundaries_mahalanobis(data)
 
   expect_output(print(result), regexp = "Horizon Boundary Detection")
   expect_output(print(result), regexp = "Detected horizons")
@@ -178,7 +178,7 @@ test_that("print.horizon_boundaries works", {
 
 test_that("summary.horizon_boundaries works", {
   data <- test_data_simple()
-  result <- horizon_boundaries_mahalanobis(data)
+  result <- sm_horizon_boundaries_mahalanobis(data)
 
   expect_output(summary(result), regexp = "Summary")
   expect_output(summary(result), regexp = "Mahalanobis Distance")
@@ -188,7 +188,7 @@ test_that("summary.horizon_boundaries works", {
 test_that("horizon_boundaries_mahalanobis works with pXRF data", {
   data <- test_data_pxrf()
 
-  result <- horizon_boundaries_mahalanobis(
+  result <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 10,
     threshold = 2.0,
@@ -211,7 +211,7 @@ test_that("horizon_boundaries_mahalanobis with gradual transitions", {
   data <- test_data_gradual()
 
   # Gradual transitions harder to detect - may need more sensitive threshold
-  result <- horizon_boundaries_mahalanobis(
+  result <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 12,
     threshold = 1.5,  # Lower threshold
@@ -232,7 +232,7 @@ test_that("horizon_boundaries_mahalanobis handles noisy data", {
   data <- test_data_noisy()
 
   # Noisy data may produce spurious peaks - use higher threshold
-  result <- horizon_boundaries_mahalanobis(
+  result <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 12,
     threshold = 2.5,  # Higher threshold for noise

@@ -437,7 +437,7 @@
 #' @noRd
 ._mahalanobis_distances <- function(element_matrix, depths, window_size) {
   # Try Rust implementation first if available
-  if (rust_backend_available()) {
+  if (sm_rust_backend_available()) {
     tryCatch({
       return(.Call(
         "wrap__mahalanobis_boundary_detection_rust",
@@ -899,7 +899,7 @@ sm_horizon_classify_fuzzy <- function(data,
   result_raw <- NULL
   method_used <- "r"
 
-  if (use_rust && rust_backend_available()) {
+  if (use_rust && sm_rust_backend_available()) {
     # Try Rust implementation
     tryCatch({
       # Initialize centers for Rust

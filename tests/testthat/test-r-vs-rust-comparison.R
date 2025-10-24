@@ -23,7 +23,7 @@ test_that("Mahalanobis R: distances are computed correctly", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Run R implementation
-  result_r <- horizon_boundaries_mahalanobis(
+  result_r <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 10,
     method = "local_maxima",
@@ -89,7 +89,7 @@ test_that("Mahalanobis R vs Rust: distances match within tolerance", {
   element_matrix <- as.matrix(data[, c("Al", "Fe", "Si")])
 
   # Get R implementation distances (always available)
-  result_r <- horizon_boundaries_mahalanobis(
+  result_r <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 10,
     method = "local_maxima"
@@ -162,7 +162,7 @@ test_that("Mahalanobis: boundary detection matches between R and Rust", {
   element_matrix <- as.matrix(data[, c("Al", "Fe", "Si")])
 
   # Get R implementation boundaries (always available)
-  result_r <- horizon_boundaries_mahalanobis(
+  result_r <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 10,
     method = "local_maxima",
@@ -227,7 +227,7 @@ test_that("Fuzzy k-means R: clustering produces valid memberships", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Run R implementation
-  result_r <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result_r <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   # Check structure
   expect_s3_class(result_r, "fuzzy_horizons")
@@ -305,7 +305,7 @@ test_that("Fuzzy k-means R vs Rust: memberships match within tolerance", {
   element_matrix <- as.matrix(data[, c("Al", "Fe", "Si")])
 
   # Get R implementation
-  result_r <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result_r <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
   expect_true(is.matrix(result_r$memberships))
 
   # Try Rust implementation if available
@@ -355,7 +355,7 @@ test_that("Fuzzy k-means: classifications match between R and Rust", {
   element_matrix <- as.matrix(data[, c("Al", "Fe", "Si")])
 
   # Get R hard classifications (argmax of memberships)
-  result_r <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result_r <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
   classes_r <- apply(result_r$memberships, 1, which.max)
 
   # Try Rust implementation if available
@@ -406,7 +406,7 @@ test_that("Both implementations handle missing values consistently", {
 
   # Run R implementation (always available)
   expect_no_error({
-    result_r <- horizon_boundaries_mahalanobis(data, window_size = 10)
+    result_r <- sm_horizon_boundaries_mahalanobis(data, window_size = 10)
   })
 
   # Try Rust implementation if available
@@ -439,7 +439,7 @@ test_that("Both implementations handle large datasets", {
 
   # Run R implementation (always available)
   expect_no_error({
-    result_r <- horizon_boundaries_mahalanobis(data, window_size = 20)
+    result_r <- sm_horizon_boundaries_mahalanobis(data, window_size = 20)
   })
 
   # Should have some boundaries detected or distances computed

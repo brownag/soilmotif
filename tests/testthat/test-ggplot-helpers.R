@@ -29,7 +29,7 @@ test_that("prepare_ggplot_data works with ggplot2", {
   fit <- create_test_fit()
 
   # Test basic functionality
-  plot_data <- prepare_ggplot_data(fit)
+  plot_data <- sm_prepare_ggplot_data(fit)
 
   # Check structure
   expect_s3_class(plot_data, "data.frame")
@@ -46,7 +46,7 @@ test_that("prepare_ggplot_data works with ggplot2", {
 
 test_that("prepare_ggplot_data works with bootstrap", {
   skip_if_not_installed("ggplot2")
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   fit <- create_test_fit()
   depths <- 1:200
@@ -61,7 +61,7 @@ test_that("prepare_ggplot_data works with bootstrap", {
   )
 
   # Test with bootstrap
-  plot_data <- prepare_ggplot_data(fit, bootstrap_result = boot)
+  plot_data <- sm_prepare_ggplot_data(fit, bootstrap_result = boot)
 
   expect_s3_class(plot_data, "data.frame")
   expect_named(plot_data, c("depth", "observed", "fitted", "ci_lower", "ci_upper"))
@@ -77,7 +77,7 @@ test_that("prepare_ggplot_data handles custom depths", {
   fit <- create_test_fit()
   custom_depths <- seq(1, 200, by = 10)
 
-  plot_data <- prepare_ggplot_data(fit, depths = custom_depths)
+  plot_data <- sm_prepare_ggplot_data(fit, depths = custom_depths)
 
   expect_equal(nrow(plot_data), length(custom_depths))
   expect_equal(plot_data$depth, custom_depths)
@@ -92,7 +92,7 @@ test_that("prepare_horizon_ggplot placeholder works", {
 
   # Should show message and return empty data.frame
   expect_message(
-    result <- prepare_horizon_ggplot(NULL),
+    result <- sm_prepare_horizon_ggplot(NULL),
     "Horizon ggplot2 preparation will be available after Phase 3g implementation"
   )
 
@@ -106,7 +106,7 @@ test_that("prepare_fuzzy_ggplot placeholder works", {
 
   # Should show message and return empty data.frame
   expect_message(
-    result <- prepare_fuzzy_ggplot(NULL),
+    result <- sm_prepare_fuzzy_ggplot(NULL),
     "Fuzzy horizon ggplot2 preparation will be available after Phase 3h implementation"
   )
 

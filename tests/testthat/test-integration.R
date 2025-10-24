@@ -21,7 +21,7 @@ test_that("Full workflow: raw data -> preprocess -> fit -> select model", {
   expect_true(all(fit >= min(x) & fit <= max(x)))
 
   # 3. Select model
-  result <- fit_motif_auto(x, models = c("uniform", "gradational", "peak"), criterion = "AIC")
+  result <- sm_fit_motif_auto(x, models = c("uniform", "gradational", "peak"), criterion = "AIC")
   expect_s3_class(result, "fit_motif_auto")
   expect_named(result, c("fits", "stats", "ranking", "best", "criterion", "input_length"))
   expect_type(result$best, "character")
@@ -42,7 +42,7 @@ test_that("Multiple profiles handled consistently", {
 
   # Fit each
   results <- lapply(profiles, function(x) {
-    fit_motif_auto(x, models = "all", criterion = "AIC")
+    sm_fit_motif_auto(x, models = "all", criterion = "AIC")
   })
 
   # Check consistency
@@ -94,7 +94,7 @@ test_that("Cross-compatibility: preprocess output works with all fitting functio
     expect_length(fit, 200)
 
     # Should work with fit_motif_auto
-    result <- fit_motif_auto(x, models = c("uniform", "gradational"), criterion = "RMSE")
+    result <- sm_fit_motif_auto(x, models = c("uniform", "gradational"), criterion = "RMSE")
     expect_s3_class(result, "fit_motif_auto")
   }
 })

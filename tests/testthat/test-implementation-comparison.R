@@ -20,11 +20,11 @@ test_that("Mahalanobis: R implementation produces consistent results", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Run twice with same seed - should get identical results
-  result1 <- horizon_boundaries_mahalanobis(data, window_size = 10, method = "local_maxima")
+  result1 <- sm_horizon_boundaries_mahalanobis(data, window_size = 10, method = "local_maxima")
 
   set.seed(42)
   data2 <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
-  result2 <- horizon_boundaries_mahalanobis(data2, window_size = 10, method = "local_maxima")
+  result2 <- sm_horizon_boundaries_mahalanobis(data2, window_size = 10, method = "local_maxima")
 
   # Distances should be identical (deterministic algorithm)
   expect_equal(result1$distances, result2$distances)
@@ -49,7 +49,7 @@ test_that("Mahalanobis: distances increase at boundaries", {
 
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
-  result <- horizon_boundaries_mahalanobis(
+  result <- sm_horizon_boundaries_mahalanobis(
     data,
     window_size = 10,
     method = "local_maxima",
@@ -85,7 +85,7 @@ test_that("Mahalanobis: different methods produce different but valid results", 
   methods <- c("local_maxima", "threshold", "changepoint")
 
   results <- lapply(methods, function(m) {
-    horizon_boundaries_mahalanobis(data, window_size = 10, method = m)
+    sm_horizon_boundaries_mahalanobis(data, window_size = 10, method = m)
   })
 
   names(results) <- methods
@@ -121,8 +121,8 @@ test_that("Mahalanobis: window size affects detection", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Test different window sizes
-  result_small <- horizon_boundaries_mahalanobis(data, window_size = 5)
-  result_large <- horizon_boundaries_mahalanobis(data, window_size = 20)
+  result_small <- sm_horizon_boundaries_mahalanobis(data, window_size = 5)
+  result_large <- sm_horizon_boundaries_mahalanobis(data, window_size = 20)
 
   boundaries_small <- result_small$boundaries$depth[result_small$boundaries$is_boundary]
   boundaries_large <- result_large$boundaries$depth[result_large$boundaries$is_boundary]
@@ -151,7 +151,7 @@ test_that("Fuzzy k-means: R implementation produces valid membership", {
 
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
-  result <- horizon_classify_fuzzy(data, n_horizons = 3)
+  result <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   # Check structure
   expect_s3_class(result, "fuzzy_horizons")
@@ -186,10 +186,10 @@ test_that("Fuzzy k-means: convergence behavior is correct", {
 
   # Run with different max_iter
 
-    result_short <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 10)
+    result_short <- sm_horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 10)
 
 
-    result_long <- horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 200)
+    result_long <- sm_horizon_classify_fuzzy(data, n_horizons = 3, max_iter = 200)
 
   cat("\n  Iterations (max=10):", result_short$iterations)
   cat("\n  Iterations (max=200):", result_long$iterations)
@@ -213,13 +213,13 @@ test_that("Fuzzy k-means: different k values produce different results", {
 
   # Test different k values
 
-    result_k2 <- horizon_classify_fuzzy(data, n_horizons = 2)
+    result_k2 <- sm_horizon_classify_fuzzy(data, n_horizons = 2)
 
 
-    result_k3 <- horizon_classify_fuzzy(data, n_horizons = 3)
+    result_k3 <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
 
-    result_k4 <- horizon_classify_fuzzy(data, n_horizons = 4)
+    result_k4 <- sm_horizon_classify_fuzzy(data, n_horizons = 4)
 
   # Check that memberships are different
   expect_false(identical(result_k2$memberships, result_k3$memberships))
@@ -244,13 +244,13 @@ test_that("Fuzzy k-means: entropy increases with fuzziness", {
 
   # Different m (fuzziness) values
 
-    result_crisp <- horizon_classify_fuzzy(data, n_horizons = 3, m = 1.1)
+    result_crisp <- sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 1.1)
 
 
-    result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
+    result_fuzzy <- sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 2.0)
 
 
-    result_very_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
+    result_very_fuzzy <- sm_horizon_classify_fuzzy(data, n_horizons = 3, m = 3.0)
 
   entropy_crisp <- mean(result_crisp$entropy)
   entropy_fuzzy <- mean(result_fuzzy$entropy)
@@ -277,11 +277,11 @@ test_that("Fuzzy k-means: reproducible with same seed", {
 
   data1 <- create_test_data()
 
-    result1 <- horizon_classify_fuzzy(data1, n_horizons = 3)
+    result1 <- sm_horizon_classify_fuzzy(data1, n_horizons = 3)
 
   data2 <- create_test_data()
 
-    result2 <- horizon_classify_fuzzy(data2, n_horizons = 3)
+    result2 <- sm_horizon_classify_fuzzy(data2, n_horizons = 3)
 
   # Results should be identical
   expect_equal(result1$memberships, result2$memberships)
@@ -305,9 +305,9 @@ test_that("Both methods work on same dataset", {
   data <- data.frame(depth = depths, Al = Al, Fe = Fe, Si = Si)
 
   # Run both analyses
-  result_mahal <- horizon_boundaries_mahalanobis(data, window_size = 10)
+  result_mahal <- sm_horizon_boundaries_mahalanobis(data, window_size = 10)
 
-    result_fuzzy <- horizon_classify_fuzzy(data, n_horizons = 3)
+    result_fuzzy <- sm_horizon_classify_fuzzy(data, n_horizons = 3)
 
   # Both should succeed
   expect_s3_class(result_mahal, "horizon_boundaries")

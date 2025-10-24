@@ -335,7 +335,7 @@ sm_optim <- function(x, X, ...,
 #' # Large problem (5+ params) - recommends Particle Swarm
 #' sm_recommend_optimizer(n_params = 6, n_obs = 100, objective_type = "rmse")
 sm_recommend_optimizer <- function(n_params, n_obs = NULL, objective_type = "rmse") {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     return("nelder_mead")  # Default fallback
   }
   
@@ -434,7 +434,7 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
 
   # If Rust requested, dispatch to Rust backend (with R fallback)
   if (use_rust) {
-    if (!rust_backend_available()) {
+    if (!sm_rust_backend_available()) {
       warning("Rust backend not available; falling back to R")
       return(sm_optim_r_impl(observed, params, ..., FUN = FUN, OPTFUN = OPTFUN, depths = depth_vector))
     }
@@ -567,7 +567,7 @@ sm_optim_bootstrap <- function(observed, depths, initial_params,
                               max_retries = 3L,
                               strict = FALSE,
                               ...) {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend required for bootstrap uncertainty quantification")
   }
 

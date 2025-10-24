@@ -49,7 +49,7 @@ test_that("extract_plot_data works", {
   fit <- create_test_fit()
 
   # Test basic functionality
-  plot_data <- extract_plot_data(fit)
+  plot_data <- sm_extract_plot_data(fit)
 
   # Check structure
   expect_s3_class(plot_data, "data.frame")
@@ -69,7 +69,7 @@ test_that("extract_plot_data handles custom depths", {
   fit <- create_test_fit()
 
   custom_depths <- seq(1, 200, by = 5)
-  plot_data <- extract_plot_data(fit, depths = custom_depths)
+  plot_data <- sm_extract_plot_data(fit, depths = custom_depths)
 
   expect_equal(nrow(plot_data), length(custom_depths))
   expect_equal(plot_data$depth, custom_depths)
@@ -82,7 +82,7 @@ test_that("extract_plot_data handles custom depths", {
 test_that("plot_horizon_boundaries placeholder works", {
   # Should not error, just show message
   expect_message(
-    plot_horizon_boundaries(NULL),
+    sm_plot_horizon_boundaries(NULL),
     "Horizon boundary plotting will be available after Phase 3g implementation"
   )
 })
@@ -90,7 +90,7 @@ test_that("plot_horizon_boundaries placeholder works", {
 test_that("plot_fuzzy_horizons placeholder works", {
   # Should not error, just show message
   expect_message(
-    plot_fuzzy_horizons(NULL),
+    sm_plot_fuzzy_horizons(NULL),
     "Fuzzy horizon plotting will be available after Phase 3h implementation"
   )
 })
@@ -100,7 +100,7 @@ test_that("plot_fuzzy_horizons placeholder works", {
 # ============================================================================
 
 test_that("plot works with bootstrap results", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   fit <- create_test_fit()
   depths <- 1:200
@@ -120,7 +120,7 @@ test_that("plot works with bootstrap results", {
 })
 
 test_that("extract_plot_data works with bootstrap", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   fit <- create_test_fit()
   depths <- 1:200
@@ -135,7 +135,7 @@ test_that("extract_plot_data works with bootstrap", {
   )
 
   # Test with bootstrap
-  plot_data <- extract_plot_data(fit, bootstrap_result = boot)
+  plot_data <- sm_extract_plot_data(fit, bootstrap_result = boot)
 
   expect_s3_class(plot_data, "data.frame")
   expect_named(plot_data, c("depth", "observed", "fitted", "ci_lower", "ci_upper"))
@@ -149,7 +149,7 @@ test_that("extract_plot_data works with bootstrap", {
 # ============================================================================
 
 test_that("plot_bootstrap_params works", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   fit <- create_test_fit()
   depths <- 1:200
@@ -164,13 +164,13 @@ test_that("plot_bootstrap_params works", {
   )
 
   # Test histogram plot
-  expect_silent(plot_bootstrap_params(boot, type = "histogram"))
+  expect_silent(sm_plot_bootstrap_params(boot, type = "histogram"))
 
   # Test density plot
-  expect_silent(plot_bootstrap_params(boot, type = "density"))
+  expect_silent(sm_plot_bootstrap_params(boot, type = "density"))
 
   # Test invalid type
-  expect_error(plot_bootstrap_params(boot, type = "invalid"), "type must be")
+  expect_error(sm_plot_bootstrap_params(boot, type = "invalid"), "type must be")
 })
 
 test_that("plot_bootstrap_params handles empty results", {
@@ -180,14 +180,14 @@ test_that("plot_bootstrap_params handles empty results", {
   )
   class(empty_boot) <- "bootstrap_result"
 
-  expect_error(plot_bootstrap_params(empty_boot), "No successful bootstrap samples")
+  expect_error(sm_plot_bootstrap_params(empty_boot), "No successful bootstrap samples")
 })
 
 test_that("plot_residuals works", {
   fit <- create_test_fit()
 
   # Test residual plotting
-  expect_silent(plot_residuals(fit))
+  expect_silent(sm_plot_residuals(fit))
 })
 
 test_that("plot_residuals handles edge cases", {
@@ -195,5 +195,5 @@ test_that("plot_residuals handles edge cases", {
   perfect_data <- sm_motif(1:200, c(40, 60))
   perfect_fit <- sm_optim(perfect_data, c(40, 60), use_rust = TRUE)
 
-  expect_silent(plot_residuals(perfect_fit))
+  expect_silent(sm_plot_residuals(perfect_fit))
 })

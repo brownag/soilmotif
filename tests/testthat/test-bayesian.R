@@ -64,7 +64,7 @@ test_that("sm_to_priors works with optimization result", {
 })
 
 test_that("sm_to_priors works with bootstrap result", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 
@@ -85,7 +85,7 @@ test_that("sm_to_priors works with bootstrap result", {
 })
 
 test_that("sm_to_priors handles prior_sd_factor", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 
@@ -194,7 +194,7 @@ test_that("sm_to_stan_priors validates parameter names", {
 # ============================================================================
 
 test_that("Bayesian functions work with bootstrap uncertainty", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 

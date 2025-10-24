@@ -7,7 +7,7 @@
 library(soilmotif)
 
 test_that("Rust objective functions are available", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   # Test RMSE
   obs <- c(10, 20, 30, 40, 50)
@@ -20,7 +20,7 @@ test_that("Rust objective functions are available", {
 })
 
 test_that("Rust RMSE matches R (perfect fit)", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(1.0, 2.0, 3.0, 4.0, 5.0)
   pred <- obs
@@ -33,7 +33,7 @@ test_that("Rust RMSE matches R (perfect fit)", {
 })
 
 test_that("Rust RMSE matches R (uniform error)", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(0.0, 0.0, 0.0, 0.0, 0.0)
   pred <- c(2.0, 2.0, 2.0, 2.0, 2.0)
@@ -46,7 +46,7 @@ test_that("Rust RMSE matches R (uniform error)", {
 })
 
 test_that("Rust SSE matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(10, 20, 30, 40, 50)
   pred <- c(11, 19, 31, 39, 51)
@@ -58,7 +58,7 @@ test_that("Rust SSE matches R", {
 })
 
 test_that("Rust MAE matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(10, 20, 30, 40, 50)
   pred <- c(11, 19, 31, 39, 51)
@@ -70,7 +70,7 @@ test_that("Rust MAE matches R", {
 })
 
 test_that("Rust R-squared matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(1.0, 2.0, 3.0, 4.0, 5.0)
   pred <- c(1.1, 1.9, 3.1, 3.9, 5.1)
@@ -86,7 +86,7 @@ test_that("Rust R-squared matches R", {
 })
 
 test_that("Rust R-squared perfect fit", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   obs <- c(1.0, 2.0, 3.0, 4.0, 5.0)
   pred <- obs
@@ -97,7 +97,7 @@ test_that("Rust R-squared perfect fit", {
 })
 
 test_that("Rust uniform shape matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(0.5)
@@ -110,7 +110,7 @@ test_that("Rust uniform shape matches R", {
 })
 
 test_that("R gradational shape matches Rust", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(50, 150)
@@ -124,7 +124,7 @@ test_that("R gradational shape matches Rust", {
 })
 
 test_that("Rust wetting front shape matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(50, 150)
@@ -138,7 +138,7 @@ test_that("Rust wetting front shape matches R", {
 })
 
 test_that("Rust abrupt shape matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(100, 0)  # Hard step at 100
@@ -152,7 +152,7 @@ test_that("Rust abrupt shape matches R", {
 })
 
 test_that("Rust peak shape matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(100, 30)
@@ -167,7 +167,7 @@ test_that("Rust peak shape matches R", {
 })
 
 test_that("R minimax shape matches Rust", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(75, 20, 125, 20)
@@ -181,7 +181,7 @@ test_that("R minimax shape matches Rust", {
 })
 
 test_that("Rust exponential shape matches R", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 1)
   params <- c(1, 0.05)
@@ -195,7 +195,7 @@ test_that("Rust exponential shape matches R", {
 })
 
 test_that("Shape eval dispatcher handles unknown shape gracefully", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200)
   params <- c(0.5)
@@ -207,7 +207,7 @@ test_that("Shape eval dispatcher handles unknown shape gracefully", {
 })
 
 test_that("All shape functions produce values in [0, 1]", {
-  skip_if(!rust_backend_available())
+  skip_if(!sm_rust_backend_available())
   
   x <- seq(1, 200, by = 5)
   

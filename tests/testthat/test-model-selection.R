@@ -2,7 +2,7 @@ test_that("fit_motif_auto works with all motif types", {
   # Synthetic data with known structure
   x <- c(rep(10, 50), rep(35, 100), rep(15, 50))  # Gradational pattern
 
-  result <- fit_motif_auto(x, models = "all", criterion = "AIC")
+  result <- sm_fit_motif_auto(x, models = "all", criterion = "AIC")
 
   # Basic checks
   expect_s3_class(result, "fit_motif_auto")
@@ -18,7 +18,7 @@ test_that("fit_motif_auto identifies correct best model", {
   # Create synthetic peak profile
   peak_profile <- sm_motif(1:200, c(100, 30), FUN = sm_shape_peak)
 
-  result <- fit_motif_auto(peak_profile, criterion = "AIC")
+  result <- sm_fit_motif_auto(peak_profile, criterion = "AIC")
   expect_equal(result$best, "peak")
 })
 
@@ -28,8 +28,8 @@ test_that("Different criteria produce different rankings", {
   raw_shape <- sm_shape_gradational(1:200, c(50, 150), ascending = TRUE)
   x <- 10 + raw_shape * (40 - 10)  # Scale to [10, 40] range
   
-  result_aic <- fit_motif_auto(x, criterion = "AIC")
-  result_rmse <- fit_motif_auto(x, criterion = "RMSE")
+  result_aic <- sm_fit_motif_auto(x, criterion = "AIC")
+  result_rmse <- sm_fit_motif_auto(x, criterion = "RMSE")
   
   # For gradational data, gradational should rank high
   expect_true("gradational" %in% result_aic$ranking$model[1:3])
@@ -39,7 +39,7 @@ test_that("Different criteria produce different rankings", {
 test_that("fit_motif_auto handles subset of models", {
   x <- rnorm(200, mean = 30, sd = 10)
 
-  result <- fit_motif_auto(x, models = c("uniform", "gradational", "peak"), criterion = "AIC")
+  result <- sm_fit_motif_auto(x, models = c("uniform", "gradational", "peak"), criterion = "AIC")
 
   expect_length(result$fits, 3)
   expect_equal(nrow(result$stats), 3)
@@ -48,7 +48,7 @@ test_that("fit_motif_auto handles subset of models", {
 
 test_that("fit_motif_auto S3 methods work without error", {
   x <- rnorm(200, mean = 30, sd = 10)
-  result <- fit_motif_auto(x, models = c("uniform", "gradational", "peak"))
+  result <- sm_fit_motif_auto(x, models = c("uniform", "gradational", "peak"))
 
   expect_output(print(result), "Automated Motif")
   expect_silent(plot(result))
@@ -57,27 +57,27 @@ test_that("fit_motif_auto S3 methods work without error", {
 
 test_that("fit_motif_auto validates inputs", {
   # Non-numeric x
-  expect_error(fit_motif_auto("not numeric"), "x must be numeric")
+  expect_error(sm_fit_motif_auto("not numeric"), "x must be numeric")
 
   # Invalid criterion
   x <- rnorm(200, mean = 30, sd = 10)
-  expect_error(fit_motif_auto(x, criterion = "INVALID"), "criterion must be one of")
+  expect_error(sm_fit_motif_auto(x, criterion = "INVALID"), "criterion must be one of")
 
   # Invalid models
-  expect_error(fit_motif_auto(x, models = c("invalid_model")), "No valid models specified")
+  expect_error(sm_fit_motif_auto(x, models = c("invalid_model")), "No valid models specified")
 })
 
 test_that("fit_motif_auto handles short data with warning", {
   x <- rnorm(5, mean = 30, sd = 10)
 
-  expect_warning(fit_motif_auto(x, models = c("uniform", "gradational")), "x is very short")
+  expect_warning(sm_fit_motif_auto(x, models = c("uniform", "gradational")), "x is very short")
 })
 
 test_that("fit_motif_auto ranking is correct for R2", {
   # Create data where one model should have perfect fit
   x <- sm_motif(1:200, c(0.5), FUN = sm_shape_uniform)
 
-  result <- fit_motif_auto(x, models = c("uniform", "gradational"), criterion = "R2")
+  result <- sm_fit_motif_auto(x, models = c("uniform", "gradational"), criterion = "R2")
 
   # Uniform should have R2 = 1 (perfect fit)
   uniform_r2 <- result$stats[result$stats$model == "uniform", "r2"]
@@ -95,7 +95,7 @@ test_that("fit_motif_auto handles fitting failures gracefully", {
 
   expect_warning(
     expect_warning(
-      result <- fit_motif_auto(x, models = c("uniform", "gradational")),
+      result <- sm_fit_motif_auto(x, models = c("uniform", "gradational")),
       "Failed to fit gradational"
     ),
     "NA/NaN replaced by maximum positive value|Failed to fit"

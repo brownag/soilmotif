@@ -1,6 +1,6 @@
 test_that("Rust backend loads and is callable", {
   # Test that the Rust backend is available and callable
-  expect_true(rust_backend_available())
+  expect_true(sm_rust_backend_available())
   
   # Test basic functionality by calling a working Rust function
   x <- c(1.0, 2.0, 3.0)

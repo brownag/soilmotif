@@ -71,7 +71,7 @@ sm_batch_optimize_profiles <- function(profiles,
                                     shape_type = "wetting_front",
                                     ascending = TRUE,
                                     objective_type = "rmse") {
-  if (!rust_backend_available()) {
+  if (!sm_rust_backend_available()) {
     stop("Rust backend not available. Cannot perform batch optimization.")
   }
 
@@ -322,7 +322,7 @@ sm_fit_batch_profiles <- function(profile_data,
     profiles <- profile_data
   }
 
-  if (!use_rust || !rust_backend_available()) {
+  if (!use_rust || !sm_rust_backend_available()) {
     stop("R backend for batch processing not yet implemented. Use use_rust=TRUE.")
   }
 

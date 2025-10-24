@@ -120,7 +120,7 @@ test_that("broom methods handle missing parameter info", {
 # ============================================================================
 
 test_that("tidy.bootstrap_result works", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 
@@ -147,7 +147,7 @@ test_that("tidy.bootstrap_result works", {
 })
 
 test_that("glance.bootstrap_result works", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 
@@ -169,7 +169,7 @@ test_that("glance.bootstrap_result works", {
 })
 
 test_that("augment.bootstrap_result works", {
-  skip_if_not(rust_backend_available(), "Rust backend required for bootstrap")
+  skip_if_not(sm_rust_backend_available(), "Rust backend required for bootstrap")
 
   boot <- create_test_bootstrap()
 

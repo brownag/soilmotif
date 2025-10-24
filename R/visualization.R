@@ -364,4 +364,3 @@ sm_plot_element_mobility <- function(depletion_df,
 
   invisible(depletion_df)
 }
-th

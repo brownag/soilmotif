@@ -150,41 +150,15 @@
 # Core Weathering Index Functions
 # ============================================================================
 
-#' Chemical Index of Alteration (CIA)
-#'
-#' CIA measures the degree of chemical weathering based on the proportion of
-#' Al2O3 relative to all potassium-bearing and sodium-bearing compounds.
-#'
-#' Formula: CIA = (Al2O3 / (Al2O3 + K2O + Na2O)) * 100
+#' Internal: Calculate Chemical Index of Alteration (CIA)
 #'
 #' @param Al2O3 numeric. Al2O3 concentration (wt%)
 #' @param K2O numeric. K2O concentration (wt%)
 #' @param Na2O numeric. Na2O concentration (wt%)
 #'
-#' @return numeric. CIA value (0-100). Interpretation ranges:
-#'   - 50-60: Fresh, minimal weathering (granitic rocks)
-#'   - 60-75: Moderate weathering
-#'   - 75-85: Strong weathering (laterite weathering)
-#'   - 85-100: Intense weathering, full feldspar dissolution
-#'
-#' @details
-#' CIA assumes that weathering removes K (K-feldspar → clay) and Na (plagioclase → clay).
-#' As these mobile elements are leached, CIA increases. Al is relatively immobile
-#' and concentrates in residual clays.
-#'
-#' Higher CIA indicates more advanced weathering stages.
-#'
-#' @examples
-#' \dontrun{
-#' # Granitic rock (fresh)
-#' calculate_CIA(Al2O3 = 14, K2O = 4.5, Na2O = 3.5)  # Should be ~65
-#'
-#' # Highly weathered laterite
-#' calculate_CIA(Al2O3 = 25, K2O = 0.5, Na2O = 0.3)  # Should be ~95
-#' }
-#'
-#' @export
-sm_calculate_CIA <- function(Al2O3, K2O, Na2O) {
+#' @return numeric. CIA value (0-100)
+#' @noRd
+.calculate_CIA <- function(Al2O3, K2O, Na2O) {
   denominator <- Al2O3 + K2O + Na2O
 
   # Handle zeros in denominator
@@ -198,39 +172,16 @@ sm_calculate_CIA <- function(Al2O3, K2O, Na2O) {
   cia
 }
 
-#' Weathering Index of Parker (WIP)
-#'
-#' WIP accounts for element mobility during weathering. K and Na are highly mobile
-#' in aqueous systems, while Ca and Mg show variable mobility.
-#'
-#' Formula: WIP = (2*Na2O/0.35 + 2*K2O/0.25 + MgO/0.9 + 2*CaO/1.3) / 10
+#' Internal: Calculate Weathering Index of Parker (WIP)
 #'
 #' @param K2O numeric. K2O concentration (wt%)
 #' @param Na2O numeric. Na2O concentration (wt%)
 #' @param CaO numeric. CaO concentration (wt%)
 #' @param MgO numeric. MgO concentration (wt%)
 #'
-#' @return numeric. WIP value (0-100+, typically 20-100). Interpretation ranges:
-#'   - 100: No weathering (fresh feldspar)
-#'   - 60-80: Moderate weathering
-#'   - 20-60: Strong weathering
-#'   - Less than 20: Intense weathering
-#'
-#' @details
-#' WIP decreases with weathering as mobile elements are leached away.
-#' Unlike CIA (which increases with weathering), WIP decreases.
-#'
-#' @examples
-#' \dontrun{
-#' # Fresh granite
-#' calculate_WIP(K2O = 4.5, Na2O = 3.5, CaO = 1.5, MgO = 0.8)  # ~90
-#'
-#' # Laterite
-#' calculate_WIP(K2O = 0.1, Na2O = 0.1, CaO = 0.1, MgO = 0.1)  # ~5
-#' }
-#'
-#' @export
-sm_calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
+#' @return numeric. WIP value (0-100+, typically 20-100)
+#' @noRd
+.calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
   # Modified formula using oxide values
   # WIP = [2*Na2O/0.35 + 2*K2O/0.25 + MgO/0.9 + 2*CaO/1.3] / 10
 
@@ -242,38 +193,16 @@ sm_calculate_WIP <- function(K2O, Na2O, CaO, MgO) {
   wip
 }
 
-#' Plagioclase Index of Alteration (PIA)
-#'
-#' PIA focuses specifically on feldspar weathering (especially plagioclase).
-#' It's sensitive to the weathering of plagioclase to secondary clay minerals.
-#'
-#' Formula: PIA = ((Al2O3 - K2O) / (Al2O3 + CaO - K2O)) * 100
+#' Internal: Calculate Plagioclase Index of Alteration (PIA)
 #'
 #' @param Al2O3 numeric. Al2O3 concentration (wt%)
 #' @param Na2O numeric. Na2O concentration (wt%)
 #' @param K2O numeric. K2O concentration (wt%)
 #' @param CaO numeric. CaO concentration (wt%)
 #'
-#' @return numeric. PIA value (0-100). Interpretation ranges:
-#'   - Less than 50: Low plagioclase weathering
-#'   - 50-80: Moderate plagioclase weathering
-#'   - Greater than 80: Intense plagioclase alteration
-#'
-#' @details
-#' PIA is particularly useful in granitic or mixed feldspar assemblages.
-#' It separates the contributions of plagioclase (Ca-bearing) and K-feldspar weathering.
-#'
-#' @examples
-#' \dontrun{
-#' # Fresh granite
-#' calculate_PIA(Al2O3 = 14, Na2O = 3.5, K2O = 4.5, CaO = 1.5)
-#'
-#' # Highly weathered
-#' calculate_PIA(Al2O3 = 25, Na2O = 0.2, K2O = 0.5, CaO = 0.1)
-#' }
-#'
-#' @export
-sm_calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
+#' @return numeric. PIA value (0-100)
+#' @noRd
+.calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
   numerator <- Al2O3 - K2O
   denominator <- Al2O3 + CaO - K2O
 
@@ -287,112 +216,40 @@ sm_calculate_PIA <- function(Al2O3, Na2O, K2O, CaO) {
   pia
 }
 
-#' Silica-Alumina Ratio (SAR)
-#'
-#' SAR is a simple ratio indicating the relative abundance of silica to alumina.
-#' Higher values suggest more quartz and primary silicates (less weathered).
-#'
-#' Formula: SAR = SiO2 / Al2O3
+#' Internal: Calculate Silica-Alumina Ratio (SAR)
 #'
 #' @param SiO2 numeric. SiO2 concentration (wt%)
 #' @param Al2O3 numeric. Al2O3 concentration (wt%)
 #'
-#' @return numeric. SAR value (typically 3-8). Interpretation ranges:
-#'   - Greater than 7: Unweathered (quartzite, granitoid with high quartz)
-#'   - 5 to 7: Moderately weathered (clay-rich)
-#'   - 3 to 5: Heavily weathered (clay minerals dominant)
-#'   - Less than 3: Bauxite (laterite), pure Al-oxides
-#'
-#' @details
-#' SAR is sensitive to clay mineral type. Kaolinite (Al2Si2O5(OH)4) has SAR ≈ 2,
-#' while feldspar (KAlSi3O8) has SAR ≈ 3-4.
-#'
-#' @examples
-#' # Unweathered granitic material (quartzite-rich)
-#' calculate_SAR(SiO2 = 75, Al2O3 = 12)  # SAR ≈ 6.25 (unweathered)
-#'
-#' # Heavily weathered material (clay-rich)
-#' calculate_SAR(SiO2 = 50, Al2O3 = 20)  # SAR ≈ 2.5 (heavily weathered)
-#'
-#' @export
-sm_calculate_SAR <- function(SiO2, Al2O3) {
+#' @return numeric. SAR value (typically 3-8)
+#' @noRd
+.calculate_SAR <- function(SiO2, Al2O3) {
   sar <- SiO2 / Al2O3
   sar[Al2O3 == 0] <- NA_real_
   sar
 }
 
-#' Zirconium-Titanium Ratio (ZrTi)
-#'
-#' Both Zr and Ti are immobile during chemical weathering. Their ratio can indicate
-#' fractionation during weathering processes or identify parent material contributions.
-#'
-#' Formula: ZrTi = Zr_ppm / Ti_ppm
+#' Internal: Calculate Zirconium-Titanium Ratio (ZrTi)
 #'
 #' @param Zr_ppm numeric. Zirconium concentration (ppm)
 #' @param Ti_ppm numeric. Titanium concentration (ppm)
 #'
 #' @return numeric. ZrTi ratio (typically 0.01-0.1)
-#'
-#' **Interpretation:**
-#' - Parent material dependent; used mainly for source tracing
-#' - Constant within a weathering profile (immobile elements)
-#' - Fractionation can indicate mineral phase changes
-#'
-#' @details
-#' ZrTi is useful for:
-#' - Identifying parent material contribution in mixed soils
-#' - Tracing sediment sources
-#' - Detecting mineralogical changes (zircon vs ilmenite)
-#'
-#' @examples
-#' # Granitic parent material
-#' calculate_ZrTi(Zr_ppm = 200, Ti_ppm = 3000)  # Typical granite ZrTi ≈ 0.067
-#'
-#' # Zircon-enriched sand
-#' calculate_ZrTi(Zr_ppm = 500, Ti_ppm = 2000)  # Higher ZrTi ≈ 0.25
-#'
-#' @export
-sm_calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
+#' @noRd
+.calculate_ZrTi <- function(Zr_ppm, Ti_ppm) {
   zrti <- Zr_ppm / Ti_ppm
   zrti[Ti_ppm == 0] <- NA_real_
   zrti
 }
 
-#' Iron Accumulation Ratio (FAR)
-#'
-#' Indicates Fe enrichment relative to parent material. Used to identify
-#' lateritic weathering and Fe oxide accumulation.
-#'
-#' Formula: FAR = Fe_present / Fe_parent
+#' Internal: Calculate Iron Accumulation Ratio (FAR)
 #'
 #' @param Fe_ppm numeric. Iron concentration (ppm) in soil
 #' @param parent_Fe_ppm numeric. Reference Fe concentration in parent material (ppm)
 #'
-#' @return numeric. FAR value (typically 0.5-3.0). Interpretation ranges:
-#'   - Less than 1: Fe depletion (unusual, indicates loss to solution)
-#'   - Equals 1: No Fe accumulation (same as parent)
-#'   - 1 to 2: Moderate Fe enrichment (laterite formation)
-#'   - Greater than 2: Strong Fe enrichment (lateritic ironstone)
-#'
-#' @details
-#' FAR is particularly useful in tropical/subtropical settings where
-#' lateritization (Fe/Al oxide enrichment) occurs.
-#'
-#' Default parent Fe = 50000 ppm (typical granitic rock).
-#' Adjust for specific parent materials (e.g., basalt ~110000 ppm).
-#'
-#' @examples
-#' # No Fe accumulation (same as parent material)
-#' calculate_FAR(Fe_ppm = 50000)  # FAR = 1.0 (unweathered)
-#'
-#' # Moderate Fe enrichment (laterite)
-#' calculate_FAR(Fe_ppm = 75000)  # FAR = 1.5 (moderate enrichment)
-#'
-#' # Strong Fe enrichment (lateritic ironstone)
-#' calculate_FAR(Fe_ppm = 120000)  # FAR = 2.4 (strong enrichment)
-#'
-#' @export
-sm_calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
+#' @return numeric. FAR value (typically 0.5-3.0)
+#' @noRd
+.calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
   far <- Fe_ppm / parent_Fe_ppm
   far
 }
@@ -443,22 +300,22 @@ sm_calculate_FAR <- function(Fe_ppm, parent_Fe_ppm = 50000) {
 #' )
 #'
 #' # Calculate all indices (will auto-convert from ppm to oxides)
-#' weather_results <- weathering_indices(pxrf_data)
+#' weather_results <- sm_weathering(pxrf_data)
 #'
 #' # View results
 #' head(weather_results)
 #'
 #' # Calculate specific indices only
-#' weather_results <- weathering_indices(pxrf_data, indices = c("CIA", "SAR"))
+#' weather_results <- sm_weathering(pxrf_data, indices = c("CIA", "SAR"))
 #' }
 #'
 #' @export
-sm_weathering_indices <- function(data,
-                               depth_col = "depth",
-                               element_cols = NULL,
-                               indices = "all",
-                               convert_to_oxides = TRUE,
-                               parent_Fe_ppm = 50000) {
+sm_weathering <- function(data,
+                          depth_col = "depth",
+                          element_cols = NULL,
+                          indices = "all",
+                          convert_to_oxides = TRUE,
+                          parent_Fe_ppm = 50000) {
 
   # Validate input
   validated <- .validate_weathering_data(data, element_cols)
@@ -503,7 +360,7 @@ sm_weathering_indices <- function(data,
   # Calculate requested indices
   if ("CIA" %in% indices_to_calc) {
     if (all(c("Al", "K", "Na") %in% element_cols)) {
-      result$CIA <- calculate_CIA(data$Al, data$K, data$Na)
+      result$CIA <- .calculate_CIA(data$Al, data$K, data$Na)
     } else {
       warning("Skipping CIA: Al, K, Na columns required")
     }
@@ -511,7 +368,7 @@ sm_weathering_indices <- function(data,
 
   if ("WIP" %in% indices_to_calc) {
     if (all(c("K", "Na", "Ca", "Mg") %in% element_cols)) {
-      result$WIP <- calculate_WIP(data$K, data$Na, data$Ca, data$Mg)
+      result$WIP <- .calculate_WIP(data$K, data$Na, data$Ca, data$Mg)
     } else {
       warning("Skipping WIP: K, Na, Ca, Mg columns required")
     }
@@ -519,7 +376,7 @@ sm_weathering_indices <- function(data,
 
   if ("PIA" %in% indices_to_calc) {
     if (all(c("Al", "Na", "K", "Ca") %in% element_cols)) {
-      result$PIA <- calculate_PIA(data$Al, data$Na, data$K, data$Ca)
+      result$PIA <- .calculate_PIA(data$Al, data$Na, data$K, data$Ca)
     } else {
       warning("Skipping PIA: Al, Na, K, Ca columns required")
     }
@@ -527,7 +384,7 @@ sm_weathering_indices <- function(data,
 
   if ("SAR" %in% indices_to_calc) {
     if (all(c("Si", "Al") %in% element_cols)) {
-      result$SAR <- calculate_SAR(data$Si, data$Al)
+      result$SAR <- .calculate_SAR(data$Si, data$Al)
     } else {
       warning("Skipping SAR: Si, Al columns required")
     }
@@ -535,7 +392,7 @@ sm_weathering_indices <- function(data,
 
   if ("ZrTi" %in% indices_to_calc) {
     if (all(c("Zr", "Ti") %in% element_cols)) {
-      result$ZrTi <- calculate_ZrTi(data$Zr, data$Ti)
+      result$ZrTi <- .calculate_ZrTi(data$Zr, data$Ti)
     } else {
       warning("Skipping ZrTi: Zr, Ti columns required")
     }
@@ -543,7 +400,7 @@ sm_weathering_indices <- function(data,
 
   if ("FAR" %in% indices_to_calc) {
     if ("Fe" %in% element_cols) {
-      result$FAR <- calculate_FAR(data$Fe, parent_Fe_ppm)
+      result$FAR <- .calculate_FAR(data$Fe, parent_Fe_ppm)
     } else {
       warning("Skipping FAR: Fe column required")
     }
@@ -551,6 +408,64 @@ sm_weathering_indices <- function(data,
 
   class(result) <- c("weathering_indices", "data.frame")
   result
+}
+
+#' Access Individual Weathering Index Calculators
+#'
+#' Returns the function definition for a specific weathering index calculator.
+#' Useful for advanced users who want to compute individual indices directly
+#' on vector inputs without requiring a full data.frame workflow.
+#'
+#' @param index Character. Name of the weathering index to retrieve.
+#'   Valid options: "CIA", "WIP", "PIA", "SAR", "ZrTi", "FAR"
+#'
+#' @return Function. The corresponding calculator function with signature:
+#'   - CIA: `f(Al2O3, K2O, Na2O)`
+#'   - WIP: `f(K2O, Na2O, CaO, MgO)`
+#'   - PIA: `f(Al2O3, Na2O, K2O, CaO)`
+#'   - SAR: `f(SiO2, Al2O3)`
+#'   - ZrTi: `f(Zr_ppm, Ti_ppm)`
+#'   - FAR: `f(Fe_ppm, parent_Fe_ppm = 50000)`
+#'
+#' @details
+#' This function provides low-level access to individual weathering index
+#' calculators. For most use cases, use `sm_weathering()` which provides
+#' a high-level interface for batch calculation and automatic unit handling.
+#'
+#' @examples
+#' # Get the CIA calculator
+#' cia_fn <- sm_weathering_index("CIA")
+#'
+#' # Use it to calculate CIA on vector inputs
+#' cia_result <- cia_fn(Al2O3 = c(14, 15, 16),
+#'                      K2O = c(4.5, 4.0, 3.5),
+#'                      Na2O = c(3.5, 3.2, 3.0))
+#'
+#' # Get the SAR calculator
+#' sar_fn <- sm_weathering_index("SAR")
+#' sar_result <- sar_fn(SiO2 = c(75, 65, 50),
+#'                      Al2O3 = c(12, 15, 20))
+#'
+#' @export
+sm_weathering_index <- function(index) {
+  # Create registry mapping index names to calculator functions
+  registry <- list(
+    CIA = .calculate_CIA,
+    WIP = .calculate_WIP,
+    PIA = .calculate_PIA,
+    SAR = .calculate_SAR,
+    ZrTi = .calculate_ZrTi,
+    FAR = .calculate_FAR
+  )
+
+  # Validate index name
+  if (!(index %in% names(registry))) {
+    stop("Invalid index: '", index, "'. Valid options: ",
+         paste(names(registry), collapse = ", "))
+  }
+
+  # Return the function
+  registry[[index]]
 }
 
 # ============================================================================
@@ -580,11 +495,11 @@ sm_weathering_indices <- function(data,
 #'
 #' @examples
 #' \dontrun{
-#' integrated_weathering_index(CIA = 75, WIP = 40, PIA = 70)
+#' sm_weathering_integrated(CIA = 75, WIP = 40, PIA = 70)
 #' }
 #'
 #' @export
-sm_integrated_weathering_index <- function(CIA, WIP, PIA) {
+sm_weathering_integrated <- function(CIA, WIP, PIA) {
   # Normalize to 0-1 range
   cia_norm <- pmin(pmax((CIA - 50) / 50, 0), 1)
   wip_norm <- pmin(pmax((100 - WIP) / 100, 0), 1)
@@ -670,14 +585,14 @@ sm_weathering_stage <- function(CIA, WIP) {
 #'   Fe = c(40000, 42000, 44000, 46000, 50000, 55000, 60000, 65000, 70000, 75000),
 #'   Zr = c(190, 190, 190, 190, 190, 190, 190, 190, 190, 190)
 #' )
-#' depletion <- element_depletion(data)
+#' depletion <- sm_weathering_depletion(data)
 #' }
 #'
 #' @export
-sm_element_depletion <- function(data,
-                              element_cols = NULL,
-                              immobile_element = "Zr",
-                              parent_composition = NULL) {
+sm_weathering_depletion <- function(data,
+                                   element_cols = NULL,
+                                   immobile_element = "Zr",
+                                   parent_composition = NULL) {
 
   validated <- .validate_weathering_data(data, element_cols)
   data <- validated$data
