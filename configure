@@ -47,7 +47,7 @@ fi
 # Force clean of src artifacts to ensure fresh build
 # This prevents stale .so and .a files from being used
 echo "Cleaning previous build artifacts..."
-rm -f src/libsoilmotif_rust.a src/libsoilmotif_rust.a.bak
+rm -f src/libsoilmotif.a src/libsoilmotif.a.bak
 
 # Clean cargo build to force full rebuild on first install or if source changed
 # Only clean if explicitly requested or if this is a fresh build
@@ -70,22 +70,33 @@ fi
 # Copy the library directly to src so it gets included in the package
 # Use a different name to avoid conflict with output soilmotif.so
 mkdir -p src
-echo "Copying Rust library to src/libsoilmotif_rust.a..."
-cp -f target/release/libsoilmotif.a src/libsoilmotif_rust.a
+echo "Copying Rust library to src/libsoilmotif.a..."
+cp -f target/release/libsoilmotif.a src/libsoilmotif.a
 
 # Verify the copy was successful and is recent
-if [ ! -f src/libsoilmotif_rust.a ]; then
+if [ ! -f src/libsoilmotif.a ]; then
     echo "Error: Failed to copy Rust library to src/"
     exit 1
 fi
 
 # Check that the copied file is newer than 1 minute old (recent build)
-LIB_AGE=$(find src/libsoilmotif_rust.a -mmin -1 2>/dev/null | wc -l)
+LIB_AGE=$(find src/libsoilmotif.a -mmin -1 2>/dev/null | wc -l)
 if [ "$LIB_AGE" -eq 0 ]; then
     echo "Warning: Copied library may be stale. Verify build succeeded."
 fi
 
-echo "Rust backend built successfully at: src/libsoilmotif_rust.a"
+echo "Rust backend built successfully at: src/libsoilmotif.a"
+
+# Generate Makevars from Makevars.in
+echo "Generating Makevars from Makevars.in..."
+cp src/Makevars.in src/Makevars
+
+# Generate Makevars.win from Makevars.win.in if it exists (for Windows builds)
+if [ -f src/Makevars.win.in ]; then
+    echo "Generating Makevars.win from Makevars.win.in..."
+    cp src/Makevars.win.in src/Makevars.win
+fi
+
 exit 0
 
 

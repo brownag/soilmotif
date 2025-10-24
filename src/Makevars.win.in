@@ -1,0 +1,13 @@
+# Makevars for R build of soilmotif with Rust backend (Windows)
+# The Rust library (built by Cargo) contains extendr-generated R_init_soilmotif_extendr
+# We compile a minimal C wrapper that creates R_init_soilmotif, which calls the Rust function
+
+# C wrapper that defines R_init_soilmotif for R's registration
+SOURCES = entrypoint.c
+
+# Compiled objects
+OBJECTS = entrypoint.o
+
+# Link with the Rust library built by Cargo
+# The library is placed in ./soilmotif.so by build process
+PKG_LIBS = -L. -lsoilmotif

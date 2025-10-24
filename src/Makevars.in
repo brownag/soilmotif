@@ -3,10 +3,10 @@
 # We compile a minimal C wrapper that creates R_init_soilmotif, which calls the Rust function
 
 # C wrapper that defines R_init_soilmotif for R's registration
-SOURCES = extendr_registration.c
+SOURCES = entrypoint.c
 
 # Compiled objects
-OBJECTS = extendr_registration.o
+OBJECTS = entrypoint.o
 
 # Link with the Rust library built by Cargo
 # The library is placed in ./soilmotif.so by build process
