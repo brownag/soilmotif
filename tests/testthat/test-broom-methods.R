@@ -157,8 +157,8 @@ test_that("glance.bootstrap_result works", {
   # Check structure
   expect_s3_class(glance_result, "data.frame")
   expect_named(glance_result, c("n_bootstrap", "n_successful", "n_failed", "success_rate",
-                               "method_used", "ar1_coef", "rmse_mean", "rmse_sd",
-                               "r2_mean", "r2_sd", "aic_mean", "aic_sd"))
+                                "method_used", "ar1_coef", "ar1_sigma2", "rmse_mean", "rmse_sd",
+                                "r2_mean", "r2_sd", "aic_mean", "aic_sd"))
   expect_equal(nrow(glance_result), 1)
 
   # Check content
@@ -231,7 +231,7 @@ test_that("broom methods work with broom package", {
 test_that("methods handle edge cases gracefully", {
   # Single parameter fit - use R implementation to avoid Rust edge case issues
   single_param_data <- rep(40, 100)
-  
+
   expect_warning({
     expect_warning({
       single_fit <- sm_optim(single_param_data, 40, use_rust = FALSE)
