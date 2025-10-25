@@ -1,22 +1,22 @@
 [package]
 name = "soilmotif"
-version = "0.2.0"
+version = "0.1.0"
 edition = "2021"
 authors = ["Andrew G. Brown <brown.andrewg@gmail.com>"]
 license = "GPL (>= 3)"
 
 [dependencies]
 extendr-api = "0.8"
-ndarray = "0.15"
-ndarray-linalg = { version = "0.16", default-features = false }
+ndarray = "0.16"
+ndarray-linalg = { version = "0.17", default-features = false }
 nalgebra = "0.33"
 argmin = { version = "0.9", features = ["serde"] }
 argmin-math = "0.3"
 rayon = "1.8"
 tokio = { version = "1.35", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-rand = "0.8"
-rand_pcg = "0.3"
+rand = "0.9"
+rand_pcg = "0.9"
 
 [features]
 # Feature flags for batch processing parallelization

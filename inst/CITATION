@@ -1,7 +1,7 @@
 citHeader("To cite soilmotif in publications use:")
 
 citEntry(
-  entry = "Software",
+  entry = "Manual",
   author = personList(person(given = "Andrew", family = "Brown")),
   title = "soilmotif: Analyze, Fit, and Generalize Soil Depth Functions",
   year = "2025",

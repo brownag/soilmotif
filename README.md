@@ -29,7 +29,7 @@ compiler setup, see [inst/INSTALL.md](inst/INSTALL.md).
 
 **Quick Requirements:** - C compiler (included with Rtools, Xcode, or
 build-essential) - Rust toolchain (optional but recommended):
-<https://www.rust-lang.org/tools/install>
+<https://www.rust-lang.org/tools/install/>
 
 ## Example
 

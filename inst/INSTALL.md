@@ -12,7 +12,7 @@ The `soilmotif` package includes a high-performance Rust backend for optimizatio
 
 ### Required for Rust Backend (Recommended)
 - **Rust toolchain** (Cargo >= 1.56)
-  - Install from: https://www.rust-lang.org/tools/install
+  - Install from: https://www.rust-lang.org/tools/install/
 
 ### Required Linear Algebra Library
 - **OpenBLAS** (required for linear algebra operations)
@@ -41,7 +41,7 @@ remotes::install_github("brownag/soilmotif")
 
 If you see a warning that `cargo` is not found during installation:
 
-1. **Install Rust** from https://www.rust-lang.org/tools/install
+1. **Install Rust** from https://www.rust-lang.org/tools/install/
 2. **Verify installation**:
    ```bash
    rustc --version
@@ -109,7 +109,7 @@ if (sm_rust_backend_available()) {
 ## Building from Source (Development)
 
 ### Prerequisites
-- **Rust**: https://www.rust-lang.org/tools/install
+- **Rust**: https://www.rust-lang.org/tools/install/
 - **Development tools** (see platform-specific instructions above)
 
 ### Build Steps

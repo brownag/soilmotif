@@ -189,12 +189,12 @@ impl argmin::solver::simulatedannealing::Anneal for ShapeCostFunction {
 
     fn anneal(&self, param: &Self::Param, extent: Self::Float) -> Result<Self::Output, Error> {
         // Perturb each parameter by a random amount scaled by extent
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let perturbed: Vec<f64> = param
             .iter()
             .map(|&p| {
                 // Random perturbation in range [-extent, +extent]
-                let delta = (rng.gen::<f64>() - 0.5) * 2.0 * extent;
+                let delta = (rng.random::<f64>() - 0.5) * 2.0 * extent;
                 // Ensure parameters stay positive (most soil parameters are positive)
                 (p + delta).max(0.1)
             })
