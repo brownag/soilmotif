@@ -1,0 +1,942 @@
+---
+title: "S3 Result Classes in {soilmotif}"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{S3 Result Classes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+# S3 Result Classes in {soilmotif}
+
+The {soilmotif} package returns results as S3 objects, each with a specific structure designed to facilitate downstream analysis, visualization, and integration with other R packages. This guide documents all result classes, their structure, available methods, and practical workflows.
+
+## Overview of Classes
+
+{soilmotif} defines 7 main S3 classes:
+
+1. **`soilmotif_optimization`** - Single profile optimization results
+2. **`bootstrap_result`** - Bootstrap uncertainty quantification results  
+3. **`horizon_boundaries`** - Detected horizon boundaries from geochemical changes
+4. **`fuzzy_horizons`** - Fuzzy clustering results for horizon classification
+5. **`batch_result`** - Multi-profile batch optimization results
+6. **`fit_motif_auto`** - Model selection and comparison results
+7. **`weathering_indices`** - Calculated weathering geochemical indices
+
+Each class has associated S3 methods for printing, summarizing, plotting, and converting to tidy formats.
+
+---
+
+## 1. soilmotif_optimization
+
+**Created by:** `sm_optim()` function  
+**Purpose:** Store results from single-profile shape function optimization
+
+### Structure and Fields
+
+```r
+result <- sm_optim(observed_data, initial_params, FUN = sm_shape_sigmoid)
+
+# Access fields:
+result$fitted           # Numeric vector: predicted values at evaluated depths
+result$params           # Numeric vector: optimized parameter values
+result$observed         # Numeric vector: original observed data
+result$depths           # Numeric vector: depth coordinates (1:n if not provided)
+result$shape_family     # Character: shape function name ("sigmoid", "exponential", etc.)
+result$objective        # Character: objective used ("rmse" or "sse")
+result$algorithm        # Character: algorithm used ("nelder_mead", "lbfgs", etc.)
+result$converged        # Logical: did optimization converge?
+result$message          # Character: status message
+```
+
+### Available S3 Methods
+
+```r
+# Print a summary
+print(result)
+
+# Create visualization
+plot(result)
+
+# Extract in tidy format (requires broom package)
+tidy(result)      # Parameter estimates with std errors and CI
+glance(result)    # One-row model diagnostics (RMSE, R², AIC)
+augment(result)   # Add predictions and residuals to data
+
+# For new depths:
+augment(result, newdata = seq(0, 200, by = 5))
+```
+
+### Practical Workflow: Basic Optimization
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Create sample data (clay content depth function)
+clay_depth <- c(rep(7, 18), seq(7, 39, length.out = 25), 
+                seq(39, 50, length.out = 80), rep(50, 77))
+
+# Fit sigmoid (wetting front) model
+result <- sm_optim(
+  observed = clay_depth,
+  initial_params = c(50, 30),  # Initial guess: inflection center=50, width=30
+  FUN = sm_shape_sigmoid,
+  use_rust = TRUE              # Use fast Rust backend if available
+)
+
+# Access key outputs
+cat("Optimized Parameters:", result$params, "\n")
+cat("RMSE:", sqrt(mean((result$fitted - clay_depth)^2)), "\n")
+
+# Visualize
+plot(result)
+
+# Create tidy output for further analysis
+library(broom)
+params_table <- tidy(result)
+diagnostics <- glance(result)
+
+print(params_table)
+print(diagnostics)
+```
+
+### Practical Workflow: Compare Across Profiles
+
+```{r eval=FALSE}
+# Process multiple profiles
+profiles_list <- list(
+  profile_1 = clay_profile_1,
+  profile_2 = clay_profile_2,
+  profile_3 = clay_profile_3
+)
+
+# Optimize each
+fits <- lapply(profiles_list, function(obs) {
+  sm_optim(obs, initial_params = c(50, 30), FUN = sm_shape_sigmoid)
+})
+
+# Extract parameters into comparison table
+params_df <- do.call(rbind, lapply(fits, function(x) {
+  data.frame(
+    profile = names(fits)[which(fits == x)],
+    param_1 = x$params[1],
+    param_2 = x$params[2],
+    rmse = sqrt(mean((x$fitted - x$observed)^2)),
+    converged = x$converged
+  )
+}))
+
+print(params_df)
+
+# Visualize all profiles overlaid
+plot(1:200, profiles_list[[1]], type = "l", col = "gray70", ylim = c(0, 60))
+for (i in seq_along(fits)) {
+  lines(fits[[i]]$fitted, col = i + 1)
+}
+legend("bottomright", names(fits), col = 2:4, lty = 1)
+```
+
+---
+
+## 2. bootstrap_result
+
+**Created by:** `sm_optim_bootstrap()` function  
+**Purpose:** Store bootstrap resampling results with uncertainty quantification
+
+### Structure and Fields
+
+```r
+result <- sm_optim_bootstrap(
+  observed = clay_data,
+  depths = 1:200,
+  initial_params = c(50, 30),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000
+)
+
+# Top-level fields:
+result$param_samples     # Matrix: n_successful × n_params bootstrap samples
+result$rmse_samples      # Vector: RMSE for each successful sample
+result$r2_samples        # Vector: R² for each bootstrap sample
+result$aic_samples       # Vector: AIC for each bootstrap sample
+result$failed_indices    # Vector: indices of failed bootstrap samples
+result$n_successful      # Integer: count of successful fits
+result$n_failed          # Integer: count of failures
+result$success_rate      # Numeric: proportion successful (0-1)
+result$method_used       # Character: "parametric" or "sieve"
+result$ar1_coef          # Numeric: AR(1) coefficient (NA for parametric)
+result$ar1_sigma2        # Numeric: AR(1) innovation variance (NA for parametric)
+
+# Nested $summary list (KEY FOR CONFIDENCE INTERVALS):
+result$summary$param_mean       # Vector: mean parameter value
+result$summary$param_sd         # Vector: parameter standard deviation
+result$summary$param_ci_lower   # Vector: 2.5th percentile (95% CI lower)
+result$summary$param_ci_upper   # Vector: 97.5th percentile (95% CI upper)
+result$summary$rmse_mean        # Numeric: mean RMSE
+result$summary$rmse_sd          # Numeric: RMSE std dev
+result$summary$r2_mean          # Numeric: mean R²
+result$summary$r2_sd            # Numeric: R² std dev
+result$summary$aic_mean         # Numeric: mean AIC
+result$summary$aic_sd           # Numeric: AIC std dev
+
+# Nested $settings list:
+result$settings$shape_family     # Original shape family
+result$settings$method           # Bootstrap method requested ("auto", "parametric", "sieve")
+result$settings$method_used       # Method actually used
+result$settings$n_bootstrap       # Number of bootstrap samples requested
+result$settings$seed             # Random seed (for reproducibility)
+```
+
+### Available S3 Methods
+
+```r
+# Print summary table with CIs
+print(result)
+
+# Detailed summary statistics
+summary(result)
+
+# Extract in tidy format
+tidy(result)      # Parameters with CI as conf.low/conf.high
+glance(result)    # Bootstrap diagnostics: success rate, method, AR(1) stats
+augment(result)   # Depth-wise prediction intervals
+
+# Prediction intervals at new depths:
+augment(result, newdata = seq(0, 200, by = 10))
+```
+
+### Practical Workflow: Uncertainty Quantification
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Generate sample profile
+depths <- 1:200
+clay_true <- sm_motif(depths, c(80, 40))
+clay_observed <- clay_true + rnorm(200, 0, 3)
+
+# Run bootstrap with automatic method selection
+boot <- sm_optim_bootstrap(
+  observed = clay_observed,
+  depths = depths,
+  initial_params = c(50, 30),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "auto",  # Auto-selects sieve for n=200
+  seed = 42
+)
+
+# View results
+print(boot)
+
+# Access confidence intervals (CORRECT ACCESS PATH)
+ci_lower <- boot$summary$param_ci_lower
+ci_upper <- boot$summary$param_ci_upper
+param_mean <- boot$summary$param_mean
+
+cat("Parameter 1 estimate: ", param_mean[1], 
+    " [", ci_lower[1], ", ", ci_upper[1], "]\n")
+cat("Parameter 2 estimate: ", param_mean[2], 
+    " [", ci_lower[2], ", ", ci_upper[2], "]\n")
+
+# Prediction intervals at specific depths
+pred_intervals <- augment(boot, newdata = c(50, 100, 150))
+print(pred_intervals)
+```
+
+### Practical Workflow: Sieve Bootstrap for AR(1) Modeling
+
+```{r eval=FALSE}
+# Use sieve bootstrap to account for autocorrelated residuals
+boot_sieve <- sm_optim_bootstrap(
+  observed = clay_observed,
+  depths = depths,
+  initial_params = c(50, 30),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "sieve",  # Explicit sieve method
+  strict = FALSE     # Fall back to parametric if AR(1) fails
+)
+
+# Check which method was used
+cat("Method used:", boot_sieve$method_used, "\n")
+
+# If sieve was used, examine AR(1) structure
+if (!is.na(boot_sieve$ar1_coef)) {
+  cat("AR(1) coefficient (φ):", boot_sieve$ar1_coef, "\n")
+  cat("AR(1) innovation variance (σ²):", boot_sieve$ar1_sigma2, "\n")
+}
+
+# Compare parametric vs sieve confidence intervals
+boot_param <- sm_optim_bootstrap(
+  observed = clay_observed,
+  depths = depths,
+  initial_params = c(50, 30),
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "parametric"
+)
+
+# Display comparison
+comparison <- data.frame(
+  Parameter = 1:2,
+  Parametric_CI_Width = boot_param$summary$param_ci_upper - boot_param$summary$param_ci_lower,
+  Sieve_CI_Width = boot_sieve$summary$param_ci_upper - boot_sieve$summary$param_ci_lower
+)
+print(comparison)
+```
+
+### Practical Workflow: Convert to Bayesian Priors
+
+```{r eval=FALSE}
+# Use bootstrap results to define informative priors
+priors <- sm_to_priors(boot, prior_sd_factor = 0.5)
+
+# Access prior specifications
+print(priors$parameters)
+print(priors$location)
+print(priors$scale)
+
+# Convert to brms format (if brms is installed)
+if (requireNamespace("brms", quietly = TRUE)) {
+  brms_priors <- sm_to_brms_priors(boot, prior_sd_factor = 0.5)
+  print(brms_priors)
+  
+  # Use in brms model:
+  # library(brms)
+  # formula <- brm(clay ~ custom_shape_function(depth, ...),
+  #                prior = brms_priors)
+}
+
+# Convert to Stan format
+stan_code <- sm_to_stan_priors(boot, param_names = c("inflection", "width"))
+cat(stan_code)
+```
+
+---
+
+## 3. horizon_boundaries
+
+**Created by:** `sm_horizon_boundaries_mahalanobis()` function  
+**Purpose:** Detect horizon boundaries from geochemical element transitions
+
+### Structure and Fields
+
+```r
+boundaries <- sm_horizon_boundaries_mahalanobis(
+  data = element_profiles,  # data.frame with elements as columns
+  element_cols = c("Al", "Fe", "Si", "K"),
+  method = "local_maxima",
+  threshold = 2.0
+)
+
+# Top-level fields:
+boundaries$boundaries    # Data.frame with columns:
+                         #   depth, mahal_distance, is_boundary
+boundaries$horizons      # Data.frame with columns:
+                         #   horizon_id, top, bottom, thickness
+boundaries$method        # Character: "threshold", "local_maxima", or "changepoint"
+boundaries$threshold     # Numeric: Mahalanobis distance threshold
+boundaries$element_cols  # Character vector: elements analyzed
+boundaries$window_size   # Numeric: moving window size in depth units
+boundaries$window_type   # Character: "centered", "forward", or "backward"
+```
+
+### Available S3 Methods
+
+```r
+print(boundaries)
+summary(boundaries)
+```
+
+### Practical Workflow: Detect Horizons
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Load element profile data
+pxrf_data <- data.frame(
+  depth = 1:200,
+  Al = c(rep(8, 50), seq(8, 12, length.out = 100), rep(12, 50)),
+  Fe = c(rep(3, 50), seq(3, 6, length.out = 100), rep(6, 50)),
+  Si = c(rep(25, 50), seq(25, 28, length.out = 100), rep(28, 50)),
+  K = c(rep(2, 50), seq(2, 3, length.out = 100), rep(3, 50))
+)
+
+# Detect horizon boundaries from Mahalanobis distances
+boundaries <- sm_horizon_boundaries_mahalanobis(
+  data = pxrf_data[, c("Al", "Fe", "Si", "K")],
+  element_cols = c("Al", "Fe", "Si", "K"),
+  window_size = 10,
+  method = "local_maxima",
+  threshold = 2.0
+)
+
+# View detected horizons
+print(boundaries)
+
+# Extract horizon boundaries
+horizons <- boundaries$horizons
+cat("Detected", nrow(horizons), "horizons\n")
+
+# Access individual horizon info
+for (i in 1:nrow(horizons)) {
+  cat(sprintf("Horizon %d: %d-%d cm (thickness: %d cm)\n",
+              horizons$horizon_id[i],
+              horizons$top[i],
+              horizons$bottom[i],
+              horizons$thickness[i]))
+}
+
+# Plot Mahalanobis distance with detected boundaries
+plot(boundaries$boundaries$depth, 
+     boundaries$boundaries$mahal_distance,
+     type = "l", xlab = "Depth (cm)", ylab = "Mahalanobis Distance")
+abline(h = boundaries$threshold, lty = 2, col = "red")
+abline(v = horizons$top, col = "blue", lty = 3, alpha = 0.5)
+```
+
+---
+
+## 4. fuzzy_horizons
+
+**Created by:** `sm_horizon_classify_fuzzy()` function  
+**Purpose:** Fuzzy clustering for soft horizon classification with membership probabilities
+
+### Structure and Fields
+
+```r
+fuzzy <- sm_horizon_classify_fuzzy(
+  data = element_profiles,
+  element_cols = c("Al", "Fe", "Si", "K"),
+  n_horizons = 3,
+  m = 2.0
+)
+
+# Fields:
+fuzzy$depths           # Numeric vector: depth values (sorted)
+fuzzy$element_cols     # Character vector: elements used
+fuzzy$centers          # Matrix: cluster centers (n_horizons × n_elements)
+fuzzy$memberships      # Matrix: membership values (n_depths × n_horizons)
+                       #   Each row sums to 1; values in [0,1]
+fuzzy$entropy          # Vector: normalized entropy per depth (0=certain, 1=uncertain)
+fuzzy$dominant_horizon # Integer vector: horizon with max membership per depth
+fuzzy$n_horizons       # Integer: number of clusters
+fuzzy$m                # Numeric: fuzziness exponent
+fuzzy$iterations       # Integer: iterations to convergence
+fuzzy$converged        # Logical: did algorithm converge?
+fuzzy$method           # Character: "r" or "rust" implementation
+```
+
+### Available S3 Methods
+
+```r
+print(fuzzy)
+summary(fuzzy)
+```
+
+### Practical Workflow: Soft Horizon Classification
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Run fuzzy clustering
+fuzzy <- sm_horizon_classify_fuzzy(
+  data = pxrf_data[, c("Al", "Fe", "Si", "K")],
+  element_cols = c("Al", "Fe", "Si", "K"),
+  n_horizons = 3,
+  m = 2.0  # Fuzziness parameter (1=hard clustering, ∞=complete membership diffusion)
+)
+
+# View results
+print(fuzzy)
+summary(fuzzy)
+
+# Access membership matrix: shows probability of each depth belonging to each horizon
+memberships <- fuzzy$memberships
+cat("Membership matrix shape:", nrow(memberships), "depths ×", ncol(memberships), "horizons\n")
+
+# Find depths with uncertain classification (high entropy)
+uncertain_idx <- which(fuzzy$entropy > 0.5)
+cat("Depths with entropy > 0.5 (uncertain):", 
+    paste(fuzzy$depths[uncertain_idx], collapse = ", "), "\n")
+
+# Get dominant horizon assignment
+dominant <- fuzzy$dominant_horizon
+cat("Horizon assignments (first 30 depths):", 
+    paste(dominant[1:30], collapse = ""), "\n")
+
+# Visualize membership gradients
+plot(fuzzy$depths, fuzzy$memberships[, 1], 
+     type = "l", col = 1, ylim = c(0, 1),
+     xlab = "Depth (cm)", ylab = "Membership Probability")
+lines(fuzzy$depths, fuzzy$memberships[, 2], col = 2)
+lines(fuzzy$depths, fuzzy$memberships[, 3], col = 3)
+legend("topright", paste("Horizon", 1:3), col = 1:3, lty = 1)
+```
+
+---
+
+## 5. batch_result
+
+**Created by:** `sm_batch_optimize_profiles()` function  
+**Purpose:** Store batch optimization results for multiple profiles
+
+### Structure and Fields
+
+```r
+batch <- sm_batch_optimize_profiles(
+  profiles = list(profile_1, profile_2, profile_3),
+  shape_type = "wetting_front",
+  objective = "rmse"
+)
+
+# Fields:
+batch$profile_ids       # Integer vector: profile indices
+batch$params            # List of vectors: parameters per profile (NULL if failed)
+batch$rmse_values       # Numeric vector: RMSE for each profile
+batch$converged         # Logical vector: convergence flag per profile
+batch$errors            # Character vector: error messages (NA if successful)
+batch$method            # Character: method used (Sequential or Rayon Parallel)
+batch$summary           # Character: summary string
+batch$failed_count      # Integer: number of failed profiles
+```
+
+### Helper Functions
+
+```r
+# Extract successful results only
+successful <- sm_batch_get_successful(batch)
+
+# Extract failed profiles
+failed <- sm_batch_get_failed(batch)
+
+# Get specific component
+all_rmse <- sm_batch_get(batch, "rmse")
+all_params <- sm_batch_get(batch, "params")
+
+# Convert to summary table
+summary_df <- sm_as_summary_table(batch)
+```
+
+### Available S3 Methods
+
+```r
+print(batch)
+```
+
+### Practical Workflow: Batch Optimization
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Create list of soil profile data (e.g., from raster grid cells)
+profiles <- list(
+  profile_1 = rnorm(200, 30, 5),
+  profile_2 = rnorm(200, 35, 6),
+  profile_3 = rnorm(200, 25, 4)
+)
+
+# Batch optimize all profiles
+batch_result <- sm_batch_optimize_profiles(
+  profiles = profiles,
+  initial_params = c(50, 30),
+  shape_type = "wetting_front",
+  objective = "rmse",
+  parallel = TRUE,
+  n_cores = 4  # Use 4 cores for parallel processing
+)
+
+# View summary
+print(batch_result)
+
+# Extract successful results
+successful_fits <- sm_batch_get_successful(batch_result)
+cat("Successful fits:", length(successful_fits), "\n")
+
+# Create comparison table
+summary_table <- sm_as_summary_table(batch_result)
+print(summary_table)
+
+# Plot parameter comparison
+params_matrix <- do.call(rbind, batch_result$params)
+plot(params_matrix[, 1], params_matrix[, 2],
+     xlab = "Parameter 1", ylab = "Parameter 2",
+     main = "Parameter Estimates Across Profiles")
+
+# Check failures
+if (batch_result$failed_count > 0) {
+  cat("Failed profiles:", 
+      which(batch_result$errors != ""), "\n")
+}
+```
+
+---
+
+## 6. fit_motif_auto
+
+**Created by:** `sm_fit_motif_auto()` function  
+**Purpose:** Automatic model selection across different shape functions
+
+### Structure and Fields
+
+```r
+auto_fit <- sm_fit_motif_auto(
+  observed = clay_data,
+  models = "all",
+  criterion = "AIC"
+)
+
+# Fields:
+auto_fit$fits           # List of soilmotif_optimization objects (one per model)
+auto_fit$stats          # Data.frame with model comparison statistics:
+                        #   model, rmse, aic, bic, r2
+auto_fit$ranking        # Same as $stats but sorted by criterion
+auto_fit$best           # Character: name of best-fitting model
+auto_fit$criterion      # Character: criterion used ("AIC", "BIC", "RMSE", "R2")
+auto_fit$input_length   # Integer: length of input vector
+```
+
+### Available S3 Methods
+
+```r
+print(auto_fit)
+plot(auto_fit)
+summary(auto_fit)
+```
+
+### Practical Workflow: Model Selection
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Generate sample profile with complex shape
+depths <- 1:200
+clay_true <- sm_motif(depths, c(100, 40), FUN = sm_shape_sigmoid)
+clay_observed <- clay_true + rnorm(200, 0, 3)
+
+# Test all available shape functions
+auto_fit <- sm_fit_motif_auto(
+  observed = clay_observed,
+  models = "all",  # Test sigmoid, exponential, gradational, etc.
+  criterion = "AIC",
+  use_rust = TRUE
+)
+
+# View results
+print(auto_fit)
+
+# Access ranking table
+print(auto_fit$ranking)
+
+# Identify best model
+cat("Best model:", auto_fit$best, "\n")
+
+# Extract best fit
+best_model <- auto_fit$fits[[auto_fit$best]]
+
+# Plot all models for comparison
+plot(auto_fit)
+
+# Compare specific models
+plot(auto_fit$fits$sigmoid$fitted, 
+     type = "l", col = 1, ylim = c(0, 60), ylab = "Clay %")
+lines(auto_fit$fits$exponential$fitted, col = 2)
+lines(auto_fit$fits$gradational$fitted, col = 3)
+points(clay_observed, pch = ".", col = "gray")
+legend("bottomright", 
+       c("Sigmoid", "Exponential", "Gradational", "Observed"),
+       col = c(1, 2, 3, "gray"), lty = c(1, 1, 1, NA), pch = c(NA, NA, NA, "."))
+```
+
+---
+
+## 7. weathering_indices
+
+**Created by:** `sm_weathering_indices()` function  
+**Purpose:** Calculate geochemical weathering indices from element composition
+
+### Structure and Fields
+
+```r
+indices <- sm_weathering_indices(
+  data = element_data,
+  element_cols = c("Al", "Fe", "Si", "K", "Ca", "Na", "Mg")
+)
+
+# Returns a data.frame with columns:
+indices$depth       # Numeric: depth values (inherited from row numbers)
+indices$CIA         # Chemical Index of Alteration
+indices$WIP         # Weathering Index of Parker
+indices$PIA         # Parker's Index of Alteration (if applicable)
+indices$WIP_60      # WIP restricted to [0-100] (normalized)
+# ... additional indices depending on available elements
+
+# Plus metadata attributes:
+attr(indices, "formula")      # Formulas used for each index
+attr(indices, "description")  # Description of each index
+```
+
+### Available S3 Methods
+
+```r
+# Inherits data.frame methods: print, head, summary, plot, etc.
+print(indices)
+head(indices)
+summary(indices)
+plot(indices)
+```
+
+### Practical Workflow: Weathering Analysis
+
+```{r eval=FALSE}
+library(soilmotif)
+
+# Element concentrations from soil profile
+elements <- data.frame(
+  depth = 1:200,
+  Al = c(rep(8, 50), seq(8, 12, length.out = 100), rep(12, 50)),
+  Fe = c(rep(3, 50), seq(3, 6, length.out = 100), rep(6, 50)),
+  Si = c(rep(25, 50), seq(25, 28, length.out = 100), rep(28, 50)),
+  K = c(rep(2, 50), seq(2, 3, length.out = 100), rep(3, 50)),
+  Ca = c(rep(1, 50), seq(1, 0.5, length.out = 100), rep(0.5, 50)),
+  Na = c(rep(0.5, 50), seq(0.5, 0.3, length.out = 100), rep(0.3, 50)),
+  Mg = c(rep(0.3, 50), seq(0.3, 0.2, length.out = 100), rep(0.2, 50))
+)
+
+# Calculate weathering indices
+indices <- sm_weathering_indices(
+  data = elements,
+  element_cols = c("Al", "Fe", "Si", "K", "Ca", "Na", "Mg")
+)
+
+# View results
+head(indices)
+
+# Access individual indices
+cia <- indices$CIA
+wip <- indices$WIP
+
+cat("CIA range:", range(cia, na.rm = TRUE), "\n")
+cat("WIP range:", range(wip, na.rm = TRUE), "\n")
+
+# Fit shape function to CIA trend with depth
+cia_fit <- sm_optim(
+  observed = cia,
+  initial_params = c(50, 30),
+  FUN = sm_shape_sigmoid
+)
+
+# Plot weathering progression
+plot(cia, 1:200, type = "l", ylim = c(200, 0), xlab = "CIA", ylab = "Depth (cm)")
+lines(cia_fit$fitted, 1:200, col = "red", lty = 2)
+legend("topright", c("Measured", "Fitted"), col = c("black", "red"), lty = c(1, 2))
+```
+
+---
+
+## Complete Workflow Example: From Data to Publication
+
+Here's a comprehensive example combining multiple S3 classes in a realistic workflow:
+
+```{r eval=FALSE}
+library(soilmotif)
+library(broom)
+
+# ============================================================================
+# 1. LOAD AND PREPARE DATA
+# ============================================================================
+depths <- 1:200
+clay_observed <- c(rep(10, 30), seq(10, 45, length.out = 80), rep(45, 90))
+clay_observed <- clay_observed + rnorm(200, 0, 2)
+
+# ============================================================================
+# 2. SINGLE PROFILE OPTIMIZATION
+# ============================================================================
+fit_single <- sm_optim(
+  observed = clay_observed,
+  initial_params = c(100, 40),
+  FUN = sm_shape_sigmoid,
+  use_rust = TRUE
+)
+
+print(fit_single)
+plot(fit_single)
+
+# ============================================================================
+# 3. MODEL SELECTION
+# ============================================================================
+auto_fit <- sm_fit_motif_auto(
+  observed = clay_observed,
+  models = "all",
+  criterion = "AIC"
+)
+
+print(auto_fit)
+plot(auto_fit)
+
+# Use best model for downstream analysis
+best_model <- auto_fit$fits[[auto_fit$best]]
+
+# ============================================================================
+# 4. UNCERTAINTY QUANTIFICATION
+# ============================================================================
+boot_result <- sm_optim_bootstrap(
+  observed = clay_observed,
+  depths = depths,
+  initial_params = best_model$params,
+  shape_family = "sigmoid",
+  n_bootstrap = 1000,
+  method = "auto",
+  seed = 42
+)
+
+print(boot_result)
+
+# Access confidence intervals (from $summary)
+params_summary <- data.frame(
+  Parameter = 1:2,
+  Estimate = boot_result$summary$param_mean,
+  Std_Error = boot_result$summary$param_sd,
+  CI_Lower = boot_result$summary$param_ci_lower,
+  CI_Upper = boot_result$summary$param_ci_upper
+)
+print(params_summary)
+
+# ============================================================================
+# 5. BAYESIAN PRIORS FROM BOOTSTRAP
+# ============================================================================
+# Define informative priors for Bayesian modeling
+priors <- sm_to_priors(boot_result, prior_sd_factor = 0.5)
+
+# If using brms:
+# library(brms)
+# brms_priors <- sm_to_brms_priors(boot_result)
+# model <- brm(formula, data, prior = brms_priors)
+
+# ============================================================================
+# 6. BROOM INTEGRATION FOR TIDY ANALYSIS
+# ============================================================================
+# Extract results in tidy format for ggplot2 or other packages
+tidy_fit <- tidy(fit_single)
+glance_fit <- glance(fit_single)
+augmented_fit <- augment(fit_single)
+
+# Bootstrap results also support broom methods
+tidy_boot <- tidy(boot_result)
+glance_boot <- glance(boot_result)
+
+# Prediction intervals
+pred_intervals <- augment(boot_result)
+
+# ============================================================================
+# 7. VISUALIZATION
+# ============================================================================
+# Base R plotting
+plot(fit_single)
+plot(auto_fit)
+
+# Custom plot with confidence intervals
+depths_seq <- seq(1, 200, by = 5)
+pred_boot <- augment(boot_result, newdata = depths_seq)
+
+plot(clay_observed, 1:200, xlim = c(0, 60), ylim = c(200, 0),
+     main = "Soil Clay Content with 95% Prediction Interval",
+     xlab = "Clay %", ylab = "Depth (cm)", pch = 1, cex = 0.5)
+polygon(
+  c(pred_boot$.lower, rev(pred_boot$.upper)),
+  c(pred_boot$.depth, rev(pred_boot$.depth)),
+  col = rgb(0, 0, 1, 0.2), border = NA
+)
+lines(best_model$fitted, 1:200, col = "red", lwd = 2)
+legend("bottomright", 
+       c("Observed", "Fitted", "95% PI"),
+       pch = c(1, NA, NA), lty = c(NA, 1, 1),
+       fill = c(NA, NA, rgb(0, 0, 1, 0.2)))
+```
+
+---
+
+## Cross-Reference: Method Availability by Class
+
+| Class | print | summary | plot | tidy | glance | augment |
+|-------|-------|---------|------|------|--------|---------|
+| `soilmotif_optimization` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `bootstrap_result` | ✓ | ✓ | — | ✓ | ✓ | ✓ |
+| `horizon_boundaries` | ✓ | ✓ | — | — | — | — |
+| `fuzzy_horizons` | ✓ | ✓ | — | — | — | — |
+| `batch_result` | ✓ | — | — | — | — | — |
+| `fit_motif_auto` | ✓ | ✓ | ✓ | — | — | — |
+| `weathering_indices` | ✓ | ✓ | ✓ | — | — | — |
+
+---
+
+## Tips and Best Practices
+
+### 1. Always Access Bootstrap CIs from `$summary`
+```r
+# ✓ CORRECT
+ci_lower <- boot_result$summary$param_ci_lower
+ci_upper <- boot_result$summary$param_ci_upper
+
+# ✗ INCORRECT (these don't exist at top level)
+ci_lower <- boot_result$param_ci_lower  # NULL
+```
+
+### 2. Use `$params` to Extract Optimized Parameters
+```r
+# ✓ CORRECT
+params <- result$params
+fitted_curve <- result$fitted
+
+# ✗ INCORRECT (attributes not used)
+params <- attr(result$fitted, "par")  # NULL
+```
+
+### 3. Check AR(1) Coefficient for Sieve Bootstrap
+```r
+if (!is.na(boot_result$ar1_coef)) {
+  cat("Autocorrelation structure detected (φ =", boot_result$ar1_coef, ")\n")
+}
+```
+
+### 4. Set Seed for Reproducible Bootstrap Results
+```r
+# Same seed produces identical results
+result_1 <- sm_optim_bootstrap(..., seed = 42)
+result_2 <- sm_optim_bootstrap(..., seed = 42)
+identical(result_1$param_samples, result_2$param_samples)  # TRUE
+```
+
+### 5. Use Broom for Integration with Tidyverse
+```r
+library(tidyverse)
+
+# Convert to tidy format for ggplot2
+tidy_result <- tidy(fit)
+
+ggplot(tidy_result, aes(x = estimate, y = term)) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = statistic - 1.96*std.error, 
+                     xmax = statistic + 1.96*std.error))
+```
+
+---
+
+## Additional Resources
+
+- [README.md](../README.md) - Package overview and basic usage
+- [Documentation Guide](../DESCRIPTION) - Package documentation
+- `?sm_optim` - Single profile optimization
+- `?sm_optim_bootstrap` - Bootstrap uncertainty quantification
+- `?sm_horizon_boundaries_mahalanobis` - Horizon boundary detection
+- `?sm_fit_motif_auto` - Automatic model selection

@@ -14,10 +14,10 @@ test_that("sm_optim works with all motif types", {
     initial_par <- .suggest_initial_params(x, motif_type)
     result <- sm_optim(x, initial_par, FUN = FUN)
     
-    # Basic checks
-    expect_length(result, 200)
-    expect_true(all(result >= min(x) & result <= max(x)))
-    expect_true(!is.null(attr(result, 'par')))
+    # Basic checks - result is now a list with $fitted and $params
+    expect_equal(length(result$fitted), 200)
+    expect_true(all(result$fitted >= min(x) & result$fitted <= max(x)))
+    expect_true(!is.null(result$params))
   }
 })
 
@@ -35,10 +35,10 @@ test_that("parameter sorting is conditional", {
   
   # For wetting_front, should sort
   result_wf <- sm_optim(x, c(100, 50), FUN = sm_shape_wetting_front)
-  expect_true(attr(result_wf, 'par')[1] <= attr(result_wf, 'par')[2])
+  expect_true(result_wf$params[1] <= result_wf$params[2])
   
   # For others, should not force sort
   result_grad <- sm_optim(x, c(35, 10), FUN = sm_shape_gradational)
   # Note: optim may sort internally, but we don't force it
-  expect_length(attr(result_grad, 'par'), 2)
+  expect_length(result_grad$params, 2)
 })

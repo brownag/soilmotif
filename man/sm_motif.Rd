@@ -12,6 +12,7 @@ sm_motif(
   ...,
   depths = NULL,
   ylim = .DEFAULT_DEPTH_RANGE,
+  scale_method = "proportional",
   as_function = FALSE
 )
 
@@ -24,7 +25,8 @@ sm_optim(
   use_rust = FALSE,
   compare = FALSE,
   algorithm = "auto",
-  depths = NULL
+  depths = NULL,
+  scale_method = "proportional"
 )
 }
 \arguments{
@@ -40,6 +42,8 @@ sm_optim(
 Must have the same length as observed if provided.}
 
 \item{ylim}{numeric. Length 2 vector representing depth limits for evaluation.}
+
+\item{scale_method}{character. Scaling method: "proportional" (default, flexible asymptotes) or "anchored" (legacy, forces to min/max).}
 
 \item{as_function}{Return function that takes depth vector as input?}
 

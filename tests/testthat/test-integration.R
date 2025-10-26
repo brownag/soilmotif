@@ -64,11 +64,11 @@ test_that("Integration with sm_optim and sm_motif", {
 
   # Optimize
   opt_result <- sm_optim(x, c(80, 40), FUN = sm_shape_peak)
-  expect_length(opt_result, 200)
-  expect_true(!is.null(attr(opt_result, 'par')))
+  expect_length(opt_result$fitted, 200)
+  expect_true(!is.null(opt_result$params))
 
   # Compare with original parameters
-  fitted_par <- attr(opt_result, 'par')
+  fitted_par <- opt_result$params
   expect_length(fitted_par, 2)
   expect_true(abs(fitted_par[1] - 100) < 20)  # Should be close to original
   expect_true(abs(fitted_par[2] - 30) < 10)

@@ -37,27 +37,16 @@
 sm_prepare_ggplot_data <- function(x, bootstrap_result = NULL, depths = NULL) {
   .require_package("ggplot2", "ggplot2 visualization helpers")
 
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$observed)) {
-    # New list format
-    observed <- x$observed
-    fitted <- x$fitted
-    shape_family <- x$shape_family
-    params <- x$params
-    original_depths <- x$depths
-    if (is.null(depths)) depths <- original_depths
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(x, "optimization_result")
-    observed <- opt_result$observed
-    fitted <- x  # The main result is the fitted values
-    shape_family <- opt_result$shape_family
-    params <- opt_result$params
-    original_depths <- opt_result$depths
-    if (is.null(depths)) depths <- original_depths
-  } else {
-    stop("Invalid optimization result format")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$observed)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  observed <- x$observed
+  fitted <- x$fitted
+  shape_family <- x$shape_family
+  params <- x$params
+  original_depths <- x$depths
+  if (is.null(depths)) depths <- original_depths
 
   # If custom depths provided, interpolate data
   if (!is.null(depths) && length(depths) != length(original_depths)) {

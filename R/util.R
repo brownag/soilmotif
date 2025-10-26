@@ -1,8 +1,11 @@
 
 #' Scale a vector to be between specified limits
 #'
-#' @param x numeric. a numeric vector to be scaled to new low/high values.
-#' @param xlim numeric. length 2 vector with low and high value limits to be applied to `x`.
+#' Scales a numeric vector to specified limits.
+#' Normalizes input to [0,1] then scales to the target range.
+#'
+#' @param x numeric. A numeric vector to be scaled to new low/high values.
+#' @param xlim numeric. Length 2 vector with low and high value limits to be applied to `x`.
 #'
 #' @return numeric vector, bounded by `xlim`
 #' @noRd

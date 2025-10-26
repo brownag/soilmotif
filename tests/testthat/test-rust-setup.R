@@ -17,6 +17,8 @@ test_that("sm_optim still works with use_rust = FALSE", {
   x <- c(rep(10, 50), rep(35, 100), rep(15, 50))
   result <- sm_optim(x, c(25, 100), FUN = sm_shape_gradational, use_rust = FALSE)
   
-  expect_length(result, 200)
-  expect_true(all(result >= 0))
+  expect_type(result, "list")
+  expect_s3_class(result, "soilmotif_optimization")
+  expect_length(result$fitted, 200)
+  expect_true(all(result$fitted >= 0))
 })

@@ -110,9 +110,9 @@ test_that("broom methods handle missing parameter info", {
   )
   class(bad_result) <- "soilmotif_optimization"
 
-  expect_error(tidy(bad_result), "No parameter information found")
-  expect_error(glance(bad_result), "No parameter information found")
-  expect_error(augment(bad_result), "No parameter information found")
+  expect_error(tidy(bad_result), "Expected object of class")
+  expect_error(glance(bad_result), "Expected object of class")
+  expect_error(augment(bad_result), "Expected object of class")
 })
 
 # ============================================================================
@@ -232,11 +232,8 @@ test_that("methods handle edge cases gracefully", {
   # Single parameter fit - use R implementation to avoid Rust edge case issues
   single_param_data <- rep(40, 100)
 
-  expect_warning({
-    expect_warning({
-      single_fit <- sm_optim(single_param_data, 40, use_rust = FALSE)
-    }, "no non-missing arguments to max")
-  }, "no non-missing arguments to min")
+  # Fit constant data - should complete without warnings (improved behavior)
+  single_fit <- sm_optim(single_param_data, 40, use_rust = FALSE)
 
   tidy_single <- tidy(single_fit)
 

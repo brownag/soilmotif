@@ -36,23 +36,14 @@ plot.soilmotif_optimization <- function(x, bootstrap_result = NULL,
                                        add = FALSE, main = "Soil Profile Fit",
                                        xlab = "Property Value", ylab = "Depth (cm)",
                                        ...) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$observed)) {
-    # New list format
-    observed <- x$observed
-    fitted <- x$fitted
-    shape_family <- x$shape_family
-    if (is.null(depths)) depths <- x$depths
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(x, "optimization_result")
-    observed <- opt_result$observed
-    fitted <- x  # The main result is the fitted values
-    shape_family <- opt_result$shape_family
-    if (is.null(depths)) depths <- opt_result$depths
-  } else {
-    stop("Invalid optimization result format")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$observed)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  observed <- x$observed
+  fitted <- x$fitted
+  shape_family <- x$shape_family
+  if (is.null(depths)) depths <- x$depths
 
   # Set default x-axis label based on shape family
   if (is.null(xlab)) {
@@ -152,27 +143,16 @@ plot.soilmotif_optimization <- function(x, bootstrap_result = NULL,
 #' str(plot_data)
 #' }
 sm_extract_plot_data <- function(optimization_result, bootstrap_result = NULL, depths = NULL) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(optimization_result) && !is.null(optimization_result$observed)) {
-    # New list format
-    observed <- optimization_result$observed
-    fitted <- optimization_result$fitted
-    shape_family <- optimization_result$shape_family
-    params <- optimization_result$params
-    original_depths <- optimization_result$depths
-    if (is.null(depths)) depths <- original_depths
-  } else if (is.numeric(optimization_result) && !is.null(attr(optimization_result, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(optimization_result, "optimization_result")
-    observed <- opt_result$observed
-    fitted <- optimization_result  # The main result is the fitted values
-    shape_family <- opt_result$shape_family
-    params <- opt_result$params
-    original_depths <- opt_result$depths
-    if (is.null(depths)) depths <- original_depths
-  } else {
-    stop("Invalid optimization result format")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(optimization_result) || is.null(optimization_result$observed)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  observed <- optimization_result$observed
+  fitted <- optimization_result$fitted
+  shape_family <- optimization_result$shape_family
+  params <- optimization_result$params
+  original_depths <- optimization_result$depths
+  if (is.null(depths)) depths <- original_depths
 
   # If custom depths provided, subset or interpolate data
   if (!is.null(depths) && length(depths) != length(original_depths)) {
@@ -340,21 +320,13 @@ sm_plot_bootstrap_params <- function(x, type = "histogram", ...) {
 #' plot_residuals(fit)
 #' }
 sm_plot_residuals <- function(x, ...) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$observed)) {
-    # New list format
-    observed <- x$observed
-    fitted <- x$fitted
-    depths <- x$depths
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(x, "optimization_result")
-    observed <- opt_result$observed
-    fitted <- x  # The main result is the fitted values
-    depths <- opt_result$depths
-  } else {
-    stop("Invalid optimization result format")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$observed)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  observed <- x$observed
+  fitted <- x$fitted
+  depths <- x$depths
 
   # Ensure fitted is numeric without class to prevent plot dispatch issues
   fitted <- as.numeric(fitted)

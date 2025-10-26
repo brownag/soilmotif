@@ -345,6 +345,43 @@ sm_optim_bootstrap <- function(
   } else {
     matrix(NA_real_, nrow = 0, ncol = length(initial_params))
   }
+  
+  # DIAGNOSTIC: Validate bootstrap parameter samples for data corruption
+  if (n_successful > 0 && nrow(param_samples) > 0) {
+    # Check for degenerate cases that indicate Rust FFI corruption or optimization failure
+    param_stats <- apply(param_samples, 2, function(col) {
+      list(
+        n_unique = length(unique(round(col, 8))),
+        n_nan = sum(is.nan(col)),
+        n_inf = sum(is.infinite(col)),
+        range = max(col, na.rm = TRUE) - min(col, na.rm = TRUE)
+      )
+    })
+    
+    # If ANY parameter has zero variance across bootstrap samples, warn about corruption
+    zero_variance_params <- which(sapply(param_stats, function(x) x$n_unique == 1 && x$n_nan == 0))
+    if (length(zero_variance_params) > 0) {
+      warning(
+        "Bootstrap parameter samples appear corrupted or degenerate: parameters ",
+        paste(zero_variance_params, collapse = ", "),
+        " have identical values across all ", n_successful, " successful bootstrap replicates. ",
+        "This suggests either Rust FFI returned corrupt data or all optimizations converged to the same point. ",
+        "Check AR(1) coefficients and residual structure.",
+        call. = FALSE
+      )
+    }
+    
+    # If any parameters are all NaN or all Inf, definitely corrupted
+    invalid_params <- which(sapply(param_stats, function(x) x$n_nan == nrow(param_samples) || x$n_inf == nrow(param_samples)))
+    if (length(invalid_params) > 0) {
+      warning(
+        "Bootstrap parameter samples contain invalid values (NaN/Inf): parameters ",
+        paste(invalid_params, collapse = ", "),
+        ". Rust FFI likely failed to return valid parameter vectors.",
+        call. = FALSE
+      )
+    }
+  }
 
   # Extract diagnostic samples
   rmse_samples <- rust_result$rmse_samples
@@ -412,6 +449,22 @@ sm_optim_bootstrap <- function(
   r2_sd <- sd(r2_samples)
   aic_mean <- mean(aic_samples)
   aic_sd <- sd(aic_samples)
+  
+  # VALIDATION: Check R² values are in valid range [-Inf, 1]
+  # Negative R² indicates predictions worse than mean baseline (valid)
+  # R² > 1 indicates numerical issues
+  invalid_r2 <- r2_samples[r2_samples > 1 | is.nan(r2_samples)]
+  if (length(invalid_r2) > 0) {
+    warning(
+      "Bootstrap R² values contain invalid entries: ",
+      length(invalid_r2[r2_samples > 1]),
+      " values > 1 (numerical issues), ",
+      length(invalid_r2[is.nan(r2_samples)]),
+      " NaN values (possible division by zero or AR(1) generation issues). ",
+      "Check residual structure and AR(1) model parameters.",
+      call. = FALSE
+    )
+  }
 
   list(
     param_mean = param_mean,

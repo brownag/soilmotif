@@ -21,19 +21,11 @@
 #' tidy(boot)
 #' }
 tidy.soilmotif_optimization <- function(x, ...) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$params)) {
-    # New list format
-    params <- x$params
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    params <- attr(x, "optimization_result")$params
-  } else if (is.numeric(x) && !is.null(attr(x, "par"))) {
-    # Legacy format: numeric vector with par attribute
-    params <- attr(x, "par")
-  } else {
-    stop("No parameter information found in optimization result")
+  # Extract parameters from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$params)) {
+    stop("Expected object of class 'soilmotif_optimization' with $params element")
   }
+  params <- x$params
 
   # For now, we don't have standard errors from basic optimization
   # This will be enhanced when bootstrap results are available
@@ -82,21 +74,13 @@ tidy.soilmotif_optimization <- function(x, ...) {
 #' glance(fit)
 #' }
 glance.soilmotif_optimization <- function(x, ...) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$params)) {
-    # New list format
-    params <- x$params
-    observed <- x$observed
-    fitted <- x$fitted
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(x, "optimization_result")
-    params <- opt_result$params
-    observed <- opt_result$observed
-    fitted <- opt_result$fitted
-  } else {
-    stop("No parameter information found")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$params)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  params <- x$params
+  observed <- x$observed
+  fitted <- x$fitted
 
   # Calculate basic diagnostics
   nobs <- length(observed)
@@ -142,47 +126,44 @@ glance.soilmotif_optimization <- function(x, ...) {
 #' augment(fit)
 #' }
 augment.soilmotif_optimization <- function(x, newdata = NULL, ...) {
-  # Handle both list format and numeric vector with attributes (backward compatibility)
-  if (is.list(x) && !is.null(x$params)) {
-    # New list format
-    params <- x$params
-    observed <- x$observed
-    depths <- x$depths
-    fitted <- x$fitted
-    shape_family <- x$shape_family
-  } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-    # Backward compatibility: numeric vector with optimization_result attribute
-    opt_result <- attr(x, "optimization_result")
-    params <- opt_result$params
-    observed <- opt_result$observed
-    depths <- opt_result$depths
-    fitted <- opt_result$fitted
-    shape_family <- opt_result$shape_family
-  } else {
-    stop("No parameter information found")
+  # Extract data from soilmotif_optimization list
+  if (!is.list(x) || is.null(x$params)) {
+    stop("Expected object of class 'soilmotif_optimization'")
   }
+  params <- x$params
+  observed <- x$observed
+  depths <- x$depths
+  fitted <- x$fitted
+  shape_family <- x$shape_family
 
   # Use original depths if newdata not provided
   if (is.null(newdata)) {
-    depths <- depths
+    depths_aug <- depths
     observed_aug <- observed
     fitted_aug <- fitted
   } else {
-    depths <- newdata
+    depths_aug <- newdata
     observed_aug <- rep(NA_real_, length(newdata))  # No observed data for new depths
     # Re-evaluate the shape function at new depths
-    fitted_aug <- sm_motif(depths, params, FUN = .get_shape_function(shape_family))
+    # Note: Use same data range for scaling as was used in original fit
+    fitted_aug <- sm_motif(
+      observed = observed,  # Use original data for scale range
+      params = params,
+      FUN = .get_shape_function(shape_family),
+      depths = depths_aug,   # But evaluate at new depths
+      ylim = c(min(depths_aug), max(depths_aug))  # Evaluate over new depth range
+    )
   }
 
   # Calculate residuals where we have observed data
   resid <- if (all(is.na(observed_aug))) {
-    rep(NA_real_, length(depths))
+    rep(NA_real_, length(depths_aug))
   } else {
     observed_aug - fitted_aug
   }
 
   data.frame(
-    .depth = depths,
+    .depth = depths_aug,
     .observed = observed_aug,
     .fitted = fitted_aug,
     .resid = resid,

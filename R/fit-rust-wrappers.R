@@ -338,8 +338,8 @@ sm_compare_r_vs_rust <- function(x, X, FUN = sm_shape_sigmoid,
   r_result <- sm_optim_r_impl(x, X, FUN = FUN, OPTFUN = OPTFUN, ...)
   r_time <- difftime(Sys.time(), r_start, units = "secs")
 
-  r_params <- attr(r_result, 'par')
-  r_rmse <- OPTFUN(r_result, x)
+  r_params <- r_result$params
+  r_rmse <- OPTFUN(r_result$fitted, x)
 
   # Run Rust implementation (if available)
   if (!sm_rust_backend_available()) {

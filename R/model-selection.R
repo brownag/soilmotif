@@ -10,14 +10,18 @@
 #' @keywords internal
 #' @noRd 
 .calc_fit_stats <- function(observed, predicted, n_params) {
-  residuals <- observed - predicted
   ss_res <- sum(residuals^2)
   ss_tot <- sum((observed - mean(observed))^2)
   rmse <- sqrt(mean(residuals^2))
-  r2 <- if (ss_tot == 0) {
-    if (ss_res == 0) 1 else 0
+  # VALIDATION: Compute R² with guards against numerical issues
+  # R² = 1 - (SS_res / SS_tot)
+  # If SS_tot ≈ 0 (all observed values identical): return 1 if perfect fit, else 0
+  # If SS_res > SS_tot (predictions worse than mean): valid negative R², not error
+  r2 <- if (ss_tot < 1e-10) {
+    # Near-zero variance in observed data
+    if (ss_res < 1e-10) 1.0 else 0.0
   } else {
-    1 - (ss_res / ss_tot)
+    1.0 - (ss_res / ss_tot)  # Can be negative if SS_res > SS_tot (valid case)
   }
 
   n <- length(observed)
@@ -117,7 +121,7 @@ sm_fit_motif_auto <- function(x,
       fit_result <- sm_optim(x, initial_par, FUN = shape_fun, ...)
 
       # Calculate statistics
-      fit_stats <- .calc_fit_stats(x, fit_result, length(attr(fit_result, 'par')))
+      fit_stats <- .calc_fit_stats(x, fit_result$fitted, length(fit_result$params))
 
       fits[[model_name]] <- fit_result
       stats <- rbind(stats, data.frame(

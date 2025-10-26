@@ -55,19 +55,12 @@ sm_to_priors <- function(x, prior_sd_factor = 0.5) {
     param_names <- paste0("param_", 1:length(param_means))
 
   } else if (inherits(x, "soilmotif_optimization")) {
-    # For optimization results - handle both list format and backward-compatible numeric format
-    if (is.list(x) && !is.null(x$params)) {
-      # New list format
-      param_means <- x$params
-      param_names <- names(param_means)
-    } else if (is.numeric(x) && !is.null(attr(x, "optimization_result"))) {
-      # Backward compatibility: numeric vector with optimization_result attribute
-      opt_result <- attr(x, "optimization_result")
-      param_means <- opt_result$params
-      param_names <- names(param_means)
-    } else {
-      stop("Invalid soilmotif_optimization object")
+    # For optimization results
+    if (!is.list(x) || is.null(x$params)) {
+      stop("Expected object of class 'soilmotif_optimization'")
     }
+    param_means <- x$params
+    param_names <- names(param_means)
 
     if (is.null(param_names)) {
       param_names <- paste0("param_", 1:length(param_means))

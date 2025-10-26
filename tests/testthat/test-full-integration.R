@@ -24,16 +24,16 @@ test_that("Rust backend optimization works end-to-end", {
 
   # Test Rust implementation
   rust_result <- sm_optim(observed, initial_params, use_rust = TRUE)
-  rust_params <- attr(rust_result, 'par')
-  rust_rmse <- sm_optim_rmse(rust_result, observed)
+  rust_params <- rust_result$params
+  rust_rmse <- sm_optim_rmse(rust_result$fitted, observed)
 
   # Validate Rust result is reasonable
-  expect_type(rust_result, "double")
-  expect_length(rust_result, 200)
+  expect_type(rust_result, "list")
+  expect_length(rust_result$fitted, 200)
   expect_type(rust_params, "double")
   expect_length(rust_params, 2)
   expect_true(rust_rmse > 0, label = "RMSE should be positive")
-  expect_false(any(is.na(rust_result)), label = "No NAs in result")
+  expect_false(any(is.na(rust_result$fitted)), label = "No NAs in result")
   expect_false(any(is.na(rust_params)), label = "No NAs in params")
 
   cat(sprintf("Rust RMSE: %.4f\n", rust_rmse))
@@ -175,16 +175,16 @@ test_that("R backend optimization works", {
 
   # Test R implementation
   r_result <- sm_optim(observed, initial_params, use_rust = FALSE)
-  r_params <- attr(r_result, 'par')
-  r_rmse <- sm_optim_rmse(r_result, observed)
+  r_params <- r_result$params
+  r_rmse <- sm_optim_rmse(r_result$fitted, observed)
 
   # Validate R result is reasonable
-  expect_type(r_result, "double")
-  expect_length(r_result, 200)
+  expect_type(r_result, "list")
+  expect_length(r_result$fitted, 200)
   expect_type(r_params, "double")
   expect_length(r_params, 2)
   expect_true(r_rmse > 0, label = "RMSE should be positive")
-  expect_false(any(is.na(r_result)), label = "No NAs in result")
+  expect_false(any(is.na(r_result$fitted)), label = "No NAs in result")
   expect_false(any(is.na(r_params)), label = "No NAs in params")
 
   cat(sprintf("R RMSE: %.4f\n", r_rmse))
@@ -203,9 +203,9 @@ test_that("Dispatch logic and fallback behavior works", {
 
   # Test that R implementation always works
   r_result <- sm_optim(observed, initial_params, use_rust = FALSE)
-  expect_type(r_result, "double")
-  expect_length(r_result, 200)
-  expect_true(!is.null(attr(r_result, 'par')))
+  expect_type(r_result, "list")
+  expect_length(r_result$fitted, 200)
+  expect_true(!is.null(r_result$params))
 
   # Test dispatch with Rust requested (should fallback gracefully)
   if (!sm_rust_backend_available()) {
@@ -214,13 +214,13 @@ test_that("Dispatch logic and fallback behavior works", {
       "Rust backend not available"
     )
     # Should still return a result (fallback to R)
-    expect_type(rust_result, "double")
-    expect_length(rust_result, 200)
+    expect_type(rust_result, "list")
+    expect_length(rust_result$fitted, 200)
   } else {
     # If Rust is available, should work without warning
     rust_result <- sm_optim(observed, initial_params, use_rust = TRUE)
-    expect_type(rust_result, "double")
-    expect_length(rust_result, 200)
+    expect_type(rust_result, "list")
+    expect_length(rust_result$fitted, 200)
   }
 
   cat("Dispatch and fallback tests passed\n")

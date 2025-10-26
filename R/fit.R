@@ -399,12 +399,7 @@ sm_optim_r_impl <- function(observed, params, ...,
     message = if (fit$convergence == 0) "Optimization completed successfully" else "Optimization may not have converged"
   )
   class(optimization_result) <- "soilmotif_optimization"
-
-  # For backward compatibility, return fitted values with optimization result as attribute
-  attr(res, "optimization_result") <- optimization_result
-  attr(res, "par") <- final_par  # Legacy parameter access
-  class(res) <- c("soilmotif_optimization", class(res))
-  res
+  optimization_result
 }
 
 # Replace sm_optim with dispatch wrapper that can route to Rust
@@ -494,12 +489,7 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
         message = "Optimization completed successfully"
       )
       class(optimization_result) <- "soilmotif_optimization"
-
-      # For backward compatibility, return fitted values with optimization result as attribute
-      attr(predicted, "optimization_result") <- optimization_result
-      attr(predicted, "par") <- result  # Legacy parameter access
-      class(predicted) <- c("soilmotif_optimization", class(predicted))
-      return(predicted)
+      return(optimization_result)
 
     }, error = function(e) {
       warning("Rust optimization failed: ", e$message, "; falling back to R")

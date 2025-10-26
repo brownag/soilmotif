@@ -42,7 +42,7 @@ test_that("plot handles missing parameter info", {
   # Create result without proper attributes
   bad_result <- structure(1:200, class = "soilmotif_optimization")
 
-  expect_error(plot(bad_result), "Invalid optimization result format")
+  expect_error(plot(bad_result), "Expected object of class")
 })
 
 test_that("extract_plot_data works", {
@@ -58,7 +58,7 @@ test_that("extract_plot_data works", {
 
   # Check content
   expect_equal(plot_data$depth, 1:200)
-  expect_equal(plot_data$fitted, fit)
+  expect_equal(plot_data$fitted, fit$fitted)
   expect_type(plot_data$observed, "double")
   # CI bounds may be NA without bootstrap
   expect_true(all(is.na(plot_data$ci_lower)))
