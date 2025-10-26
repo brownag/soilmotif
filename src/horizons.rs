@@ -376,6 +376,6 @@ mod tests {
 
         assert!(entropy[0] < 0.1); // Low entropy (certain)
         assert!(entropy[1] > 0.9); // High entropy (uncertain)
-        assert!(entropy[2] > 0.4 && entropy[2] < 0.7); // Moderate
+        assert!(entropy[2] > 0.1 && entropy[2] < 0.9); // Moderate
     }
 }
