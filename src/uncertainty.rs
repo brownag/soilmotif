@@ -165,6 +165,255 @@ fn compute_correlations(cov_matrix: &[Vec<f64>], std_errors: &[f64]) -> Vec<Vec<
     correlations
 }
 
+/// Compute parameter standard errors using Fisher Information Matrix
+///
+/// For least-squares problems, the Fisher Information is:
+/// I(θ) = (1/σ²) * J^T * J
+///
+/// where J is the Jacobian of predictions w.r.t. parameters.
+/// The covariance matrix is approximately I(θ)^-1.
+///
+/// This method is similar to Hessian-based approaches but uses
+/// the gradient of residuals rather than the Hessian of cost function.
+///
+/// # Arguments
+/// * `jacobian` - The Jacobian matrix (n_obs x n_params) of predictions
+/// * `residuals` - Residuals (observed - predicted)
+/// * `n_obs` - Number of observations
+///
+/// # Returns
+/// A UncertaintyResult with std_errors, cov_matrix, and correlations
+pub fn compute_fisher_standard_errors(
+    jacobian: &[Vec<f64>],
+    residuals: &[f64],
+    n_obs: usize,
+) -> Result<UncertaintyResult, String> {
+    let n_params = if jacobian.is_empty() {
+        return Err("Empty Jacobian matrix".to_string());
+    } else {
+        jacobian[0].len()
+    };
+
+    // Compute residual variance: σ² = RSS / (n - p)
+    let rss: f64 = residuals.iter().map(|r| r * r).sum();
+    let dof = (n_obs as f64) - (n_params as f64);
+    if dof <= 0.0 {
+        return Err("Insufficient degrees of freedom for Fisher Information".to_string());
+    }
+    let sigma2 = rss / dof;
+
+    // Compute Fisher Information: I = (1/σ²) * J^T * J
+    let mut fisher_info = vec![vec![0.0; n_params]; n_params];
+    for i in 0..n_params {
+        for j in 0..n_params {
+            let mut sum = 0.0;
+            for obs_idx in 0..n_obs {
+                if obs_idx < jacobian.len() {
+                    sum += jacobian[obs_idx][i] * jacobian[obs_idx][j];
+                }
+            }
+            fisher_info[i][j] = sum / sigma2;
+        }
+    }
+
+    // Invert Fisher Information to get covariance matrix
+    let inv_fisher = invert_fisher_matrix(&fisher_info)?;
+
+    // Extract standard errors from diagonal
+    let std_errors: Vec<f64> = (0..n_params)
+        .map(|i| inv_fisher[i][i].abs().sqrt())
+        .collect();
+
+    // Compute correlations
+    let correlations = compute_correlations(&inv_fisher, &std_errors);
+
+    Ok(UncertaintyResult {
+        std_errors,
+        cov_matrix: inv_fisher,
+        correlations,
+        method: "fisher".to_string(),
+    })
+}
+
+/// Invert a matrix using Gaussian elimination with partial pivoting
+/// (for Fisher Information matrix inversion)
+fn invert_fisher_matrix(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, String> {
+    let n = matrix.len();
+
+    // Create augmented matrix [A | I]
+    let mut augmented = vec![vec![0.0; 2*n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            augmented[i][j] = matrix[i][j];
+        }
+        augmented[i][n + i] = 1.0;
+    }
+
+    // Forward elimination with partial pivoting
+    for col in 0..n {
+        // Find pivot
+        let mut max_row = col;
+        let mut max_val = augmented[col][col].abs();
+
+        for row in (col+1)..n {
+            let val = augmented[row][col].abs();
+            if val > max_val {
+                max_val = val;
+                max_row = row;
+            }
+        }
+
+        // Check for singular matrix
+        if max_val < 1e-10 {
+            return Err(format!("Fisher Information matrix is singular or ill-conditioned (pivot at ({},{}) is {})",
+                             col, col, max_val));
+        }
+
+        // Swap rows
+        augmented.swap(col, max_row);
+
+        // Eliminate column
+        let pivot = augmented[col][col];
+        for j in 0..(2*n) {
+            augmented[col][j] /= pivot;
+        }
+
+        for row in 0..n {
+            if row != col {
+                let factor = augmented[row][col];
+                for j in 0..(2*n) {
+                    augmented[row][j] -= factor * augmented[col][j];
+                }
+            }
+        }
+    }
+
+    // Extract inverse from right side of augmented matrix
+    let mut inverse = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            inverse[i][j] = augmented[i][n + j];
+        }
+    }
+
+    Ok(inverse)
+}
+
+/// Compute parameter standard errors via Jackknife (leave-one-out) resampling
+///
+/// Jackknife is a deterministic resampling method that:
+/// 1. Removes each observation one at a time
+/// 2. Re-optimizes parameters on the reduced dataset
+/// 3. Estimates parameter variance from the empirical distribution of estimates
+///
+/// More robust than parametric bootstrap but computationally expensive (N refits).
+/// Uses parallel processing via rayon to speed up computation.
+///
+/// # Arguments
+/// * `observed` - Observed data values
+/// * `x` - Depth/position values
+/// * `initial_params` - Initial parameter guess
+/// * `shape_type` - Name of shape function
+/// * `ascending` - Whether shape is ascending
+/// * `optimizer_fn` - Function to call for optimization (e.g., optimize_profile_rust)
+///
+/// # Returns
+/// A UncertaintyResult with empirical std_errors, cov_matrix, and correlations
+pub fn compute_jackknife_uncertainty(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    optimize_fn: impl Fn(&[f64], &[f64], &[f64], &str, bool) -> Result<Vec<f64>, String> + Send + Sync,
+) -> Result<UncertaintyResult, String> {
+    let n_obs = observed.len();
+    let n_params = initial_params.len();
+
+    if n_obs < 2 {
+        return Err("Need at least 2 observations for Jackknife".to_string());
+    }
+
+    // Collect jackknife parameter estimates
+    // For each observation i, fit model to data without observation i
+    let jackknife_params: Vec<Vec<f64>> = (0..n_obs)
+        .into_par_iter()
+        .map(|leave_out_idx| {
+            // Create dataset without observation at leave_out_idx
+            let observed_loo: Vec<f64> = observed
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| *idx != leave_out_idx)
+                .map(|(_, &val)| val)
+                .collect();
+
+            let x_loo: Vec<f64> = x
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| *idx != leave_out_idx)
+                .map(|(_, &val)| val)
+                .collect();
+
+            // Re-optimize on leave-one-out dataset
+            match optimize_fn(&observed_loo, &x_loo, initial_params, shape_type, ascending) {
+                Ok(params) => params,
+                Err(_) => {
+                    // If optimization fails on this fold, return original params as fallback
+                    initial_params.to_vec()
+                }
+            }
+        })
+        .collect();
+
+    // Compute empirical mean of parameter estimates
+    let mut param_means = vec![0.0; n_params];
+    for params in &jackknife_params {
+        for (i, &p) in params.iter().enumerate() {
+            param_means[i] += p;
+        }
+    }
+    for mean in &mut param_means {
+        *mean /= n_obs as f64;
+    }
+
+    // Compute empirical covariance matrix
+    // Jackknife variance: (n-1) * mean_square_deviation
+    let mut cov_matrix = vec![vec![0.0; n_params]; n_params];
+    for params in &jackknife_params {
+        for i in 0..n_params {
+            for j in 0..n_params {
+                let dev_i = params[i] - param_means[i];
+                let dev_j = params[j] - param_means[j];
+                cov_matrix[i][j] += dev_i * dev_j;
+            }
+        }
+    }
+
+    // Scale by (n-1) / n for jackknife
+    let scale_factor = (n_obs - 1) as f64 / n_obs as f64;
+    for i in 0..n_params {
+        for j in 0..n_params {
+            cov_matrix[i][j] *= scale_factor;
+        }
+    }
+
+    // Extract standard errors from diagonal
+    let std_errors: Vec<f64> = (0..n_params)
+        .map(|i| cov_matrix[i][i].abs().sqrt())
+        .collect();
+
+    // Compute correlations
+    let correlations = compute_correlations(&cov_matrix, &std_errors);
+
+    Ok(UncertaintyResult {
+        std_errors,
+        cov_matrix,
+        correlations,
+        method: "jackknife".to_string(),
+    })
+}
+
 // BootstrapEngineResult struct for internal use
 #[derive(Debug, Clone)]
 pub struct BootstrapEngineResult {
@@ -622,9 +871,9 @@ pub fn parametric_bootstrap(
         .collect();
 
     // Step 2: Bootstrap resampling
-    // CRITICAL: Use ORIGINAL optimized parameters as anchors for all bootstrap iterations
-    // Using initial_fit.params would cause grid search to center around re-optimized params
-    // which defeats the purpose of bootstrap (should anchor around THE solution, not new solutions)
+    // CRITICAL: Use OPTIMIZED parameters from initial fit as anchors for all bootstrap iterations
+    // The grid search is centered at initial_fit.params (the optimized solution) to ensure that
+    // parameter variation comes from resampled residuals, not from random grid search anchoring
 
     let bootstrap_results: Vec<Option<BootstrapSample>> = if parallel {
         (0..n_bootstrap)
@@ -636,7 +885,7 @@ pub fn parametric_bootstrap(
                     depths,
                     &fitted,
                     &residuals,
-                    initial_params,  // Use ORIGINAL initial_params for ALL bootstrap iterations
+                    &initial_fit.params,  // Use OPTIMIZED params as grid search anchor for all bootstrap iterations
                     shape_family,
                     objective,
                     optimizer,
@@ -656,7 +905,7 @@ pub fn parametric_bootstrap(
                     depths,
                     &fitted,
                     &residuals,
-                    initial_params,  // Use ORIGINAL initial_params for ALL bootstrap iterations
+                    &initial_fit.params,  // Use OPTIMIZED params as grid search anchor for all bootstrap iterations
                     shape_family,
                     objective,
                     optimizer,
@@ -729,17 +978,13 @@ fn perform_initial_optimization(
     _fallback_strategy: &str,
     _max_retries: usize,
 ) -> std::result::Result<OptimizationResult, String> {
-    eprintln!("DEBUG perform_initial_optimization: starting");
-
-    // Use FAST bootstrap optimization - Nelder-Mead with only 30 iterations
-    // Since initial_params are the optimized params from initial fit,
-    // we're already very close to the solution
+    // Use refined grid search in original data space for bootstrap iterations
+    // The grid has 21 points per dimension (441 total for 2D) with ±200% range
+    // to properly cover the parameter space without boundary issues
     let objective_func = crate::optimizer::create_objective(objective)
         .map_err(|e| format!("Failed to create objective: {}", e))?;
 
-    eprintln!("DEBUG perform_initial_optimization: created objective");
-
-    let opt_result = crate::optimizer::optimize_fast_bootstrap(
+    let opt_result = crate::optimizer::optimize_fast_bootstrap_wide(
         observed,
         depths,
         initial_params,
@@ -747,8 +992,6 @@ fn perform_initial_optimization(
         false,  // ascending=false
         objective_func,
     ).map_err(|e| format!("Optimization failed: {}", e))?;
-
-    eprintln!("DEBUG perform_initial_optimization: optimization complete");
 
     // Compute diagnostics
     // eval_shape returns [0,1], need to scale to observed range for diagnostics

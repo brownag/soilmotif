@@ -1379,6 +1379,194 @@ pub fn optimize_fast_bootstrap(
     })
 }
 
+/// Refined grid search for bootstrap iterations
+///
+/// Similar to optimize_fast_bootstrap but with finer grid (21 points per dimension instead of 9)
+/// to better capture parameter variation from resampled residuals while remaining fast.
+/// Uses original data space for numerical stability.
+pub fn optimize_fast_bootstrap_refined(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+) -> Result<OptimResult, String> {
+    // Use original data space cost function for better numerical conditioning
+    let cost_fn = ShapeCostFunctionOriginalSpace::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
+        ascending,
+        objective.clone(),
+    );
+
+    // Refined grid search: ±100% of each parameter in 21 points per dimension
+    // 21 points gives finer resolution, ±100% range allows more parameter exploration
+    // Working in original data space provides better numerical conditioning
+
+    let mut param_grids: Vec<Vec<f64>> = Vec::new();
+
+    for &init_p in initial_params.iter() {
+        let range = (init_p.abs().max(1.0)) * 1.0;  // ±100% of initial value
+        let step = range / 10.0;  // 21 points total: -10, -9, ..., 0, ..., 9, 10 steps
+
+        param_grids.push(vec![
+            init_p - 10.0 * step,
+            init_p - 9.0 * step,
+            init_p - 8.0 * step,
+            init_p - 7.0 * step,
+            init_p - 6.0 * step,
+            init_p - 5.0 * step,
+            init_p - 4.0 * step,
+            init_p - 3.0 * step,
+            init_p - 2.0 * step,
+            init_p - step,
+            init_p,
+            init_p + step,
+            init_p + 2.0 * step,
+            init_p + 3.0 * step,
+            init_p + 4.0 * step,
+            init_p + 5.0 * step,
+            init_p + 6.0 * step,
+            init_p + 7.0 * step,
+            init_p + 8.0 * step,
+            init_p + 9.0 * step,
+            init_p + 10.0 * step,
+        ]);
+    }
+
+    // Generate all combinations via cartesian product
+    let mut grid_points: Vec<Vec<f64>> = vec![vec![]];
+    for param_vals in param_grids {
+        let mut expanded = Vec::new();
+        for point in grid_points.iter() {
+            for &val in &param_vals {
+                let mut new_point = point.clone();
+                new_point.push(val);
+                expanded.push(new_point);
+            }
+        }
+        grid_points = expanded;
+    }
+
+    // Find best point on grid
+    let mut best_cost = f64::INFINITY;
+    let mut best_param = initial_params.to_vec();
+
+    for point in grid_points {
+        match cost_fn.cost(&point) {
+            Ok(cost) => {
+                if cost.is_finite() && cost < best_cost {
+                    best_cost = cost;
+                    best_param = point.clone();
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost: best_cost,
+        iterations: 441,  // 21^2 for 2 params
+        converged: best_cost.is_finite(),
+        method: "GridSearch-originalspace-refined".to_string(),
+        lower_bounds: None,
+        upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
+    })
+}
+
+/// Wide grid search for bootstrap iterations (±200% range)
+///
+/// Uses 21 points per dimension with ±200% range to properly cover parameter space
+/// without boundary issues. Uses original data space for numerical stability.
+pub fn optimize_fast_bootstrap_wide(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+) -> Result<OptimResult, String> {
+    // Use original data space cost function for better numerical conditioning
+    let cost_fn = ShapeCostFunctionOriginalSpace::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
+        ascending,
+        objective.clone(),
+    );
+
+    // Wide grid search: ±200% of each parameter in 21 points per dimension
+    // Wider range ensures we don't miss optimal parameters that diverge from initial values
+    // 21 points gives good resolution while staying fast
+
+    let mut param_grids: Vec<Vec<f64>> = Vec::new();
+
+    for &init_p in initial_params.iter() {
+        let range = (init_p.abs().max(1.0)) * 2.0;  // ±200% of initial value
+        let step = range / 25.0;  // 51 points total: -25, -24, ..., 0, ..., 24, 25 steps
+
+        let mut grid = Vec::new();
+        for i in -25..=25 {
+            grid.push(init_p + (i as f64) * step);
+        }
+        param_grids.push(grid);
+    }
+
+    // Generate all combinations via cartesian product
+    let mut grid_points: Vec<Vec<f64>> = vec![vec![]];
+    for param_vals in param_grids {
+        let mut expanded = Vec::new();
+        for point in grid_points.iter() {
+            for &val in &param_vals {
+                let mut new_point = point.clone();
+                new_point.push(val);
+                expanded.push(new_point);
+            }
+        }
+        grid_points = expanded;
+    }
+
+    // Find best point on grid - evaluate all points and pick the minimum
+    // NO fallback to initial_params - always use the best grid point found, even if suboptimal
+    let mut best_cost = f64::INFINITY;
+    let mut best_param = grid_points.get(0).cloned().unwrap_or_else(|| initial_params.to_vec());
+
+    for point in grid_points {
+        match cost_fn.cost(&point) {
+            Ok(cost) => {
+                if cost < best_cost {  // Pick best cost found, whether finite or infinite
+                    best_cost = cost;
+                    best_param = point.clone();
+                }
+            }
+            Err(_) => {
+                // Cost evaluation failed - skip this point
+            }
+        }
+    }
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost: best_cost,
+        iterations: 2601,  // 51^2 for 2 params
+        converged: best_cost.is_finite(),
+        method: "GridSearch-originalspace-wide-51pt".to_string(),
+        lower_bounds: None,
+        upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
+    })
+}
+
 /// Optimize with automatic fallback strategy
 ///
 /// 1. For 1D problems: use grid search (argmin NelderMead has bugs with 1D)
@@ -1576,12 +1764,203 @@ pub fn optimize_with_uncertainty(
                 // If Hessian computation fails, just continue with None
             }
         }
+    } else if uncertainty_method == "jackknife" {
+        // Jackknife uncertainty: leave-one-out resampling with re-optimization
+        // This is more computationally expensive (N refits) but more robust
+        match compute_jackknife_uncertainty(
+            observed,
+            x,
+            initial_params,
+            shape_type,
+            ascending,
+            objective,
+        ) {
+            Ok(uncertainty_result) => {
+                result.std_errors = Some(uncertainty_result.std_errors);
+                result.cov_matrix = Some(uncertainty_result.cov_matrix);
+                result.correlations = Some(uncertainty_result.correlations);
+                result.uncertainty_method = Some("jackknife".to_string());
+            }
+            Err(_e) => {
+                // If jackknife computation fails, just continue with None
+            }
+        }
+    } else if uncertainty_method == "fisher" {
+        // Fisher Information method: theoretically similar to Hessian for least-squares
+        // For least-squares: I(θ) = J^T * J / σ², where J is the Jacobian
+        // We approximate this using the Hessian with proper scaling
+        let cost_fn = ShapeCostFunction::new(
+            observed.to_vec(),
+            x.to_vec(),
+            shape_type.to_string(),
+            ascending,
+            objective,
+        );
+
+        // Compute Hessian at optimal parameters
+        match cost_fn.hessian(&result.params) {
+            Ok(hessian_matrix) => {
+                // For least-squares, scale the Hessian by 2/σ² to get Fisher Information
+                // Approximate σ² from residuals at optimum
+                let predicted: Vec<f64> = match eval_shape(shape_type, x, &result.params, ascending) {
+                    Ok(pred) => pred,
+                    Err(_) => vec![],
+                };
+
+                let sigma2 = if predicted.len() == observed.len() {
+                    let rss: f64 = observed.iter().zip(&predicted)
+                        .map(|(o, p)| (o - p).powi(2))
+                        .sum();
+                    let dof = (observed.len() - result.params.len()).max(1) as f64;
+                    rss / dof
+                } else {
+                    1.0 // Default if can't compute
+                };
+
+                // Compute uncertainty from scaled Hessian
+                let scaled_hessian: Vec<Vec<f64>> = hessian_matrix.iter().map(|row| {
+                    row.iter().map(|&val| val * (2.0 / sigma2)).collect()
+                }).collect();
+
+                match crate::uncertainty::compute_hessian_standard_errors(&scaled_hessian, observed.len()) {
+                    Ok(mut uncertainty_result) => {
+                        // Override method name
+                        uncertainty_result.method = "fisher".to_string();
+                        result.std_errors = Some(uncertainty_result.std_errors);
+                        result.cov_matrix = Some(uncertainty_result.cov_matrix);
+                        result.correlations = Some(uncertainty_result.correlations);
+                        result.uncertainty_method = Some("fisher".to_string());
+                    }
+                    Err(_e) => {
+                        // If Fisher computation fails, just continue with None
+                    }
+                }
+            }
+            Err(_e) => {
+                // If Hessian computation fails, just continue with None
+            }
+        }
     } else if uncertainty_method != "none" {
         // Other methods will be implemented later
         // For now, just return the result without uncertainty
     }
 
     Ok(result)
+}
+
+/// Compute parameter standard errors via Jackknife resampling (leave-one-out)
+///
+/// Re-optimizes the model N times, each time leaving out one observation,
+/// and computes empirical standard errors from the distribution of parameter estimates.
+fn compute_jackknife_uncertainty(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+) -> Result<crate::uncertainty::UncertaintyResult, String> {
+    let n_obs = observed.len();
+    let n_params = initial_params.len();
+
+    if n_obs < 2 {
+        return Err("Need at least 2 observations for Jackknife".to_string());
+    }
+
+    // Collect jackknife parameter estimates via parallel processing
+    use rayon::prelude::*;
+    let jackknife_params: Vec<Vec<f64>> = (0..n_obs)
+        .into_par_iter()
+        .map(|leave_out_idx| {
+            // Create dataset without observation at leave_out_idx
+            let observed_loo: Vec<f64> = observed
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| *idx != leave_out_idx)
+                .map(|(_, &val)| val)
+                .collect();
+
+            let x_loo: Vec<f64> = x
+                .iter()
+                .enumerate()
+                .filter(|(idx, _)| *idx != leave_out_idx)
+                .map(|(_, &val)| val)
+                .collect();
+
+            // Re-optimize on leave-one-out dataset
+            match optimize_with_fallback(&observed_loo, &x_loo, initial_params, shape_type, ascending, objective.clone()) {
+                Ok(result) => result.params,
+                Err(_) => {
+                    // If optimization fails on this fold, return original params as fallback
+                    initial_params.to_vec()
+                }
+            }
+        })
+        .collect();
+
+    // Compute empirical mean of parameter estimates
+    let mut param_means = vec![0.0; n_params];
+    for params in &jackknife_params {
+        for (i, &p) in params.iter().enumerate() {
+            param_means[i] += p;
+        }
+    }
+    for mean in &mut param_means {
+        *mean /= n_obs as f64;
+    }
+
+    // Compute empirical covariance matrix
+    let mut cov_matrix = vec![vec![0.0; n_params]; n_params];
+    for params in &jackknife_params {
+        for i in 0..n_params {
+            for j in 0..n_params {
+                let dev_i = params[i] - param_means[i];
+                let dev_j = params[j] - param_means[j];
+                cov_matrix[i][j] += dev_i * dev_j;
+            }
+        }
+    }
+
+    // Scale by (n-1) / n for jackknife
+    let scale_factor = (n_obs - 1) as f64 / n_obs as f64;
+    for i in 0..n_params {
+        for j in 0..n_params {
+            cov_matrix[i][j] *= scale_factor;
+        }
+    }
+
+    // Extract standard errors from diagonal
+    let std_errors: Vec<f64> = (0..n_params)
+        .map(|i| cov_matrix[i][i].abs().sqrt())
+        .collect();
+
+    // Compute correlations
+    let correlations = compute_parameter_correlations(&cov_matrix, &std_errors);
+
+    Ok(crate::uncertainty::UncertaintyResult {
+        std_errors,
+        cov_matrix,
+        correlations,
+        method: "jackknife".to_string(),
+    })
+}
+
+/// Compute parameter correlations from covariance matrix and standard errors
+fn compute_parameter_correlations(cov_matrix: &[Vec<f64>], std_errors: &[f64]) -> Vec<Vec<f64>> {
+    let n = std_errors.len();
+    let mut correlations = vec![vec![0.0; n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            if std_errors[i] > 0.0 && std_errors[j] > 0.0 {
+                correlations[i][j] = cov_matrix[i][j] / (std_errors[i] * std_errors[j]);
+            } else {
+                correlations[i][j] = 0.0;
+            }
+        }
+    }
+
+    correlations
 }
 
 #[cfg(test)]

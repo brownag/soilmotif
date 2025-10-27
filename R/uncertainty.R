@@ -107,7 +107,7 @@ sm_optim_bootstrap <- function(
   optimizer = "auto",
   n_bootstrap = 1000L,
   method = c("auto", "parametric", "sieve"),
-  sieve_threshold = 20L,
+  sieve_threshold = 10000L,
   seed = NULL,
   fallback_strategy = c("auto", "explicit", "strict"),
   strict = FALSE,
