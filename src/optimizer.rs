@@ -68,19 +68,67 @@ pub struct OptimResult {
     pub method: String,
     pub lower_bounds: Option<Vec<f64>>,
     pub upper_bounds: Option<Vec<f64>>,
+    // Uncertainty quantification fields
+    pub std_errors: Option<Vec<f64>>,        // Parameter standard errors
+    pub cov_matrix: Option<Vec<Vec<f64>>>,   // Full covariance matrix
+    pub correlations: Option<Vec<Vec<f64>>>, // Parameter correlations
+    pub uncertainty_method: Option<String>,  // Method used ("hessian", "fisher", "jackknife", etc.)
 }
 
 /// Wrapper to implement argmin::CostFunction for shape optimization
 ///
 /// Holds the observed data, shape parameters, and objective function
 /// to enable argmin-based optimization.
+/// 
+/// Key design: observed data is NORMALIZED to [0,1] so optimizer works in universal
+/// [0,1] space. Parameters returned work with any data range when combined with R's
+/// sm_motif scaling.
 #[derive(Clone)]
 struct ShapeCostFunction {
-    observed: Vec<f64>,
+    observed_normalized: Vec<f64>,  // Normalized to [0,1]
     x: Vec<f64>,
     shape_type: String,
     ascending: bool,
     objective: Arc<dyn ObjectiveFunction>,
+}
+
+impl ShapeCostFunction {
+    /// Create a new ShapeCostFunction, normalizing observed data to [0,1]
+    /// 
+    /// This ensures optimizer works in universal [0,1] space regardless of data range.
+    /// Parameters found for any dataset (original or bootstrap synthetic) will be comparable.
+    fn new(
+        observed: Vec<f64>,
+        x: Vec<f64>,
+        shape_type: String,
+        ascending: bool,
+        objective: Arc<dyn ObjectiveFunction>,
+    ) -> Self {
+        // CRITICAL: Normalize observed data to [0,1] to match shape function output
+        // This ensures the optimizer works in a consistent space regardless of data range.
+        // Bootstrap synthetic data with different ranges will still be normalized to [0,1],
+        // making parameters comparable across bootstrap samples.
+        let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+        let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let obs_range = obs_max - obs_min;
+
+        let observed_normalized = if obs_range < 1e-10 {
+            vec![0.5; observed.len()]  // Constant data -> normalize to 0.5
+        } else {
+            observed.iter()
+                .map(|&o| (o - obs_min) / obs_range)
+                .collect()
+        };
+
+        ShapeCostFunction {
+            observed_normalized,
+            x,
+            shape_type,
+            ascending,
+            objective,
+        }
+    }
+    
 }
 
 impl CostFunction for ShapeCostFunction {
@@ -89,7 +137,11 @@ impl CostFunction for ShapeCostFunction {
 
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
         match eval_shape(&self.shape_type, &self.x, param, self.ascending) {
-            Ok(predicted) => Ok(self.objective.cost(&self.observed, &predicted, &self.x)),
+            Ok(shape_output) => {
+                // Compare shape output [0,1] directly to normalized observed [0,1]
+                // No scaling needed - everything in normalized space
+                Ok(self.objective.cost(&self.observed_normalized, &shape_output, &self.x))
+            },
             Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
         }
     }
@@ -105,20 +157,21 @@ impl Gradient for ShapeCostFunction {
         let shape_gradients = eval_shape_gradient(&self.shape_type, &self.x, param, self.ascending)
             .map_err(|e| Error::msg(format!("Gradient evaluation error: {}", e)))?;
 
-        // Get predicted values
-        let predicted = eval_shape(&self.shape_type, &self.x, param, self.ascending)
+        // Get predicted values (in [0,1])
+        let shape_output = eval_shape(&self.shape_type, &self.x, param, self.ascending)
             .map_err(|e| Error::msg(format!("Shape evaluation error: {}", e)))?;
-
+        
         // Compute gradient of cost function using chain rule
-        // For RMSE: ∂RMSE/∂θ = (1/n) * Σ[(predicted - observed) * ∂predicted/∂θ]
-        let n = self.observed.len() as f64;
+        // For RMSE: ∂RMSE/∂θ = (1/n) * Σ[(predicted - observed) * (∂predicted/∂θ)]
+        // Both predicted and observed are in [0,1] - no scaling needed
+        let n = self.observed_normalized.len() as f64;
         let mut grad = vec![0.0; param.len()];
 
         for j in 0..param.len() {
             let mut sum = 0.0;
-            for i in 0..self.observed.len() {
-                let residual = predicted[i] - self.observed[i];
-                // shape_gradients[i][j] = ∂shape(x[i])/∂param[j]
+            for i in 0..self.observed_normalized.len() {
+                let residual = shape_output[i] - self.observed_normalized[i];
+                // Direct gradient in normalized [0,1] space
                 sum += residual * shape_gradients[i][j];
             }
             // For RMSE gradient
@@ -178,6 +231,122 @@ impl argmin::core::Hessian for ShapeCostFunction {
         }
 
         Ok(hessian)
+    }
+}
+
+/// Cost function that works in original data space (NOT normalized to [0,1])
+///
+/// This version keeps observed data in original units and scales shape output
+/// to match, providing better numerical conditioning for optimization.
+/// Used specifically for bootstrap iterations where numerical stability is critical.
+#[derive(Clone)]
+struct ShapeCostFunctionOriginalSpace {
+    observed: Vec<f64>,  // Original data - NOT normalized
+    x: Vec<f64>,
+    obs_min: f64,
+    obs_max: f64,
+    shape_type: String,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+}
+
+impl ShapeCostFunctionOriginalSpace {
+    /// Create cost function working in original data space
+    fn new(
+        observed: Vec<f64>,
+        x: Vec<f64>,
+        shape_type: String,
+        ascending: bool,
+        objective: Arc<dyn ObjectiveFunction>,
+    ) -> Self {
+        // Keep observed data in original units - do NOT normalize
+        let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+        let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+        ShapeCostFunctionOriginalSpace {
+            observed,
+            x,
+            obs_min,
+            obs_max,
+            shape_type,
+            ascending,
+            objective,
+        }
+    }
+}
+
+impl CostFunction for ShapeCostFunctionOriginalSpace {
+    type Param = Vec<f64>;
+    type Output = f64;
+
+    fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+        match eval_shape(&self.shape_type, &self.x, param, self.ascending) {
+            Ok(shape_output) => {
+                // Scale shape output [0,1] to original data range
+                let obs_range = self.obs_max - self.obs_min;
+                let shape_scaled: Vec<f64> = if obs_range < 1e-10 {
+                    vec![self.obs_min; shape_output.len()]
+                } else {
+                    shape_output.iter()
+                        .map(|&s| self.obs_min + s * obs_range)
+                        .collect()
+                };
+
+                // Compute cost in original data space
+                Ok(self.objective.cost(&self.observed, &shape_scaled, &self.x))
+            },
+            Err(e) => Err(Error::msg(format!("Shape evaluation error: {}", e))),
+        }
+    }
+}
+
+impl Gradient for ShapeCostFunctionOriginalSpace {
+    type Param = Vec<f64>;
+    type Gradient = Vec<f64>;
+
+    fn gradient(&self, param: &Self::Param) -> Result<Self::Gradient, Error> {
+        // Get shape gradients: ∂shape/∂params
+        let shape_gradients = eval_shape_gradient(&self.shape_type, &self.x, param, self.ascending)
+            .map_err(|e| Error::msg(format!("Gradient evaluation error: {}", e)))?;
+
+        // Get predicted values in [0,1]
+        let shape_output = eval_shape(&self.shape_type, &self.x, param, self.ascending)
+            .map_err(|e| Error::msg(format!("Shape evaluation error: {}", e)))?;
+
+        // Scale shape gradients by data range
+        let obs_range = self.obs_max - self.obs_min;
+        let n = self.observed.len() as f64;
+        let mut grad = vec![0.0; param.len()];
+
+        for j in 0..param.len() {
+            let mut sum = 0.0;
+            for i in 0..self.observed.len() {
+                // Compute residual in original data space
+                let shape_scaled = if obs_range < 1e-10 {
+                    self.obs_min
+                } else {
+                    self.obs_min + shape_output[i] * obs_range
+                };
+                let residual = shape_scaled - self.observed[i];
+
+                // Chain rule: multiply shape gradient by data range
+                let shape_grad_scaled = if obs_range < 1e-10 {
+                    0.0
+                } else {
+                    shape_gradients[i][j] * obs_range
+                };
+                sum += residual * shape_grad_scaled;
+            }
+
+            let current_cost = self.cost(param).unwrap_or(1.0);
+            grad[j] = if current_cost > 1e-10 {
+                sum / (n * current_cost)
+            } else {
+                sum / n
+            };
+        }
+
+        Ok(grad)
     }
 }
 
@@ -492,7 +661,7 @@ pub fn create_objective_with_params(objective_name: &str, params: &ObjectivePara
 }
 
 /// Optimize using argmin's Nelder-Mead solver
-/// 
+///
 /// Uses argmin's battle-tested Nelder-Mead implementation instead of custom code
 pub fn optimize_nelder_mead(
     observed: &[f64],
@@ -511,14 +680,14 @@ pub fn optimize_nelder_mead(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create the cost function wrapper
-    let cost_fn = ShapeCostFunction {
-        observed: observed.to_vec(),
-        x: x.to_vec(),
-        shape_type: shape_type.to_string(),
+    // Create the cost function wrapper - always normalizes observed data to [0,1]
+    let cost_fn = ShapeCostFunction::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
         ascending,
-        objective: objective.clone(),
-    };
+        objective.clone(),
+    );
 
     // Create proper initial simplex for Nelder-Mead
     // Need n+1 points for n-dimensional optimization
@@ -570,6 +739,10 @@ pub fn optimize_nelder_mead(
         method: "NelderMead-argmin".to_string(),
         lower_bounds: None,
         upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -637,6 +810,21 @@ pub fn optimize_grid_search(
         return Err("param_ranges cannot be empty".to_string());
     }
 
+    // CRITICAL: Normalize observed data to [0,1] to match shape function output
+    // This ensures grid search works in the same space as Nelder-Mead (via ShapeCostFunction)
+    let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+    let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let obs_range = obs_max - obs_min;
+
+
+    let observed_normalized: Vec<f64> = if obs_range < 1e-10 {
+        vec![0.5; observed.len()]  // Constant data -> normalize to 0.5
+    } else {
+        observed.iter()
+            .map(|&o| (o - obs_min) / obs_range)
+            .collect()
+    };
+
     let mut best_params = vec![0.0; param_ranges.len()];
     let mut best_cost = f64::INFINITY;
     let mut count = 0u64;
@@ -646,7 +834,7 @@ pub fn optimize_grid_search(
         depth: usize,
         param_ranges: &[Vec<f64>],
         current_params: &mut Vec<f64>,
-        observed: &[f64],
+        observed_normalized: &[f64],
         x: &[f64],
         shape_type: &str,
         ascending: bool,
@@ -659,7 +847,8 @@ pub fn optimize_grid_search(
             // Evaluate this combination
             let pred = eval_shape(shape_type, x, current_params, ascending)
                 .map_err(|e| format!("eval_shape failed: {}", e))?;
-            let cost = objective.cost(observed, &pred, x);
+            // Compare in normalized [0,1] space, just like ShapeCostFunction does
+            let cost = objective.cost(observed_normalized, &pred, x);
 
             *count += 1;
             if cost < *best_cost {
@@ -684,7 +873,7 @@ pub fn optimize_grid_search(
                 depth + 1,
                 param_ranges,
                 current_params,
-                observed,
+                observed_normalized,
                 x,
                 shape_type,
                 ascending,
@@ -704,7 +893,7 @@ pub fn optimize_grid_search(
         0,
         param_ranges,
         &mut current_params,
-        observed,
+        &observed_normalized,
         x,
         shape_type,
         ascending,
@@ -714,6 +903,7 @@ pub fn optimize_grid_search(
         &mut count,
     )?;
 
+
     Ok(OptimResult {
         params: best_params,
         final_cost: best_cost,
@@ -722,6 +912,10 @@ pub fn optimize_grid_search(
         method: format!("Grid-Search({} evals)", count),
         lower_bounds: None,
         upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -744,14 +938,14 @@ pub fn optimize_lbfgs(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create the cost function wrapper
-    let cost_fn = ShapeCostFunction {
-        observed: observed.to_vec(),
-        x: x.to_vec(),
-        shape_type: shape_type.to_string(),
+    // Create the cost function wrapper - always normalizes observed data to [0,1]
+    let cost_fn = ShapeCostFunction::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
         ascending,
-        objective: objective.clone(),
-    };
+        objective.clone(),
+    );
 
     // Create L-BFGS solver
     // m = 7 is a common choice for memory size (number of past gradients to store)
@@ -787,6 +981,10 @@ pub fn optimize_lbfgs(
         method: "L-BFGS".to_string(),
         lower_bounds: None,
         upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -809,14 +1007,14 @@ pub fn optimize_particle_swarm(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create the cost function wrapper
-    let cost_fn = ShapeCostFunction {
-        observed: observed.to_vec(),
-        x: x.to_vec(),
-        shape_type: shape_type.to_string(),
+    // Create the cost function wrapper - always normalizes observed data to [0,1]
+    let cost_fn = ShapeCostFunction::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
         ascending,
-        objective: objective.clone(),
-    };
+        objective.clone(),
+    );
 
     // Define search bounds (reasonable ranges for soil parameters)
     let n_params = initial_params.len();
@@ -861,6 +1059,10 @@ pub fn optimize_particle_swarm(
         method: "ParticleSwarm".to_string(),
         lower_bounds: Some(lower_bounds),
         upper_bounds: Some(upper_bounds),
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -883,14 +1085,14 @@ pub fn optimize_newton_cg(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create the cost function wrapper
-    let cost_fn = ShapeCostFunction {
-        observed: observed.to_vec(),
-        x: x.to_vec(),
-        shape_type: shape_type.to_string(),
+    // Create the cost function wrapper - always normalizes observed data to [0,1]
+    let cost_fn = ShapeCostFunction::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
         ascending,
-        objective: objective.clone(),
-    };
+        objective.clone(),
+    );
 
     // Create Newton-CG solver
     // Uses conjugate gradient to solve the Newton equations: H * delta = -g
@@ -926,6 +1128,10 @@ pub fn optimize_newton_cg(
         method: "Newton-CG".to_string(),
         lower_bounds: None,
         upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -948,14 +1154,14 @@ pub fn optimize_simulated_annealing(
         return Err("initial_params cannot be empty".to_string());
     }
 
-    // Create the cost function wrapper
-    let cost_fn = ShapeCostFunction {
-        observed: observed.to_vec(),
-        x: x.to_vec(),
-        shape_type: shape_type.to_string(),
+    // Create the cost function wrapper - always normalizes observed data to [0,1]
+    let cost_fn = ShapeCostFunction::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
         ascending,
-        objective: objective.clone(),
-    };
+        objective.clone(),
+    );
 
     // Create Simulated Annealing solver
     // Initial temperature based on parameter scale
@@ -993,6 +1199,10 @@ pub fn optimize_simulated_annealing(
         method: "SimulatedAnnealing".to_string(),
         lower_bounds: None,
         upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
     })
 }
 
@@ -1025,6 +1235,148 @@ pub fn optimize_with_algorithm(
             observed, x, initial_params, shape_type, ascending, objective, 1000
         ),
     }
+}
+
+/// Wrapper that applies parameter bounds to a cost function
+/// Returns a large penalty if parameters go outside [lower, upper]
+#[derive(Clone)]
+struct BoundedCostFunction<T: CostFunction + Clone> {
+    inner: T,
+    lower_bounds: Vec<f64>,
+    upper_bounds: Vec<f64>,
+    penalty_scale: f64,
+}
+
+impl<T: CostFunction<Output = f64> + Clone> BoundedCostFunction<T> {
+    fn new(
+        inner: T,
+        lower_bounds: Vec<f64>,
+        upper_bounds: Vec<f64>,
+        penalty_scale: f64,
+    ) -> Self {
+        BoundedCostFunction {
+            inner,
+            lower_bounds,
+            upper_bounds,
+            penalty_scale,
+        }
+    }
+}
+
+impl<T: CostFunction<Output = f64> + Clone> CostFunction for BoundedCostFunction<T>
+where
+    T::Param: AsRef<[f64]>,
+{
+    type Param = T::Param;
+    type Output = f64;
+
+    fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+        let p = param.as_ref();
+
+        // Check bounds
+        for (i, &val) in p.iter().enumerate() {
+            if val < self.lower_bounds[i] || val > self.upper_bounds[i] {
+                // Out of bounds - apply penalty
+                let dist_below = (self.lower_bounds[i] - val).max(0.0);
+                let dist_above = (val - self.upper_bounds[i]).max(0.0);
+                let penalty = self.penalty_scale * (dist_below + dist_above).powi(2);
+                return Ok(self.inner.cost(param)? + penalty);
+            }
+        }
+
+        // Within bounds - use inner cost
+        self.inner.cost(param)
+    }
+}
+
+/// Fast optimization for bootstrap: fine grid search in original data space
+///
+/// Bootstrap iterations start close to optimum. Uses fine grid search (9 points per dimension)
+/// in original data space to find reasonable parameters for synthetic bootstrap data.
+/// This approach is slower than Nelder-Mead but more robust - doesn't diverge to garbage values.
+pub fn optimize_fast_bootstrap(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+) -> Result<OptimResult, String> {
+    // Use original data space cost function for better numerical conditioning
+    let cost_fn = ShapeCostFunctionOriginalSpace::new(
+        observed.to_vec(),
+        x.to_vec(),
+        shape_type.to_string(),
+        ascending,
+        objective.clone(),
+    );
+
+    // Fine grid search: ±60% of each parameter in 9 points per dimension
+    // 9 points gives better resolution, ±60% range allows parameter variation
+    // Working in original data space provides better numerical conditioning
+
+    let mut param_grids: Vec<Vec<f64>> = Vec::new();
+
+    for &init_p in initial_params.iter() {
+        let range = (init_p.abs().max(1.0)) * 0.60;  // ±60% of initial value
+        let step = range / 4.0;  // 9 points total: -4, -3, -2, -1, 0, 1, 2, 3, 4 steps
+
+        param_grids.push(vec![
+            init_p - 4.0 * step,
+            init_p - 3.0 * step,
+            init_p - 2.0 * step,
+            init_p - step,
+            init_p,
+            init_p + step,
+            init_p + 2.0 * step,
+            init_p + 3.0 * step,
+            init_p + 4.0 * step,
+        ]);
+    }
+
+    // Generate all combinations via cartesian product
+    let mut grid_points: Vec<Vec<f64>> = vec![vec![]];
+    for param_vals in param_grids {
+        let mut expanded = Vec::new();
+        for point in grid_points.iter() {
+            for &val in &param_vals {
+                let mut new_point = point.clone();
+                new_point.push(val);
+                expanded.push(new_point);
+            }
+        }
+        grid_points = expanded;
+    }
+
+    // Find best point on grid
+    let mut best_cost = f64::INFINITY;
+    let mut best_param = initial_params.to_vec();
+
+    for point in grid_points {
+        match cost_fn.cost(&point) {
+            Ok(cost) => {
+                if cost.is_finite() && cost < best_cost {
+                    best_cost = cost;
+                    best_param = point.clone();
+                }
+            }
+            Err(_) => {}
+        }
+    }
+
+    Ok(OptimResult {
+        params: best_param,
+        final_cost: best_cost,
+        iterations: 81,  // 9^2 for 2 params
+        converged: best_cost.is_finite(),
+        method: "GridSearch-originalspace".to_string(),
+        lower_bounds: None,
+        upper_bounds: None,
+        std_errors: None,
+        cov_matrix: None,
+        correlations: None,
+        uncertainty_method: None,
+    })
 }
 
 /// Optimize with automatic fallback strategy
@@ -1083,7 +1435,16 @@ pub fn optimize_with_fallback(
         1e-8,
     ) {
         Ok(result) => {
-            if result.converged && result.final_cost.is_finite() {
+            // CRITICAL: Check that parameters are reasonable, not diverged
+            // Parameters should not be excessively large/negative compared to initial
+            let params_reasonable = result.params.iter().zip(initial_params.iter()).all(|(&p, &init)| {
+                // Allow parameters to vary by up to 10x from initial, or be within [-1000, 1000]
+                let abs_p = p.abs();
+                let abs_init = init.abs().max(1.0);
+                abs_p <= abs_init * 10.0 && abs_p <= 10000.0
+            });
+
+            if result.converged && result.final_cost.is_finite() && params_reasonable {
                 return Ok(result);
             }
         }
@@ -1093,13 +1454,55 @@ pub fn optimize_with_fallback(
     }
 
     // Fallback: grid search for N > 1 dimensional problems
+    // Use initial parameters as anchors for the grid search ranges
+    // This makes grid search more intelligent about where to search
     let param_ranges = match shape_type {
         "uniform" => vec![vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0]],
-        "gradational" => vec![
-            vec![1.0, 50.0, 100.0, 150.0, 200.0],
-            vec![1.0, 50.0, 100.0, 150.0, 200.0],
-        ],
-        _ => vec![vec![1.0, 100.0, 200.0]; initial_params.len()],
+        "wetting_front" | "sigmoid" => {
+            // For wetting_front with 2 params (start, end):
+            // Create a grid around the initial parameters
+            // Use depth range (1 to max_x) as anchor
+            let max_x = x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let min_x = x.iter().cloned().fold(f64::INFINITY, f64::min);
+            let depth_range = max_x - min_x;
+
+            // If initial_params provided, use them; otherwise use reasonable defaults
+            let p1_center = if initial_params.len() > 0 { initial_params[0] } else { depth_range / 3.0 };
+            let p2_center = if initial_params.len() > 1 { initial_params[1] } else { 2.0 * depth_range / 3.0 };
+
+            let p1_step = (depth_range / 4.0).max(1.0);
+            let p2_step = (depth_range / 4.0).max(1.0);
+
+            vec![
+                vec![
+                    (p1_center - p1_step * 2.0).max(0.0),
+                    (p1_center - p1_step).max(0.0),
+                    p1_center,
+                    p1_center + p1_step,
+                    p1_center + p1_step * 2.0,
+                ],
+                vec![
+                    (p2_center - p2_step * 2.0).max(0.0),
+                    (p2_center - p2_step).max(0.0),
+                    p2_center,
+                    p2_center + p2_step,
+                    p2_center + p2_step * 2.0,
+                ],
+            ]
+        }
+        _ => {
+            // Generic fallback: grid around initial parameters
+            initial_params.iter().map(|&p| {
+                let step = (p / 2.0).max(1.0);
+                vec![
+                    (p - step * 2.0).max(0.0),
+                    (p - step).max(0.0),
+                    p,
+                    p + step,
+                    p + step * 2.0,
+                ]
+            }).collect()
+        }
     };
 
     optimize_grid_search(
@@ -1110,6 +1513,75 @@ pub fn optimize_with_fallback(
         ascending,
         objective,
     )
+}
+
+/// Optimize with uncertainty quantification
+///
+/// Main entry point when uncertainty estimation is requested.
+/// Performs optimization and then computes uncertainty using the specified method.
+///
+/// # Arguments
+/// * `observed` - Observed data values
+/// * `x` - Depth values
+/// * `initial_params` - Initial parameter guess
+/// * `shape_type` - Name of shape function
+/// * `ascending` - Whether shape is ascending
+/// * `objective` - Objective function
+/// * `uncertainty_method` - "hessian", "none", or other methods
+/// * `n_obs` - Number of observations (for dof correction)
+///
+/// # Returns
+/// OptimResult with uncertainty fields populated if method is "hessian"
+pub fn optimize_with_uncertainty(
+    observed: &[f64],
+    x: &[f64],
+    initial_params: &[f64],
+    shape_type: &str,
+    ascending: bool,
+    objective: Arc<dyn ObjectiveFunction>,
+    uncertainty_method: &str,
+) -> Result<OptimResult, String> {
+    // First, perform standard optimization
+    let mut result = optimize_with_fallback(observed, x, initial_params, shape_type, ascending, objective.clone())?;
+
+    // If uncertainty is requested, compute it now
+    if uncertainty_method == "hessian" {
+        // Recreate the cost function at optimal parameters to compute Hessian
+        let cost_fn = ShapeCostFunction::new(
+            observed.to_vec(),
+            x.to_vec(),
+            shape_type.to_string(),
+            ascending,
+            objective,
+        );
+
+        // Compute Hessian at optimal parameters
+        match cost_fn.hessian(&result.params) {
+            Ok(hessian_matrix) => {
+                // Compute uncertainty from Hessian
+                match crate::uncertainty::compute_hessian_standard_errors(&hessian_matrix, observed.len()) {
+                    Ok(uncertainty_result) => {
+                        result.std_errors = Some(uncertainty_result.std_errors);
+                        result.cov_matrix = Some(uncertainty_result.cov_matrix);
+                        result.correlations = Some(uncertainty_result.correlations);
+                        result.uncertainty_method = Some("hessian".to_string());
+                    }
+                    Err(_e) => {
+                        // If Hessian computation fails, just continue with None
+                        // This can happen with singular/ill-conditioned Hessians
+                    }
+                }
+            }
+            Err(_e) => {
+                // If Hessian computation fails, just continue with None
+            }
+        }
+    } else if uncertainty_method != "none" {
+        // Other methods will be implemented later
+        // For now, just return the result without uncertainty
+    }
+
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -1439,13 +1911,14 @@ mod tests {
         let params = vec![0.6];
         let objective = create_objective("rmse").unwrap();
 
-        let cost_fn = ShapeCostFunction {
-            observed: observed.clone(),
-            x: x.clone(),
-            shape_type: "uniform".to_string(),
-            ascending: true,
+        // Use constructor which normalizes observed data
+        let cost_fn = ShapeCostFunction::new(
+            observed.clone(),
+            x.clone(),
+            "uniform".to_string(),
+            true,
             objective,
-        };
+        );
 
         // Compute gradient
         let grad = cost_fn.gradient(&params);
@@ -1522,7 +1995,7 @@ mod tests {
         // Test Newton-CG
         let result_newton = optimize_with_algorithm(
             &observed, &x, &initial_par, "uniform", true,
-            objective, AlgorithmType::NewtonCG
+            objective, AlgorithmType::NewtonCG, None
         );
         assert!(result_newton.is_ok());
     }

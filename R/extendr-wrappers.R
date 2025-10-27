@@ -103,6 +103,14 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 #'                      shape_type, ascending, objective_type, algorithm, PACKAGE = "soilmotif")`
 optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, algorithm) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, algorithm)
 
+#' Optimize with uncertainty quantification
+#'
+#' Called via R: `.Call("optimize_with_uncertainty_rust", observed, x, initial_params,
+#'                      shape_type, ascending, objective_type, uncertainty_method, PACKAGE = "soilmotif")`
+#'
+#' Returns a list with: params, std_errors, cov_matrix, correlations, convergence info
+optimize_with_uncertainty_rust <- function(observed, x, initial_params, shape_type, ascending, objective_type, uncertainty_method) .Call(wrap__optimize_with_uncertainty_rust, observed, x, initial_params, shape_type, ascending, objective_type, uncertainty_method)
+
 #' Optimizes multiple profiles in batch with error collection and reporting.
 #' Returns results as a structured list that R will process into proper format.
 #' 
@@ -130,9 +138,9 @@ optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_ty
 batch_optimize_profiles_rust <- function(profiles_list, params_list, x, shape_type, ascending, objective_type) .Call(wrap__batch_optimize_profiles_rust, profiles_list, params_list, x, shape_type, ascending, objective_type)
 
 #' Parametric bootstrap engine (Rust implementation)
-#' 
+#'
 #' Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
-#' 
+#'
 #' The `config` parameter is an R list with fields:
 #' - shape_type: character
 #' - objective_name: character

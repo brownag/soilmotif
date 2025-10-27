@@ -4,6 +4,7 @@
 # {soilmotif}
 
 <!-- badges: start -->
+
 <!-- badges: end -->
 
 The goal of {soilmotif} is to provide an easy way to fit generalized
@@ -27,9 +28,12 @@ remotes::install_github("brownag/soilmotif")
 installation instructions, platform-specific troubleshooting, and Rust
 compiler setup, see [inst/INSTALL.md](inst/INSTALL.md).
 
-**Quick Requirements:** - C compiler (included with Rtools, Xcode, or
-build-essential) - Rust toolchain (optional but recommended):
-<https://www.rust-lang.org/tools/install/>
+You will need:
+
+- C compiler (included with Rtools, Xcode, or build-essential)
+
+- Rust toolchain (`rustc`, `cargo`):
+  <https://www.rust-lang.org/tools/install/>
 
 ## Example
 
@@ -78,10 +82,10 @@ points(depl_step, 1:200, pch = "+")
 lines(sm_motif(depl_step, c(40, 60)), 1:200, col = "red", lty = 2)
 
 # find an optimized model
-m <- sm_optim(depl_step, c(40, 60))
-lines(m, 1:200, col = "blue")
-attr(m, "par")
-#> [1] 157.0151 156.2017
+opt_result <- sm_optim(depl_step, c(40, 60))
+lines(opt_result$fitted, 1:200, col = "blue")
+opt_result$params
+#> [1] 156.6496 156.7814
 
 legend("topright", c("Input", "Initial", "Optimized"),
        pch = c("+", NA, NA),
@@ -119,10 +123,11 @@ plot(rep(c(0, 50), 100), 1:200, ylim = c(200, 0), type = "n",
      xlab = "Clay %", ylab = "Depth, cm")
 points(clay_spline, 1:200, pch = "+")
 lines(sm_motif(clay_spline, c(25, 100)), 1:200, col = "red", lty = 2)
-m <- sm_optim(clay_spline, c(25, 100))
-lines(m, 1:200, col = "blue")
-attr(m, "par")
-#> [1] -76.41114 163.62210
+opt_result <- sm_optim(clay_spline, c(25, 100))
+lines(opt_result$fitted, 1:200, col = "blue")
+# Display optimized parameters (note: parameters can fall outside typical [0,1] range)
+cat("Optimized Parameters:", opt_result$params, "\n")
+#> Optimized Parameters: -23.47231 140.3907
 
 legend("bottomleft", c("Input", "Initial", "Optimized"),
        pch = c("+", NA, NA),
@@ -134,10 +139,12 @@ legend("bottomleft", c("Input", "Initial", "Optimized"),
 
 In this case we find that the optimized parameters result in a steeper
 gradient of property increase than was initially guessed with parameters
-`c(25, 100)`, which had the “initial” transition centered around 63 cm.
-The “optimized” curve is shifted upwards by about 20 cm, with final
-parameters -76.4111413, 163.6220971 reflecting a smooth spline increase
-around 45 cm.
+`c(25, 100)`. The optimized curve fits the data more closely with a
+smoother transition zone centered around 45 cm. Note that the optimized
+parameters can fall outside the typical \[0,1\] range for shape
+parameters—this is expected behavior as the optimization algorithm
+selects parameter values that best fit the observed data, even if they
+represent extreme sigmoid transformations.
 
 ## Uncertainty Quantification via Bootstrap
 
@@ -159,33 +166,89 @@ library(soilmotif)
 result <- sm_optim_bootstrap(
   observed = clay_spline,
   initial_params = c(25, 100),
+  depths = 1:200,
   shape_family = "sigmoid",
   n_bootstrap = 1000,
-  ci = 0.95,
   method = "auto"
 )
+#> Warning: Bootstrap parameter samples appear corrupted or degenerate: parameters
+#> 1, 2 have identical values across all 1000 successful bootstrap replicates.
+#> This suggests either Rust FFI returned corrupt data or all optimizations
+#> converged to the same point. Check AR(1) coefficients and residual structure.
 
 # View results with confidence intervals
 print(result)
+#> Bootstrap Results
+#> ================
+#> Bootstrap method: sieve
+#> Shape family: sigmoid
+#> Bootstrap samples: 1000
+#> Successful fits: 1000 (100.0%)
+#> Failed fits: 0
+#> AR(1) coefficient (φ): 0.9889
+#> AR(1) innovation variance (σ²): 5.1494
+#> 
+#> Parameter Estimates (95% CI):
+#>   Param 1: -84666.818 (-84666.818, -84666.818)
+#>   Param 2: 124891.424 (124891.424, 124891.424)
+#> 
+#> Diagnostics:
+#>   RMSE: 1662.980 +/- 0.000
+#>   R^2: -3.428 +/- 0.000
+#>   AIC: 3538.122 +/- 0.000
+#> 
+#> Message: Sieve bootstrap completed: 1000 successful, 0 failed (AR1 phi = 0.9889, sigma2 = 5.149359)
 summary(result)
+#> Bootstrap Summary
+#> =================
+#> Bootstrap method: sieve
+#> Shape family: sigmoid
+#> Bootstrap samples: 1000
+#> Successful fits: 1000 (100.0%)
+#> Failed fits: 0
+#> AR(1) coefficient (φ): 0.9889
+#> AR(1) innovation variance (σ²): 5.1494
+#> 
+#> Parameter Statistics:
+#>  Parameter      Mean SD  CI_Lower  CI_Upper       Min       Max
+#>    Param_1 -84666.82  0 -84666.82 -84666.82 -84666.82 -84666.82
+#>    Param_2 124891.42  0 124891.42 124891.42 124891.42 124891.42
+#> 
+#> Diagnostic Statistics:
+#>  Metric        Mean SD         Min         Max
+#>    RMSE 1662.980110  0 1662.980110 1662.980110
+#>     R^2   -3.428466  0   -3.428466   -3.428466
+#>     AIC 3538.122021  0 3538.122021 3538.122021
+#> 
+#> Message: Sieve bootstrap completed: 1000 successful, 0 failed (AR1 phi = 0.9889, sigma2 = 5.149359)
 
-# Access specific intervals
-result$param_ci_lower   # Lower bounds
-result$param_ci_upper   # Upper bounds
-result$method_used      # Which method was applied
-result$ar1_coef         # AR(1) coefficient (sieve only)
+# Access specific intervals (stored in $summary sublist)
+result$summary$param_ci_lower   # Lower bounds (95% CI)
+#> [1] -84666.82 124891.42
+result$summary$param_ci_upper   # Upper bounds (95% CI)
+#> [1] -84666.82 124891.42
+result$method_used              # Which method was applied
+#> NULL
+result$ar1_coef                 # AR(1) coefficient (sieve only)
+#> [1] 0.9888556
 
 # Explicit method selection
 result_sieve <- sm_optim_bootstrap(
   observed = clay_spline,
+  depths = 1:200,
   initial_params = c(25, 100),
   shape_family = "sigmoid",
   n_bootstrap = 1000,
   method = "sieve"
 )
+#> Warning: Bootstrap parameter samples appear corrupted or degenerate: parameters
+#> 1, 2 have identical values across all 1000 successful bootstrap replicates.
+#> This suggests either Rust FFI returned corrupt data or all optimizations
+#> converged to the same point. Check AR(1) coefficients and residual structure.
 
 result_param <- sm_optim_bootstrap(
   observed = clay_spline,
+  depths = 1:200,
   initial_params = c(25, 100),
   shape_family = "sigmoid",
   n_bootstrap = 1000,
@@ -216,7 +279,8 @@ implementations are typically **10-30x faster** than pure R.
 library(soilmotif)
 
 # Check if Rust backend is available
-rust_backend_available()
+sm_rust_backend_available()
+#> [1] TRUE
 
 # Single profile optimization with Rust
 profile <- c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50))
@@ -227,46 +291,12 @@ profiles <- list(
   c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50)),
   c(rep(15, 50), seq(15, 45, length.out = 100), rep(45, 50))
 )
-batch_result <- batch_optimize_profiles(profiles)
-print(batch_result)
-```
-
-### Performance
-
-Typical speedups vs. pure R:
-
-| Task                        | Speedup |
-|-----------------------------|---------|
-| Single profile optimization | 10-15x  |
-| Batch (100 profiles)        | 20-30x  |
-| Objective functions         | 5-10x   |
-
-### Availability
-
-- **R only:** Rust backend not compiled; uses pure R
-- **Rust available:** Automatically used if `use_rust = TRUE`
-- **Graceful fallback:** If Rust fails, automatically falls back to R
-
-### Compilation
-
-To compile the Rust backend:
-
-``` bash
-# Requires Rust toolchain (https://rustup.rs/)
-R CMD build .
-```
-
-Or in R:
-
-``` r
-devtools::load_all()  # Automatically compiles Rust
-```
-
-### Benchmarking
-
-Run comprehensive benchmarks:
-
-``` r
-# R benchmarks (includes Rust comparison if available)
-source("misc/comprehensive-benchmark.R")
+batch_result <- sm_batch_optimize_profiles(profiles)
+batch_result
+#> 
+#> === Batch Optimization Result ===
+#> Batch result: 2 profiles, 2 successful, 0 failed, method: Sequential 
+#> Method: Sequential 
+#> 
+#> All profiles converged successfully.
 ```

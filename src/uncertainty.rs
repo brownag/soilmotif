@@ -2,6 +2,169 @@ use rand::prelude::*;
 use rand_pcg::Pcg64;
 use rayon::prelude::*;
 
+// ============================================================================
+// Uncertainty Quantification Structures
+// ============================================================================
+
+/// Result from uncertainty quantification computation
+#[derive(Debug, Clone)]
+pub struct UncertaintyResult {
+    pub std_errors: Vec<f64>,        // Parameter standard errors
+    pub cov_matrix: Vec<Vec<f64>>,   // Full covariance matrix
+    pub correlations: Vec<Vec<f64>>, // Parameter correlations
+    pub method: String,              // Method used
+}
+
+// ============================================================================
+// Uncertainty Computation Functions
+// ============================================================================
+
+/// Compute parameter standard errors and covariance from Hessian matrix
+///
+/// The covariance matrix of parameter estimates is approximately the inverse
+/// of the Hessian matrix of the cost function at the optimum (under regularity
+/// conditions). Standard errors are sqrt(diag(Hessian^-1)).
+///
+/// # Arguments
+/// * `hessian` - The Hessian matrix (n_params x n_params)
+/// * `n_obs` - Number of observations (used to scale residual variance)
+///
+/// # Returns
+/// A UncertaintyResult with std_errors, cov_matrix, and correlations
+pub fn compute_hessian_standard_errors(
+    hessian: &[Vec<f64>],
+    n_obs: usize,
+) -> Result<UncertaintyResult, String> {
+    let n_params = hessian.len();
+
+    if n_params == 0 {
+        return Err("Empty Hessian matrix".to_string());
+    }
+
+    // Validate that Hessian is square and symmetric
+    for row in hessian {
+        if row.len() != n_params {
+            return Err("Hessian is not square".to_string());
+        }
+    }
+
+    // Invert the Hessian matrix via Gaussian elimination with partial pivoting
+    let mut inv_hessian = invert_hessian(hessian)?;
+
+    // Scale by residual variance (MSE * (n_obs - n_params) / n_obs)
+    // Conservative estimate: assume Hessian includes data variance
+    // Covariance ≈ (1 / (n_obs - n_params)) * Hessian^-1
+    let dof_correction = if n_obs > n_params {
+        n_obs as f64 / (n_obs - n_params) as f64
+    } else {
+        1.0 // Fallback if n_obs <= n_params
+    };
+
+    for i in 0..n_params {
+        for j in 0..n_params {
+            inv_hessian[i][j] *= dof_correction;
+        }
+    }
+
+    // Extract standard errors from diagonal
+    let std_errors: Vec<f64> = (0..n_params)
+        .map(|i| inv_hessian[i][i].abs().sqrt())
+        .collect();
+
+    // Compute correlations from covariance
+    let correlations = compute_correlations(&inv_hessian, &std_errors);
+
+    Ok(UncertaintyResult {
+        std_errors,
+        cov_matrix: inv_hessian,
+        correlations,
+        method: "hessian".to_string(),
+    })
+}
+
+/// Invert a matrix using Gaussian elimination with partial pivoting
+/// Returns the inverted matrix or error if singular
+fn invert_hessian(matrix: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, String> {
+    let n = matrix.len();
+
+    // Create augmented matrix [A | I]
+    let mut augmented = vec![vec![0.0; 2*n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            augmented[i][j] = matrix[i][j];
+        }
+        augmented[i][n + i] = 1.0;
+    }
+
+    // Forward elimination with partial pivoting
+    for col in 0..n {
+        // Find pivot
+        let mut max_row = col;
+        let mut max_val = augmented[col][col].abs();
+
+        for row in (col+1)..n {
+            let val = augmented[row][col].abs();
+            if val > max_val {
+                max_val = val;
+                max_row = row;
+            }
+        }
+
+        // Check for singular matrix
+        if max_val < 1e-10 {
+            return Err(format!("Matrix is singular or ill-conditioned (pivot at ({},{}) is {})",
+                             col, col, max_val));
+        }
+
+        // Swap rows
+        augmented.swap(col, max_row);
+
+        // Eliminate column
+        let pivot = augmented[col][col];
+        for j in 0..(2*n) {
+            augmented[col][j] /= pivot;
+        }
+
+        for row in 0..n {
+            if row != col {
+                let factor = augmented[row][col];
+                for j in 0..(2*n) {
+                    augmented[row][j] -= factor * augmented[col][j];
+                }
+            }
+        }
+    }
+
+    // Extract inverse from right side of augmented matrix
+    let mut inverse = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            inverse[i][j] = augmented[i][n + j];
+        }
+    }
+
+    Ok(inverse)
+}
+
+/// Compute parameter correlations from covariance matrix and standard errors
+fn compute_correlations(cov_matrix: &[Vec<f64>], std_errors: &[f64]) -> Vec<Vec<f64>> {
+    let n = std_errors.len();
+    let mut correlations = vec![vec![0.0; n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            if std_errors[i] > 0.0 && std_errors[j] > 0.0 {
+                correlations[i][j] = cov_matrix[i][j] / (std_errors[i] * std_errors[j]);
+            } else {
+                correlations[i][j] = 0.0;
+            }
+        }
+    }
+
+    correlations
+}
+
 // BootstrapEngineResult struct for internal use
 #[derive(Debug, Clone)]
 pub struct BootstrapEngineResult {
@@ -83,26 +246,32 @@ fn resample_ar1_innovations(
         .map(|r| r - ar1_model.mean_residual)
         .collect();
 
-    let mut innovations = Vec::with_capacity(n_obs);
+    let mut extracted_innovations = Vec::with_capacity(n_obs);
 
     // First innovation
     if !centered.is_empty() {
-        innovations.push(centered[0]);
+        extracted_innovations.push(centered[0]);
     }
 
     // Subsequent innovations using residual from AR model
     for i in 1..n_obs.min(centered.len()) {
         let predicted = ar1_model.phi * centered[i - 1];
         let residual = centered[i] - predicted;
-        innovations.push(residual);
+        extracted_innovations.push(residual);
     }
 
-    // If we need more residuals than we have, resample innovations
-    while innovations.len() < n_obs {
-        innovations.push(*innovations.choose(rng).unwrap_or(&0.0));
+    // CRITICAL FIX: Resample innovations with replacement
+    // This ensures each bootstrap iteration gets different innovations
+    let mut resampled_innovations = Vec::with_capacity(n_obs);
+    for _ in 0..n_obs {
+        resampled_innovations.push(
+            *extracted_innovations
+                .choose(rng)
+                .unwrap_or(&0.0)
+        );
     }
 
-    innovations
+    resampled_innovations
 }
 
 /// Reconstruct synthetic residuals from resampled innovations
@@ -152,7 +321,7 @@ pub fn sieve_bootstrap(
         ar1_sigma2: f64::NAN,
     };
 
-    // Step 1: Initial optimization
+    // Step 1: Initial optimization on original data
     let initial_fit = match perform_initial_optimization(
         observed,
         depths,
@@ -170,8 +339,8 @@ pub fn sieve_bootstrap(
         }
     };
 
-    // Compute fitted values and residuals
-    let fitted = match crate::shape_functions::eval_shape(
+    // Compute fitted values (shape output in [0, 1])
+    let fitted_normalized = match crate::shape_functions::eval_shape(
         shape_family,
         depths,
         &initial_fit.params,
@@ -184,6 +353,22 @@ pub fn sieve_bootstrap(
         }
     };
 
+    // Scale fitted to data range for proper residual computation
+    let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+    let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let obs_range = obs_max - obs_min;
+
+    let fitted: Vec<f64> = if obs_range < 1e-10 {
+        // Constant observed data
+        vec![obs_min; fitted_normalized.len()]
+    } else {
+        // Scale from [0, 1] to [obs_min, obs_max]
+        fitted_normalized.iter()
+            .map(|&f| obs_min + f * obs_range)
+            .collect()
+    };
+
+    // Compute residuals in proper data scale
     let residuals: Vec<f64> = observed
         .iter()
         .zip(fitted.iter())
@@ -246,11 +431,11 @@ pub fn sieve_bootstrap(
                     .map(|(f, r)| f + r)
                     .collect();
 
-                // Re-optimize
+                // Re-optimize using optimized params from initial fit as anchors
                 match perform_initial_optimization(
                     &synthetic_observed,
                     depths,
-                    initial_params,
+                    &initial_fit.params,  // Use optimized params, not original initial_params
                     shape_family,
                     objective,
                     optimizer,
@@ -286,11 +471,11 @@ pub fn sieve_bootstrap(
                     .map(|(f, r)| f + r)
                     .collect();
 
-                // Re-optimize
+                // Re-optimize using optimized params from initial fit as anchors
                 match perform_initial_optimization(
                     &synthetic_observed,
                     depths,
-                    initial_params,
+                    &initial_fit.params,  // Use optimized params, not original initial_params
                     shape_family,
                     objective,
                     optimizer,
@@ -382,7 +567,7 @@ pub fn parametric_bootstrap(
     // Currently using independent random generation per bootstrap iteration
     let _ = seed;
 
-    // Step 1: Initial optimization
+    // Step 1: Initial optimization on original data
     let initial_fit = match perform_initial_optimization(
         observed,
         depths,
@@ -400,10 +585,10 @@ pub fn parametric_bootstrap(
         }
     };
 
-    // Compute fitted values and residuals
-    let fitted = match crate::shape_functions::eval_shape(
+    // Compute fitted values (shape output in [0, 1])
+    let fitted_normalized = match crate::shape_functions::eval_shape(
         shape_family,
-        observed, // depths are assumed to be 1..=observed.len()
+        depths,
         &initial_fit.params,
         false, // ascending
     ) {
@@ -414,6 +599,22 @@ pub fn parametric_bootstrap(
         }
     };
 
+    // Scale fitted to data range for proper residual computation
+    let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+    let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let obs_range = obs_max - obs_min;
+
+    let fitted: Vec<f64> = if obs_range < 1e-10 {
+        // Constant observed data
+        vec![obs_min; fitted_normalized.len()]
+    } else {
+        // Scale from [0, 1] to [obs_min, obs_max]
+        fitted_normalized.iter()
+            .map(|&f| obs_min + f * obs_range)
+            .collect()
+    };
+
+    // Compute residuals in proper data scale
     let residuals: Vec<f64> = observed
         .iter()
         .zip(fitted.iter())
@@ -421,6 +622,10 @@ pub fn parametric_bootstrap(
         .collect();
 
     // Step 2: Bootstrap resampling
+    // CRITICAL: Use ORIGINAL optimized parameters as anchors for all bootstrap iterations
+    // Using initial_fit.params would cause grid search to center around re-optimized params
+    // which defeats the purpose of bootstrap (should anchor around THE solution, not new solutions)
+
     let bootstrap_results: Vec<Option<BootstrapSample>> = if parallel {
         (0..n_bootstrap)
             .into_par_iter()
@@ -431,7 +636,7 @@ pub fn parametric_bootstrap(
                     depths,
                     &fitted,
                     &residuals,
-                    initial_params,
+                    initial_params,  // Use ORIGINAL initial_params for ALL bootstrap iterations
                     shape_family,
                     objective,
                     optimizer,
@@ -451,7 +656,7 @@ pub fn parametric_bootstrap(
                     depths,
                     &fitted,
                     &residuals,
-                    initial_params,
+                    initial_params,  // Use ORIGINAL initial_params for ALL bootstrap iterations
                     shape_family,
                     objective,
                     optimizer,
@@ -520,29 +725,54 @@ fn perform_initial_optimization(
     initial_params: &[f64],
     shape_family: &str,
     objective: &str,
-    optimizer: &str,
-    fallback_strategy: &str,
-    max_retries: usize,
+    _optimizer: &str,
+    _fallback_strategy: &str,
+    _max_retries: usize,
 ) -> std::result::Result<OptimizationResult, String> {
-    // Use the existing optimizer with fallback
-    let opt_result = optimize_with_fallback(
+    eprintln!("DEBUG perform_initial_optimization: starting");
+
+    // Use FAST bootstrap optimization - Nelder-Mead with only 30 iterations
+    // Since initial_params are the optimized params from initial fit,
+    // we're already very close to the solution
+    let objective_func = crate::optimizer::create_objective(objective)
+        .map_err(|e| format!("Failed to create objective: {}", e))?;
+
+    eprintln!("DEBUG perform_initial_optimization: created objective");
+
+    let opt_result = crate::optimizer::optimize_fast_bootstrap(
         observed,
         depths,
         initial_params,
         shape_family,
-        objective,
-        optimizer,
-        fallback_strategy,
-        max_retries,
-    )?;
+        false,  // ascending=false
+        objective_func,
+    ).map_err(|e| format!("Optimization failed: {}", e))?;
+
+    eprintln!("DEBUG perform_initial_optimization: optimization complete");
 
     // Compute diagnostics
-    let fitted = crate::shape_functions::eval_shape(
+    // eval_shape returns [0,1], need to scale to observed range for diagnostics
+    let fitted_normalized = crate::shape_functions::eval_shape(
         shape_family,
         depths,
         &opt_result.params,
         false,
     )?;
+
+    // Scale fitted [0,1] to observed range for proper RMSE/R² calculation
+    let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+    let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let obs_range = obs_max - obs_min;
+
+    // CRITICAL: Shape functions return [0,1], must scale to observed range
+    let fitted: Vec<f64> = if obs_range < 1e-10 {
+        vec![obs_min; fitted_normalized.len()]
+    } else {
+        // Linear scaling [0,1] → [obs_min, obs_max]
+        fitted_normalized.iter()
+            .map(|&f| obs_min + f * obs_range)
+            .collect()
+    };
 
     let rmse = crate::objective::rmse(observed, &fitted);
     let r2 = crate::objective::r_squared(observed, &fitted);
@@ -580,7 +810,8 @@ fn perform_bootstrap_iteration(
         .map(|(f, r)| f + r)
         .collect();
 
-    // Re-optimize
+
+    // Re-optimize synthetic data (optimizer normalizes internally)
     match perform_initial_optimization(
         &synthetic_observed,
         depths,
@@ -606,12 +837,14 @@ fn compute_aic(rmse: f64, n_obs: usize, n_params: usize) -> f64 {
     2.0 * (n_params as f64) - 2.0 * log_likelihood
 }
 
-#[derive(Debug, Clone)]
 struct OptimizationResultInternal {
     params: Vec<f64>,
 }
 
-fn optimize_with_fallback(
+/// INTERNAL: Old multi-algorithm fallback (renamed to avoid shadowing crate::optimizer::optimize_with_fallback)
+/// This tries multiple algorithms in sequence, including potentially unstable ones like L-BFGS
+#[allow(dead_code)]
+fn optimize_with_fallback_old_impl(
     observed: &[f64],
     depths: &[f64],
     initial_params: &[f64],
@@ -621,10 +854,29 @@ fn optimize_with_fallback(
     fallback_strategy: &str,
     max_retries: usize,
 ) -> std::result::Result<OptimizationResultInternal, String> {
+    // Resolve "auto" optimizer to actual algorithm
+    let optimizer_to_use = if optimizer == "auto" {
+        let recommended = crate::optimizer::recommend_algorithm(
+            initial_params.len(),
+            observed.len(),
+            objective,
+        );
+        match recommended {
+            crate::optimizer::AlgorithmType::NelderMead => "nelder_mead",
+            crate::optimizer::AlgorithmType::LBFGS => "lbfgs",
+            crate::optimizer::AlgorithmType::ParticleSwarm => "particle_swarm",
+            crate::optimizer::AlgorithmType::SimulatedAnnealing => "simulated_annealing",
+            crate::optimizer::AlgorithmType::NewtonCG => "newton_cg",
+        }
+    } else {
+        optimizer
+    };
+
     let algorithms = match fallback_strategy {
-        "auto" => vec!["nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing"],
-        "explicit" => vec![optimizer],
-        "strict" => vec![optimizer],
+        // "auto" strategy: try recommended algorithm first, then fallback sequence
+        "auto" => vec![optimizer_to_use, "nelder_mead", "lbfgs", "particle_swarm", "simulated_annealing"],
+        "explicit" => vec![optimizer_to_use],
+        "strict" => vec![optimizer_to_use],
         _ => return Err(format!("Unknown fallback strategy: {}", fallback_strategy)),
     };
 

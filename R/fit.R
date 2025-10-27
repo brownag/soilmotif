@@ -92,8 +92,15 @@ sm_motif <- function(observed, params,
     depth_vector <- depths
   }
 
-  # Scale shape function output to data range for optimal fitting
-  .fun <- \(eval_depths) .scaleprop(FUN(eval_depths, params, ...), c(min(observed), max(observed)))
+  # Scale shape function output to data range while preserving natural asymptotes
+  # Shape functions output [0,1] range; this maps proportionally to observed range
+  # without forcing asymptotes to exact min/max
+  .fun <- \(eval_depths) {
+    shape_output <- FUN(eval_depths, params, ...)
+    .scaleprop(shape_output, 
+               xlim = c(min(observed), max(observed)),
+               shape_range = c(0, 1))  # Shape functions have natural [0,1] range
+  }
   if (as_function)
     return(.fun)
   .fun(seq(ylim[1], ylim[2]))
@@ -405,7 +412,8 @@ sm_optim_r_impl <- function(observed, params, ...,
 # Replace sm_optim with dispatch wrapper that can route to Rust
 sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
                      OPTFUN = sm_optim_rmse, use_rust = FALSE,
-                     compare = FALSE, algorithm = "auto", depths = NULL) {
+                     compare = FALSE, algorithm = "auto", depths = NULL,
+                     uncertainty_method = "none") {
   # algorithm can be:
   #   "auto" - auto-select based on problem characteristics (default)
   #   "nelder_mead" - Nelder-Mead simplex method (gradient-free)
@@ -458,22 +466,55 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
       "wetting_front"  # default fallback
     )
 
-    # Determine algorithm
-    if (algorithm == "auto") {
-      algorithm <- sm_recommend_optimizer(length(params), length(observed), objective_type)
+    # NOTE: Do NOT convert "auto" to a specific algorithm here
+    # Let the Rust backend handle algorithm selection with robust fallback strategy
+    # This avoids the issue where R recommends L-BFGS which may diverge for some problems
+
+    # Validate uncertainty_method
+    valid_uncertainty_methods <- c("none", "hessian", "fisher", "jackknife", "profile_likelihood", "bootstrap")
+    if (!(uncertainty_method %in% valid_uncertainty_methods)) {
+      stop("Invalid uncertainty_method: '", uncertainty_method, "'. Must be one of: ", paste(valid_uncertainty_methods, collapse = ", "))
     }
 
     # Try Rust implementation with algorithm selection and fallback to R
+    cat("[DEBUG] sm_optim: Calling optimize with uncertainty_method='", uncertainty_method, "'\n", sep="")
     tryCatch({
-      result <- optimize_profile_rust_flexible(
-        as.numeric(observed),
-        as.numeric(depth_vector),
-        as.numeric(params),
-        as.character(shape_type),
-        TRUE,
-        as.character(objective_type),
-        as.character(algorithm)
-      )
+      # Call uncertainty-aware optimization if requested
+      if (uncertainty_method != "none") {
+        result_list <- optimize_with_uncertainty_rust(
+          as.numeric(observed),
+          as.numeric(depth_vector),
+          as.numeric(params),
+          as.character(shape_type),
+          TRUE,
+          as.character(objective_type),
+          as.character(uncertainty_method)
+        )
+        result <- result_list$params
+        std_errors <- result_list$std_errors
+        cov_matrix <- result_list$cov_matrix
+        correlations <- result_list$correlations
+        converged <- result_list$converged
+        final_cost <- result_list$final_cost
+      } else {
+        # Original path without uncertainty
+        result <- optimize_profile_rust_flexible(
+          as.numeric(observed),
+          as.numeric(depth_vector),
+          as.numeric(params),
+          as.character(shape_type),
+          TRUE,
+          as.character(objective_type),
+          as.character(algorithm)
+        )
+        std_errors <- NULL
+        cov_matrix <- NULL
+        correlations <- NULL
+        converged <- TRUE
+        final_cost <- NA
+      }
+
+      cat("[DEBUG] sm_optim: Rust returned params:", result, "\n")
 
       # Return result in proper object format
       predicted <- sm_motif(observed, result, FUN = FUN, depths = depth_vector, ...)
@@ -485,8 +526,13 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
         shape_family = shape_type,
         objective = objective_type,
         algorithm = algorithm,
-        converged = TRUE,  # Assume convergence if no error
-        message = "Optimization completed successfully"
+        converged = converged,
+        message = "Optimization completed successfully",
+        # Uncertainty quantification fields
+        std_errors = std_errors,
+        cov_matrix = cov_matrix,
+        correlations = correlations,
+        uncertainty_method = uncertainty_method
       )
       class(optimization_result) <- "soilmotif_optimization"
       return(optimization_result)

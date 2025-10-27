@@ -27,9 +27,12 @@ tidy.soilmotif_optimization <- function(x, ...) {
   }
   params <- x$params
 
-  # For now, we don't have standard errors from basic optimization
-  # This will be enhanced when bootstrap results are available
-  std_error <- rep(NA_real_, length(params))
+  # Use uncertainty estimates if available
+  std_error <- if (!is.null(x$std_errors) && length(x$std_errors) > 0) {
+    x$std_errors
+  } else {
+    rep(NA_real_, length(params))
+  }
 
   # Create parameter names
   term <- paste0("param_", seq_along(params))
@@ -47,12 +50,16 @@ tidy.soilmotif_optimization <- function(x, ...) {
     2 * pnorm(abs(statistic), lower.tail = FALSE)
   }
 
+  # Add uncertainty method info if available
+  uncertainty_method <- if (!is.null(x$uncertainty_method)) x$uncertainty_method else "none"
+
   data.frame(
     term = term,
     estimate = params,
     std.error = std_error,
     statistic = statistic,
     p.value = p_value,
+    uncertainty_method = uncertainty_method,
     row.names = NULL,
     stringsAsFactors = FALSE
   )
@@ -98,12 +105,26 @@ glance.soilmotif_optimization <- function(x, ...) {
   # AIC calculation (simplified)
   aic <- nobs * log(ss_res / nobs) + 2 * npar
 
+  # Covariance matrix information (condition number, determinant)
+  cov_condition_number <- NA_real_
+  cov_determinant <- NA_real_
+  if (!is.null(x$cov_matrix) && nrow(x$cov_matrix) > 0) {
+    cov_condition_number <- kappa(x$cov_matrix, exact = TRUE)
+    cov_determinant <- det(x$cov_matrix)
+  }
+
+  # Uncertainty method used
+  uncertainty_method <- if (!is.null(x$uncertainty_method)) x$uncertainty_method else "none"
+
   data.frame(
     rmse = rmse,
     r.squared = r_squared,
     nobs = nobs,
     npar = npar,
     aic = aic,
+    cov_condition_number = cov_condition_number,
+    cov_determinant = cov_determinant,
+    uncertainty_method = uncertainty_method,
     row.names = NULL,
     stringsAsFactors = FALSE
   )

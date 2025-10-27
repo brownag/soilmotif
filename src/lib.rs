@@ -265,47 +265,111 @@ fn optimize_profile_rust_flexible(
         }
     };
 
-    // Parse algorithm
-    let algorithm_type = match algorithm.to_lowercase().as_str() {
-        "nelder_mead" => optimizer::AlgorithmType::NelderMead,
-        "lbfgs" | "l-bfgs" => optimizer::AlgorithmType::LBFGS,
-        "particle_swarm" | "pso" => optimizer::AlgorithmType::ParticleSwarm,
-        "simulated_annealing" | "sa" => optimizer::AlgorithmType::SimulatedAnnealing,
-        "newton_cg" | "newton-cg" | "newtoncg" => optimizer::AlgorithmType::NewtonCG,
-        "auto" => {
-            // Auto-select based on problem characteristics
-            let n_params = initial_params.len();
-            let n_obs = observed.len();
-            optimizer::recommend_algorithm(n_params, n_obs, objective_type)
-        }
-        _ => {
-            eprintln!("Unknown algorithm '{}', using Nelder-Mead", algorithm);
-            optimizer::AlgorithmType::NelderMead
-        }
-    };
-
-    // Try optimization with specified algorithm
-    match optimizer::optimize_with_algorithm(
+    // Use optimize_with_fallback (tries Nelder-Mead first, then grid search)
+    match optimizer::optimize_with_fallback(
         &observed,
         &x,
         &initial_params,
         shape_type,
         ascending,
         objective,
-        algorithm_type,
     ) {
         Ok(result) => result.params,
         Err(e) => {
             eprintln!("Optimization failed: {}", e);
-            initial_params
+            initial_params.to_vec()
         }
     }
 }
 
+/// Optimize with uncertainty quantification
+///
+/// Called via R: `.Call("optimize_with_uncertainty_rust", observed, x, initial_params,
+///                      shape_type, ascending, objective_type, uncertainty_method, PACKAGE = "soilmotif")`
+///
+/// Returns a list with: params, std_errors, cov_matrix, correlations, convergence info
+#[extendr]
+fn optimize_with_uncertainty_rust(
+    observed: Vec<f64>,
+    x: Vec<f64>,
+    initial_params: Vec<f64>,
+    shape_type: &str,
+    ascending: bool,
+    objective_type: &str,
+    uncertainty_method: &str,
+) -> List {
+    // Create objective function by name
+    let objective = match optimizer::create_objective(objective_type) {
+        Ok(obj) => obj,
+        Err(e) => {
+            eprintln!("Failed to create objective '{}': {}", objective_type, e);
+            return list!(
+                params = initial_params,
+                std_errors = NULL_integer_vec(),
+                cov_matrix = NULL,
+                correlations = NULL,
+                error = e
+            );
+        }
+    };
+
+    // Use optimize_with_uncertainty
+    match optimizer::optimize_with_uncertainty(
+        &observed,
+        &x,
+        &initial_params,
+        shape_type,
+        ascending,
+        objective,
+        uncertainty_method,
+    ) {
+        Ok(result) => {
+            // Convert covariance matrix to R matrix (column-major)
+            let cov_r = if let Some(cov) = result.cov_matrix {
+                let n_params = result.params.len();
+                RMatrix::new_matrix(n_params, n_params, |i, j| cov[i][j])
+            } else {
+                RMatrix::new_matrix(0, 0, |_, _| 0.0)
+            };
+
+            let corr_r = if let Some(corr) = result.correlations {
+                let n_params = result.params.len();
+                RMatrix::new_matrix(n_params, n_params, |i, j| corr[i][j])
+            } else {
+                RMatrix::new_matrix(0, 0, |_, _| 0.0)
+            };
+
+            list!(
+                params = result.params,
+                std_errors = result.std_errors.unwrap_or_default(),
+                cov_matrix = cov_r,
+                correlations = corr_r,
+                converged = result.converged,
+                final_cost = result.final_cost
+            )
+        }
+        Err(e) => {
+            eprintln!("Optimization with uncertainty failed: {}", e);
+            list!(
+                params = initial_params,
+                std_errors = NULL_integer_vec(),
+                cov_matrix = NULL,
+                correlations = NULL,
+                error = e
+            )
+        }
+    }
+}
+
+// Helper function to return NULL vector for missing integer data
+fn NULL_integer_vec() -> Vec<i32> {
+    vec![]
+}
+
 /// Parametric bootstrap engine (Rust implementation)
-/// 
+///
 /// Called via R: `.Call("bootstrap_engine_rust", observed, depths, initial_params, config, PACKAGE = "soilmotif")`
-/// 
+///
 /// The `config` parameter is an R list with fields:
 /// - shape_type: character
 /// - objective_name: character
@@ -741,6 +805,7 @@ extendr_module! {
     fn shape_eval_rust;
     fn optimize_profile_rust;
     fn optimize_profile_rust_flexible;
+    fn optimize_with_uncertainty_rust;
     fn batch_optimize_profiles_rust;
     fn bootstrap_engine_rust;
     fn mahalanobis_boundary_detection_rust;

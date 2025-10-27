@@ -136,7 +136,7 @@ result <- sm_optim_bootstrap(
   initial_params = c(25, 100),
   depths = 1:200,
   shape_family = "sigmoid",
-  n_bootstrap = 1000,
+  n_bootstrap = 10,
   method = "auto"
 )
 
@@ -156,7 +156,7 @@ result_sieve <- sm_optim_bootstrap(
   depths = 1:200,
   initial_params = c(25, 100),
   shape_family = "sigmoid",
-  n_bootstrap = 1000,
+  n_bootstrap = 10,
   method = "sieve"
 )
 
@@ -165,7 +165,7 @@ result_param <- sm_optim_bootstrap(
   depths = 1:200,
   initial_params = c(25, 100),
   shape_family = "sigmoid",
-  n_bootstrap = 1000,
+  n_bootstrap = 10,
   method = "parametric"
 )
 ```
