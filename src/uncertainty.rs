@@ -968,6 +968,262 @@ struct OptimizationResult {
     aic: f64,
 }
 
+// Block bootstrap implementation
+// Preserves depth autocorrelation by resampling contiguous blocks of residuals
+pub fn block_bootstrap(
+    observed: &[f64],
+    depths: &[f64],
+    initial_params: &[f64],
+    shape_family: &str,
+    objective: &str,
+    optimizer: &str,
+    n_bootstrap: usize,
+    seed: Option<u64>,
+    fallback_strategy: &str,
+    max_retries: usize,
+    parallel: bool,
+    block_size: Option<usize>,  // Block size in observations; if None, use ceil(sqrt(n))
+) -> Result<BootstrapEngineResult, String> {
+    // Initialize result struct
+    let mut result = BootstrapEngineResult {
+        success_rate: 0.0,
+        parameter_samples: Vec::new(),
+        rmse_samples: Vec::new(),
+        r2_samples: Vec::new(),
+        aic_samples: Vec::new(),
+        failed_indices: Vec::new(),
+        message: String::new(),
+        ar1_coef: f64::NAN,
+        ar1_sigma2: f64::NAN,
+    };
+
+    let _ = seed;
+
+    // Step 1: Initial optimization on original data
+    let initial_fit = match perform_initial_optimization(
+        observed,
+        depths,
+        initial_params,
+        shape_family,
+        objective,
+        optimizer,
+        fallback_strategy,
+        max_retries,
+    ) {
+        Ok(fit) => fit,
+        Err(e) => {
+            result.message = format!("Initial optimization failed: {}", e);
+            return Ok(result);
+        }
+    };
+
+    // Compute fitted values
+    let fitted_normalized = match crate::shape_functions::eval_shape(
+        shape_family,
+        depths,
+        &initial_fit.params,
+        false,
+    ) {
+        Ok(f) => f,
+        Err(e) => {
+            result.message = format!("Failed to compute fitted values: {}", e);
+            return Ok(result);
+        }
+    };
+
+    // Scale fitted to data range
+    let obs_min = observed.iter().cloned().fold(f64::INFINITY, f64::min);
+    let obs_max = observed.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let obs_range = obs_max - obs_min;
+
+    let fitted: Vec<f64> = if obs_range < 1e-10 {
+        vec![obs_min; fitted_normalized.len()]
+    } else {
+        fitted_normalized.iter()
+            .map(|&f| obs_min + f * obs_range)
+            .collect()
+    };
+
+    // Compute residuals
+    // CRITICAL: Ensure observed and fitted have same length before residual computation
+    assert_eq!(observed.len(), fitted.len(),
+        "Observed ({}) and fitted ({}) must have same length",
+        observed.len(), fitted.len());
+
+    let residuals: Vec<f64> = observed
+        .iter()
+        .zip(fitted.iter())
+        .map(|(o, f)| o - f)
+        .collect();
+
+    let n = residuals.len();
+
+    // Determine block size: ceil(sqrt(n)) if not specified
+    let b = block_size.unwrap_or_else(|| {
+        let n = residuals.len();
+        ((n as f64).sqrt().ceil()) as usize
+    });
+
+    // Step 2: Block bootstrap resampling
+    let bootstrap_results: Vec<Option<BootstrapSample>> = if parallel {
+        (0..n_bootstrap)
+            .into_par_iter()
+            .map(|i| {
+                let local_seed = seed.map(|s| s + i as u64).unwrap_or_else(|| rand::random());
+                let mut local_rng = Pcg64::seed_from_u64(local_seed);
+
+                // Resample blocks of residuals
+                let synthetic_residuals = resample_blocks(&residuals, b, &mut local_rng);
+
+                // CRITICAL: Ensure synthetic_residuals has same length as fitted
+                assert_eq!(synthetic_residuals.len(), fitted.len(),
+                    "Synthetic residuals ({}) must equal fitted length ({})",
+                    synthetic_residuals.len(), fitted.len());
+
+                // Create synthetic observed with explicit length preservation
+                assert_eq!(fitted.len(), n, "Fitted must have length n");
+                let synthetic_observed: Vec<f64> = (0..n)
+                    .map(|i| fitted[i] + synthetic_residuals[i])
+                    .collect();
+                assert_eq!(synthetic_observed.len(), n, "Synthetic observed length must be {}, got {}", n, synthetic_observed.len());
+
+                // CRITICAL: Ensure synthetic_observed and depths match length
+                assert_eq!(synthetic_observed.len(), depths.len(),
+                    "Synthetic observed ({}) must match depths length ({})",
+                    synthetic_observed.len(), depths.len());
+
+                // Re-optimize
+                match perform_initial_optimization(
+                    &synthetic_observed,
+                    depths,
+                    &initial_fit.params,
+                    shape_family,
+                    objective,
+                    optimizer,
+                    fallback_strategy,
+                    max_retries,
+                ) {
+                    Ok(result) => Some(BootstrapSample {
+                        params: result.params,
+                        rmse: result.rmse,
+                        r2: result.r2,
+                        aic: result.aic,
+                    }),
+                    Err(_) => None,
+                }
+            })
+            .collect()
+    } else {
+        (0..n_bootstrap)
+            .map(|i| {
+                let local_seed = seed.map(|s| s + i as u64).unwrap_or_else(|| rand::random());
+                let mut local_rng = Pcg64::seed_from_u64(local_seed);
+
+                // Resample blocks of residuals
+                let synthetic_residuals = resample_blocks(&residuals, b, &mut local_rng);
+
+                // CRITICAL: Ensure synthetic_residuals has same length as fitted
+                assert_eq!(synthetic_residuals.len(), fitted.len(),
+                    "Synthetic residuals ({}) must equal fitted length ({})",
+                    synthetic_residuals.len(), fitted.len());
+
+                // Create synthetic observed with explicit length preservation
+                assert_eq!(fitted.len(), n, "Fitted must have length n");
+                let synthetic_observed: Vec<f64> = (0..n)
+                    .map(|i| fitted[i] + synthetic_residuals[i])
+                    .collect();
+                assert_eq!(synthetic_observed.len(), n, "Synthetic observed length must be {}, got {}", n, synthetic_observed.len());
+
+                // CRITICAL: Ensure synthetic_observed and depths match length
+                assert_eq!(synthetic_observed.len(), depths.len(),
+                    "Synthetic observed ({}) must match depths length ({})",
+                    synthetic_observed.len(), depths.len());
+
+                // Re-optimize
+                match perform_initial_optimization(
+                    &synthetic_observed,
+                    depths,
+                    &initial_fit.params,
+                    shape_family,
+                    objective,
+                    optimizer,
+                    fallback_strategy,
+                    max_retries,
+                ) {
+                    Ok(result) => Some(BootstrapSample {
+                        params: result.params,
+                        rmse: result.rmse,
+                        r2: result.r2,
+                        aic: result.aic,
+                    }),
+                    Err(_) => None,
+                }
+            })
+            .collect()
+    };
+
+    // Step 3: Collect results (same as parametric/sieve)
+    let mut param_samples = Vec::new();
+    let mut rmse_samples = Vec::new();
+    let mut r2_samples = Vec::new();
+    let mut aic_samples = Vec::new();
+
+    for sample_opt in bootstrap_results {
+        if let Some(sample) = sample_opt {
+            param_samples.push(sample.params);
+            rmse_samples.push(sample.rmse);
+            r2_samples.push(sample.r2);
+            aic_samples.push(sample.aic);
+        } else {
+            result.failed_indices.push(param_samples.len() as i32);
+        }
+    }
+
+    result.success_rate = if n_bootstrap > 0 {
+        param_samples.len() as f64 / n_bootstrap as f64
+    } else {
+        0.0
+    };
+
+    result.parameter_samples = param_samples;
+    result.rmse_samples = rmse_samples;
+    result.r2_samples = r2_samples;
+    result.aic_samples = aic_samples;
+    result.message = format!(
+        "Block bootstrap completed: {} successful, {} failed (block size = {})",
+        result.parameter_samples.len(),
+        result.failed_indices.len(),
+        b
+    );
+
+    Ok(result)
+}
+
+// Helper function: resample blocks of residuals
+fn resample_blocks(
+    residuals: &[f64],
+    block_size: usize,
+    rng: &mut impl Rng,
+) -> Vec<f64> {
+    let n = residuals.len();
+    let num_blocks = (n + block_size - 1) / block_size;  // ceil(n / block_size)
+
+    let mut synthetic_residuals = Vec::with_capacity(n);
+
+    // Resample blocks with replacement until we have at least n points
+    while synthetic_residuals.len() < n {
+        let block_idx = rng.random_range(0..num_blocks);
+        let start = block_idx * block_size;
+        let end = (start + block_size).min(n);
+
+        synthetic_residuals.extend_from_slice(&residuals[start..end]);
+    }
+
+    // Trim to exactly original length
+    synthetic_residuals.truncate(n);
+    synthetic_residuals
+}
+
 fn perform_initial_optimization(
     observed: &[f64],
     depths: &[f64],
@@ -1080,6 +1336,8 @@ fn compute_aic(rmse: f64, n_obs: usize, n_params: usize) -> f64 {
     2.0 * (n_params as f64) - 2.0 * log_likelihood
 }
 
+/// Internal optimization result (part of unused fallback implementation)
+#[allow(dead_code)]
 struct OptimizationResultInternal {
     params: Vec<f64>,
 }

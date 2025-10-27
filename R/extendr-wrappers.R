@@ -101,7 +101,7 @@ optimize_profile_rust <- function(observed, x, initial_params, shape_type, ascen
 #'
 #' Called via R: `.Call("optimize_profile_rust_flexible", observed, x, initial_params, 
 #'                      shape_type, ascending, objective_type, algorithm, PACKAGE = "soilmotif")`
-optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, algorithm) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, algorithm)
+optimize_profile_rust_flexible <- function(observed, x, initial_params, shape_type, ascending, objective_type, `_algorithm`) .Call(wrap__optimize_profile_rust_flexible, observed, x, initial_params, shape_type, ascending, objective_type, `_algorithm`)
 
 #' Optimize with uncertainty quantification
 #'

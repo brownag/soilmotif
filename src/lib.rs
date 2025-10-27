@@ -254,7 +254,7 @@ fn optimize_profile_rust_flexible(
     shape_type: &str,
     ascending: bool,
     objective_type: &str,
-    algorithm: &str,
+    _algorithm: &str,
 ) -> Vec<f64> {
     // Create objective function by name
     let objective = match optimizer::create_objective(objective_type) {
@@ -305,7 +305,7 @@ fn optimize_with_uncertainty_rust(
             eprintln!("Failed to create objective '{}': {}", objective_type, e);
             return list!(
                 params = initial_params,
-                std_errors = NULL_integer_vec(),
+                std_errors = null_integer_vec(),
                 cov_matrix = NULL,
                 correlations = NULL,
                 error = e
@@ -352,7 +352,7 @@ fn optimize_with_uncertainty_rust(
             eprintln!("Optimization with uncertainty failed: {}", e);
             list!(
                 params = initial_params,
-                std_errors = NULL_integer_vec(),
+                std_errors = null_integer_vec(),
                 cov_matrix = NULL,
                 correlations = NULL,
                 error = e
@@ -362,7 +362,9 @@ fn optimize_with_uncertainty_rust(
 }
 
 // Helper function to return NULL vector for missing integer data
-fn NULL_integer_vec() -> Vec<i32> {
+// (Currently unused - may be used for future FFI operations)
+#[allow(dead_code)]
+fn null_integer_vec() -> Vec<i32> {
     vec![]
 }
 
@@ -473,6 +475,28 @@ fn bootstrap_engine_rust(
                 max_retries,
                 parallel,
                 fallback,  // use_fallback parameter
+            ) {
+                Ok(res) => res,
+                Err(e) => {
+                    return list!(Error::from(e.to_string()));
+                }
+            }
+        }
+        "block" => {
+            // Block bootstrap - preserves autocorrelation naturally
+            match crate::uncertainty::block_bootstrap(
+                &observed,
+                &depths,
+                &initial_params,
+                &shape_type,
+                &objective_name,
+                &optimizer_name,
+                n_bootstrap,
+                seed_opt,
+                if fallback { "auto" } else { "strict" },
+                max_retries,
+                parallel,
+                None,  // Use default block size: ceil(sqrt(n))
             ) {
                 Ok(res) => res,
                 Err(e) => {

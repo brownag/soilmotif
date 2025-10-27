@@ -1,0 +1,3 @@
+# Ignore plot artifacts generated during testing
+*.pdf
+Rplots.*

@@ -120,63 +120,126 @@ In this case we find that the optimized parameters result in a steeper gradient 
 
 ## Uncertainty Quantification via Bootstrap
 
-{soilmotif} provides bootstrap methods to estimate confidence intervals for fitted parameters. The framework automatically selects the optimal resampling method based on data characteristics:
+{soilmotif} provides multiple bootstrap methods to estimate confidence intervals for fitted parameters. Each method handles autocorrelation differently:
 
-- **Parametric Bootstrap**: For sparse data (n <= threshold), residuals are resampled from a normal distribution
-- **Sieve Bootstrap**: For dense data (n > threshold), residuals follow an AR(1) process and are non-parametrically resampled
+- **Parametric Bootstrap**: Resamples residuals independently. Fast and simple, suitable when autocorrelation is weak or negligible.
+- **Block Bootstrap**: Resamples contiguous blocks of residuals with replacement. Preserves local autocorrelation naturally without model fitting. Recommended for depth-ordered data with unknown correlation structure.
+- **Sieve Bootstrap**: Fits an AR(1) model to residuals and resamples innovations. More efficient when autocorrelation follows AR(1) dynamics exactly.
 
-### Usage
+### Parametric Bootstrap (Independence Assumption)
+
+For the clay spline example, we use parametric bootstrap which assumes residuals are independent:
 
 ```{r}
 library(soilmotif)
 
-# Automatic method selection based on data size
-result <- sm_optim_bootstrap(
-  observed = clay_spline,
-  initial_params = c(25, 100),
-  depths = 1:200,
-  shape_family = "sigmoid",
-  n_bootstrap = 10,
-  method = "auto"
-)
-
-# View results with confidence intervals
-print(result)
-summary(result)
-
-# Access specific intervals (stored in $summary sublist)
-result$summary$param_ci_lower   # Lower bounds (95% CI)
-result$summary$param_ci_upper   # Upper bounds (95% CI)
-result$method_used              # Which method was applied
-result$ar1_coef                 # AR(1) coefficient (sieve only)
-
-# Explicit method selection
-result_sieve <- sm_optim_bootstrap(
-  observed = clay_spline,
-  depths = 1:200,
-  initial_params = c(25, 100),
-  shape_family = "sigmoid",
-  n_bootstrap = 10,
-  method = "sieve"
-)
-
+# Parametric bootstrap - assumes independent residuals
 result_param <- sm_optim_bootstrap(
   observed = clay_spline,
   depths = 1:200,
   initial_params = c(25, 100),
   shape_family = "sigmoid",
-  n_bootstrap = 10,
-  method = "parametric"
+  n_bootstrap = 100,
+  method = "parametric",
+  seed = 42
 )
+
+cat("Parametric Bootstrap Results:\n")
+cat("Param 1 (position): ",
+    sprintf("%.2f +/- %.2f", result_param$summary$param_mean[1],
+                            result_param$summary$param_sd[1]), "\n")
+cat("Param 2 (steepness): ",
+    sprintf("%.2f +/- %.2f", result_param$summary$param_mean[2],
+                            result_param$summary$param_sd[2]), "\n")
 ```
 
-### AR(1) Modeling for Dense Data
+### Block Bootstrap (Preserves Autocorrelation)
 
-When the sieve bootstrap is applied, residuals are modeled using an AR(1) process:
+For the same data, block bootstrap preserves depth autocorrelation by resampling contiguous blocks:
 
-**r_t = phi * r_(t-1) + epsilon_t**
+```{r}
+# Block bootstrap - preserves autocorrelation through block resampling
+result_block <- sm_optim_bootstrap(
+  observed = clay_spline,
+  depths = 1:200,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 100,
+  method = "block",
+  seed = 42
+)
 
-The AR(1) coefficient is estimated using Yule-Walker equations and exposed in the results. This approach is more appropriate for spatially correlated residuals commonly found in soil profiles.
+cat("Block Bootstrap Results:\n")
+cat("Param 1 (position): ",
+    sprintf("%.2f +/- %.2f", result_block$summary$param_mean[1],
+                           result_block$summary$param_sd[1]), "\n")
+cat("Param 2 (steepness): ",
+    sprintf("%.2f +/- %.2f", result_block$summary$param_mean[2],
+                           result_block$summary$param_sd[2]), "\n")
+
+# Block bootstrap typically gives wider confidence intervals due to autocorrelation
+cat("\nUncertainty Ratio (Block / Parametric):\n")
+cat("Param 1:", sprintf("%.2f", result_block$summary$param_sd[1] / result_param$summary$param_sd[1]), "\n")
+cat("Param 2:", sprintf("%.2f", result_block$summary$param_sd[2] / result_param$summary$param_sd[2]), "\n")
+```
+
+### Sieve Bootstrap (AR(1) Modeling)
+
+Sieve bootstrap is effective when residuals follow strong AR(1) trends. This works best when you have data with clear autoregressive structure:
+
+```{r}
+# Create synthetic data with strong AR(1) trend (phi = 0.7)
+set.seed(42)
+depths_ar <- 1:200
+# Start with sigmoid shape
+base_clay <- sm_motif(depths_ar, c(25, 100))
+
+# Add AR(1) residuals (phi = 0.7 means strong positive autocorrelation)
+phi <- 0.7
+sigma <- 3
+residuals_ar1 <- numeric(length(depths_ar))
+residuals_ar1[1] <- rnorm(1, 0, sigma)
+for (i in 2:length(depths_ar)) {
+  residuals_ar1[i] <- phi * residuals_ar1[i-1] + rnorm(1, 0, sigma)
+}
+clay_ar1 <- base_clay + residuals_ar1
+
+# Sieve bootstrap with AR(1) structure
+result_sieve <- sm_optim_bootstrap(
+  observed = clay_ar1,
+  depths = depths_ar,
+  initial_params = c(25, 100),
+  shape_family = "sigmoid",
+  n_bootstrap = 100,
+  method = "sieve",
+  seed = 42
+)
+
+cat("Sieve Bootstrap Results (AR(1) data, phi = 0.7):\n")
+cat("Estimated AR(1) coefficient: ", sprintf("%.4f", result_sieve$ar1_coef), "\n")
+cat("Param 1: ", sprintf("%.2f +/- %.2f", result_sieve$summary$param_mean[1],
+                                         result_sieve$summary$param_sd[1]), "\n")
+cat("Param 2: ", sprintf("%.2f +/- %.2f", result_sieve$summary$param_mean[2],
+                                         result_sieve$summary$param_sd[2]), "\n")
+```
+
+### Comparison: Which Method to Use?
+
+**Use Parametric Bootstrap if:**
+- Residuals appear to be white noise (uncorrelated)
+- You need maximum computational speed
+- Data size is small (n < 50)
+
+**Use Block Bootstrap if:**
+- You have depth-ordered or spatially-ordered data
+- Autocorrelation structure is unknown
+- You want a robust, parameter-free method
+- ✓ Recommended for most soil profile data
+
+**Use Sieve Bootstrap if:**
+- You've verified AR(1) structure in residuals (plot ACF)
+- Autocorrelation is moderate to strong and persistent
+- You want slightly narrower intervals for well-behaved AR(1) data
 
 ## Rust Backend (High-Performance)
 

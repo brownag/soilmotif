@@ -477,7 +477,6 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
     }
 
     # Try Rust implementation with algorithm selection and fallback to R
-    cat("[DEBUG] sm_optim: Calling optimize with uncertainty_method='", uncertainty_method, "'\n", sep="")
     tryCatch({
       # Call uncertainty-aware optimization if requested
       if (uncertainty_method != "none") {
@@ -513,8 +512,6 @@ sm_optim <- function(observed, params, ..., FUN = sm_shape_sigmoid,
         converged <- TRUE
         final_cost <- NA
       }
-
-      cat("[DEBUG] sm_optim: Rust returned params:", result, "\n")
 
       # Return result in proper object format
       predicted <- sm_motif(observed, result, FUN = FUN, depths = depth_vector, ...)

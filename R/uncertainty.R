@@ -16,7 +16,8 @@
 #' @param optimizer Character string specifying the optimization algorithm ("auto", "nelder_mead", "lbfgs", etc.)
 #' @param n_bootstrap Integer number of bootstrap samples (default: 1000)
 #' @param method Character string specifying bootstrap method: "auto" (default, select based on data size),
-#'   "parametric" (resample residuals independently), or "sieve" (AR(1) model-based resampling)
+#'   "parametric" (resample residuals independently), "sieve" (AR(1) model-based resampling),
+#'   or "block" (block bootstrap preserving autocorrelation)
 #' @param sieve_threshold Integer threshold for automatic method selection (default: 20).
 #'   If method="auto", uses parametric if length(observed) <= sieve_threshold, else sieve
 #' @param seed Integer seed for reproducible results, or NULL for random (default: NULL)
@@ -52,6 +53,10 @@
 #' **Sieve Bootstrap**: Fits an AR(1) model to residuals, then resamples innovations.
 #' Preserves autocorrelation structure in residuals. Suitable for high-resolution data.
 #' Falls back to parametric if AR(1) fitting fails (unless method="sieve" explicitly).
+#'
+#' **Block Bootstrap**: Resamples contiguous blocks of residuals with replacement.
+#' Naturally preserves local autocorrelation without model fitting. Robust to any
+#' correlation structure (AR, ARMA, etc.). Default block size is ceil(sqrt(n)).
 #'
 #' ## Method Selection
 #'
@@ -92,6 +97,16 @@
 #'   n_bootstrap = 100
 #' )
 #'
+#' # Use block bootstrap to preserve autocorrelation without AR(1) fitting
+#' result_block <- sm_optim_bootstrap(
+#'   observed = observed,
+#'   depths = depths,
+#'   initial_params = c(100, 20, 0.1, 50),
+#'   shape_family = "sigmoid",
+#'   method = "block",
+#'   n_bootstrap = 100
+#' )
+#'
 #' # View parameter confidence intervals
 #' print(result$summary$param_ci_lower)
 #' print(result$summary$param_ci_upper)
@@ -106,7 +121,7 @@ sm_optim_bootstrap <- function(
   objective = "rmse",
   optimizer = "auto",
   n_bootstrap = 1000L,
-  method = c("auto", "parametric", "sieve"),
+  method = c("auto", "parametric", "sieve", "block"),
   sieve_threshold = 10000L,
   seed = NULL,
   fallback_strategy = c("auto", "explicit", "strict"),
@@ -283,7 +298,7 @@ sm_optim_bootstrap <- function(
   # If method is length > 1, it's the default (from match.arg call later)
   # Otherwise, it should be a single value
   if (length(method) == 1) {
-    valid_methods <- c("auto", "parametric", "sieve")
+    valid_methods <- c("auto", "parametric", "sieve", "block")
     if (!method %in% valid_methods) {
       stop("method must be one of: ", paste(valid_methods, collapse = ", "))
     }

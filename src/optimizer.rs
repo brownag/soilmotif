@@ -1239,6 +1239,8 @@ pub fn optimize_with_algorithm(
 
 /// Wrapper that applies parameter bounds to a cost function
 /// Returns a large penalty if parameters go outside [lower, upper]
+/// (Currently unused - preserved for potential future bounded optimization)
+#[allow(dead_code)]
 #[derive(Clone)]
 struct BoundedCostFunction<T: CostFunction + Clone> {
     inner: T,
