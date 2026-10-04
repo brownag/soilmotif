@@ -1,4 +1,32 @@
-# soilmotif 0.1.0
+# soilmotif 0.1.0 (Current Development)
+
+## Phase 3 Features (Advanced Analysis)
+* **Uncertainty Quantification (Phase 3e)**:
+  - Added block bootstrap for autocorrelated residuals (preserves depth-ordered structure)
+  - Added parametric bootstrap for independent residuals
+  - Added sieve bootstrap for AR(1) autocorrelated data
+  - Full integration with Rust optimization backend
+  - Bootstrap methods for all 7 shape families
+
+* **Ecosystem Integration (Phase 3f)**:
+  - Full broom methods (tidy, glance, augment) for R ecosystem compatibility
+  - Enhanced ggplot2 integration with data preparation helpers
+  - Bayesian workflow support with prior generation for Stan and brms
+  - Complete visualization system for bootstrap results
+
+* **Weathering Indices Analysis**:
+  - Comprehensive element ratio calculations
+  - Depth-integrated weathering metrics
+  - Element mobility and depletion quantification
+  - Weathering stage classification
+
+* **Visualization Improvements**:
+  - Base R plotting with bootstrap uncertainty bands
+  - Domain-specific weathering visualization functions
+  - Dual-mode visualization (base R and ggplot2)
+  - Interactive horizon and fuzzy clustering plots
+
+## Previous Release Highlights (0.1.0 Initial)
 
 * Major release with automated model selection and data preprocessing
 * Added `fit_motif_auto()` for automatic fitting and ranking of all 7 motif types

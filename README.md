@@ -310,8 +310,6 @@ sm_rust_backend_available()
 # Single profile optimization with Rust
 profile <- c(rep(10, 50), seq(10, 40, length.out = 100), rep(40, 50))
 result <- sm_optim(profile, c(100, 20), use_rust = TRUE)
-#> [DEBUG] sm_optim: Calling optimize with uncertainty_method='none'
-#> [DEBUG] sm_optim: Rust returned params: 26.86862 174.1314
 
 # Batch processing (ideal for raster grid cells)
 profiles <- list(
